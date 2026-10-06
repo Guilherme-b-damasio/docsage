@@ -8,16 +8,28 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from docsage import __version__
-from docsage.container import DEFAULT_INDEX_PATH, Container, Settings
+from docsage.container import Container, load_settings
+from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.interfaces.serializers import answer_to_dict, dumps, search_results_to_dict
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    container = Container(
-        Settings(index_path=args.index, model=getattr(args, "model", None))
-    )
-    return args.handler(container, args)
+    try:
+        settings = load_settings(
+            _config_path(args.config), index_path=args.index, model=getattr(args, "model", None)
+        )
+    except ConfigError as error:
+        print(f"docsage: {error}", file=sys.stderr)
+        return 2
+    return args.handler(Container(settings), args)
+
+
+def _config_path(explicit: Path | None) -> Path | None:
+    if explicit is not None:
+        return explicit
+    default = Path(CONFIG_FILENAME)
+    return default if default.is_file() else None
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -26,7 +38,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument(
-        "--index", type=Path, default=DEFAULT_INDEX_PATH, help="index file location"
+        "--index", type=Path, default=None, help="index file (default: .docsage/index.json)"
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help=f"settings file (default: ./{CONFIG_FILENAME} if present)",
     )
     commands = parser.add_subparsers(required=True)
 
