@@ -9,6 +9,7 @@ from pathlib import Path
 
 from docsage import __version__
 from docsage.container import DEFAULT_INDEX_PATH, Container, Settings
+from docsage.interfaces.serializers import answer_to_dict, dumps, search_results_to_dict
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -43,12 +44,14 @@ def _parser() -> argparse.ArgumentParser:
     search = commands.add_parser("search", help="show the best matching chunks")
     search.add_argument("query")
     search.add_argument("-k", "--top-k", type=int, default=5)
+    search.add_argument("--json", action="store_true", help="print results as JSON")
     search.set_defaults(handler=_search)
 
     ask = commands.add_parser("ask", help="answer a question with Claude")
     ask.add_argument("question")
     ask.add_argument("-k", "--top-k", type=int, default=5)
     ask.add_argument("--model", default=None)
+    ask.add_argument("--json", action="store_true", help="print the answer as JSON")
     ask.set_defaults(handler=_ask)
     return parser
 
@@ -74,6 +77,9 @@ def _remove(container: Container, args: argparse.Namespace) -> int:
 
 def _search(container: Container, args: argparse.Namespace) -> int:
     results = container.retriever().search(args.query, args.top_k)
+    if args.json:
+        print(dumps(search_results_to_dict(args.query, results)))
+        return 0 if results else 1
     if not results:
         print("No matches.")
         return 1
@@ -85,6 +91,9 @@ def _search(container: Container, args: argparse.Namespace) -> int:
 
 def _ask(container: Container, args: argparse.Namespace) -> int:
     answer = container.question_answering_service().ask(args.question, args.top_k)
+    if args.json:
+        print(dumps(answer_to_dict(answer)))
+        return 0
     print(answer.text)
     if answer.sources:
         print("\nSources:")

@@ -16,6 +16,9 @@ docsage remove ./docs/old-notes.md   # or a whole folder
 Re-running `index` only processes files whose content changed since the last run;
 pass `--force` to rebuild every document.
 
+`search` and `ask` accept `--json` to print machine-readable output (ranked chunks with
+scores, or the answer with its cited sources), handy for scripts and other tools.
+
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 

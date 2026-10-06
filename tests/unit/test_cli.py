@@ -1,3 +1,5 @@
+import json
+
 from docsage.interfaces.cli import main
 
 
@@ -44,3 +46,31 @@ def test_search_ignores_stopwords(tmp_path):
 
     assert main(["--index", str(index), "search", "what is the"]) == 1
     assert main(["--index", str(index), "search", "qual é a capital"]) == 0
+
+
+def test_search_json_output(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "alpha", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["query"] == "alpha"
+    assert payload["results"][0]["chunk"]["source"].endswith("a.md")
+
+    assert main(["--index", str(index), "search", "missing", "--json"]) == 1
+    assert json.loads(capsys.readouterr().out)["results"] == []
+
+
+def test_ask_json_output(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    index = tmp_path / "index.json"
+    # Empty index: the service answers without calling the generator.
+    assert main(["--index", str(index), "ask", "anything?", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "question": "anything?",
+        "answer": "No relevant context found in the index.",
+        "sources": [],
+    }
