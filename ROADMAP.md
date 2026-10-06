@@ -13,7 +13,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] `docsage remove <path>` to drop a document from the index
 
 ## Milestone 0.2: Foundations for integrations
-- [ ] `--json` output for `search` and `ask` (shared serializers in `interfaces/`)
+- [x] `--json` output for `search` and `ask` (shared serializers in `interfaces/`)
 - [ ] Config file support (`docsage.toml`) loaded into `Settings`
 - [ ] `docsage stats`: documents, chunks, tokens, top terms, index size
 - [ ] Store page numbers for PDF chunks and show them in citations
