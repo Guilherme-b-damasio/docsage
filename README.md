@@ -19,6 +19,18 @@ pass `--force` to rebuild every document.
 `search` and `ask` accept `--json` to print machine-readable output (ranked chunks with
 scores, or the answer with its cited sources), handy for scripts and other tools.
 
+### Configuration
+
+Put a `docsage.toml` in the folder you run `docsage` from (or pass `--config path`)
+to change the defaults. Every key is optional; command-line flags win over the file.
+
+```toml
+index_path = ".docsage/index.json"   # relative paths are resolved from this file's folder
+chunk_size = 200                     # words per chunk
+chunk_overlap = 40                   # words shared between consecutive chunks
+model = "claude-opus-5-5"            # model used by `ask`
+```
+
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 
