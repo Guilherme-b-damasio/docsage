@@ -103,3 +103,14 @@ def test_repository_builds_retrievers_with_the_factory(tmp_path):
     restored = repository.load()
     assert restored.search("are", top_k=3) == []
     assert restored.search("purr", top_k=1)[0].chunk.id == "cats"
+
+
+def test_repository_reports_index_size(tmp_path):
+    repository = JsonIndexRepository(tmp_path / "index.json")
+    assert repository.size_bytes() == 0
+
+    retriever = BM25Retriever()
+    retriever.add([Chunk("a#0", "a.md", "alpha", 0)])
+    repository.save(retriever)
+
+    assert repository.size_bytes() == (tmp_path / "index.json").stat().st_size > 0

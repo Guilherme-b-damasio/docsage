@@ -100,6 +100,9 @@ class JsonIndexRepository:
         payload = {"version": 1, "chunks": [asdict(c) for c in retriever.chunks()]}
         self._path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
+    def size_bytes(self) -> int:
+        return self._path.stat().st_size if self._path.exists() else 0
+
     def load(self) -> BM25Retriever:
         retriever = self._retriever_factory()
         if self._path.exists():
