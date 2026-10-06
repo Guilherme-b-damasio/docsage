@@ -8,7 +8,7 @@ Work is picked from the top of each section. Check items off as they land on `de
 - [ ] Re-ranking step with Claude for the top-k candidates
 - [ ] Stopword lists for English and Portuguese in the tokenizer
 - [ ] Incremental indexing: skip files whose content hash has not changed
-- [ ] `docsage remove <path>` to drop a document from the index
+- [x] `docsage remove <path>` to drop a document from the index
 
 ## Ingestion
 - [ ] HTML loader (strip tags, keep headings)

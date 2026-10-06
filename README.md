@@ -9,6 +9,7 @@ pip install -e ".[pdf]"
 docsage index ./docs
 docsage search "how is the index persisted?"
 docsage ask "what chunking strategy does the project use?"
+docsage remove ./docs/old-notes.md   # or a whole folder
 ```
 
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
