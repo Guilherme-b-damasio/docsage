@@ -65,6 +65,32 @@ class IndexingService:
         raise UnsupportedFileError(f"No loader for {path.suffix or path.name}")
 
 
+@dataclass(frozen=True)
+class RemovalReport:
+    documents: tuple[str, ...]
+    chunks: int
+
+
+class RemovalService:
+    """Drops a file, or every file under a folder, from the index."""
+
+    def __init__(self, retriever: Retriever, repository: IndexRepository) -> None:
+        self._retriever = retriever
+        self._repository = repository
+
+    def remove(self, path: Path) -> RemovalReport:
+        sources = sorted({chunk.source for chunk in self._retriever.chunks()})
+        matched = tuple(source for source in sources if _is_within(Path(source), path))
+        chunks = sum(self._retriever.remove(source) for source in matched)
+        if matched:
+            self._repository.save(self._retriever)
+        return RemovalReport(matched, chunks)
+
+
+def _is_within(candidate: Path, target: Path) -> bool:
+    return candidate == target or target in candidate.parents
+
+
 class QuestionAnsweringService:
     """Retrieves relevant chunks and asks the generator for a grounded answer."""
 

@@ -1,7 +1,12 @@
 from pathlib import Path
 
-from docsage.application.services import IndexingService, QuestionAnsweringService
-from docsage.domain.models import Document
+from docsage.application.services import (
+    IndexingService,
+    QuestionAnsweringService,
+    RemovalReport,
+    RemovalService,
+)
+from docsage.domain.models import Chunk, Document
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.chunking import SlidingWindowChunker
 from docsage.infrastructure.loaders import PlainTextLoader
@@ -40,6 +45,45 @@ def test_indexing_skips_unsupported_files(tmp_path: Path):
     assert (report.documents, report.chunks) == (1, 1)
     assert report.skipped == (str(tmp_path / "image.png"),)
     assert repository.saved is not None
+
+
+def _indexed(*sources: str) -> BM25Retriever:
+    retriever = BM25Retriever()
+    retriever.add(
+        Chunk(id=f"c{i}", source=source, text=f"text {i}", position=0)
+        for i, source in enumerate(sources)
+    )
+    return retriever
+
+
+def test_removal_drops_a_single_file():
+    retriever = _indexed(str(Path("docs/a.md")), str(Path("docs/b.md")))
+    repository = InMemoryRepository()
+
+    report = RemovalService(retriever, repository).remove(Path("docs/a.md"))
+
+    assert report.documents == (str(Path("docs/a.md")),)
+    assert report.chunks == 1
+    assert [chunk.source for chunk in retriever.chunks()] == [str(Path("docs/b.md"))]
+    assert repository.saved is retriever
+
+
+def test_removal_of_a_folder_drops_everything_under_it():
+    retriever = _indexed(
+        str(Path("docs/a.md")), str(Path("docs/sub/b.md")), str(Path("docs-old/c.md"))
+    )
+
+    report = RemovalService(retriever, InMemoryRepository()).remove(Path("docs"))
+
+    assert report.documents == (str(Path("docs/a.md")), str(Path("docs/sub/b.md")))
+    assert len(retriever) == 1
+
+
+def test_removal_without_matches_does_not_save():
+    repository = InMemoryRepository()
+    report = RemovalService(_indexed("a.md"), repository).remove(Path("other.md"))
+    assert report == RemovalReport((), 0)
+    assert repository.saved is None
 
 
 def test_question_answering_passes_retrieved_context_to_generator():
