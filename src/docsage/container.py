@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from docsage.application.services import (
     IndexingService,
@@ -13,6 +14,7 @@ from docsage.application.services import (
 from docsage.domain.ports import Retriever
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import SlidingWindowChunker
+from docsage.infrastructure.config import read_config
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
 
@@ -25,6 +27,13 @@ class Settings:
     chunk_size: int = 200
     chunk_overlap: int = 40
     model: str | None = None
+
+
+def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
+    """Builds settings from defaults, then the config file, then non-None overrides."""
+    values = read_config(config_path) if config_path else {}
+    values.update({key: value for key, value in overrides.items() if value is not None})
+    return replace(Settings(), **values)
 
 
 class Container:

@@ -74,3 +74,33 @@ def test_ask_json_output(tmp_path, capsys, monkeypatch):
         "answer": "No relevant context found in the index.",
         "sources": [],
     }
+
+
+def test_config_file_sets_index_path(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "docsage.toml").write_text('index_path = "store/idx.json"\n', encoding="utf-8")
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+
+    assert main(["index", "a.md"]) == 0
+    assert (tmp_path / "store" / "idx.json").is_file()
+    assert main(["search", "alpha"]) == 0
+
+
+def test_index_flag_overrides_config_file(tmp_path, capsys):
+    config = tmp_path / "custom.toml"
+    config.write_text('index_path = "from-config.json"\n', encoding="utf-8")
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    index = tmp_path / "from-flag.json"
+
+    main(["--config", str(config), "--index", str(index), "index", str(tmp_path / "a.md")])
+
+    assert index.is_file()
+    assert not (tmp_path / "from-config.json").exists()
+
+
+def test_invalid_config_file_is_reported(tmp_path, capsys):
+    config = tmp_path / "bad.toml"
+    config.write_text("chunk_size = 'big'\n", encoding="utf-8")
+
+    assert main(["--config", str(config), "search", "x"]) == 2
+    assert "chunk_size" in capsys.readouterr().err
