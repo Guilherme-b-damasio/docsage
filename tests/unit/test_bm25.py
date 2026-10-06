@@ -39,6 +39,22 @@ def test_re_adding_chunk_replaces_it():
     assert retriever.search("purr", top_k=1) == []
 
 
+def test_remove_drops_all_chunks_of_a_source():
+    retriever = _retriever()
+    retriever.add([Chunk(id="cats-1", source="cats.txt", text="Cats sleep a lot.", position=1)])
+
+    assert retriever.remove("cats.txt") == 2
+    assert len(retriever) == 2
+    assert retriever.search("cats", top_k=3) == []
+    assert retriever.search("fetch", top_k=1)[0].chunk.id == "dogs"
+
+
+def test_remove_unknown_source_is_a_no_op():
+    retriever = _retriever()
+    assert retriever.remove("missing.txt") == 0
+    assert len(retriever) == 3
+
+
 def test_repository_round_trip(tmp_path):
     repository = JsonIndexRepository(tmp_path / "index.json")
     repository.save(_retriever())
