@@ -52,6 +52,7 @@ class IndexingService:
                 skipped.append(str(path))
                 continue
             new_chunks = self._chunker.split(document)
+            self._retriever.remove(document.source)
             self._retriever.add(new_chunks)
             documents += 1
             chunks += len(new_chunks)

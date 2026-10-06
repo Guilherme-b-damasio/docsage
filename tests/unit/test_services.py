@@ -47,6 +47,24 @@ def test_indexing_skips_unsupported_files(tmp_path: Path):
     assert repository.saved is not None
 
 
+def test_reindexing_a_shrunk_file_drops_its_stale_chunks(tmp_path: Path):
+    path = tmp_path / "notes.md"
+    path.write_text("one two three four five six")
+    retriever = BM25Retriever()
+    service = IndexingService(
+        [PlainTextLoader()],
+        SlidingWindowChunker(size=2, overlap=0),
+        retriever,
+        InMemoryRepository(),
+    )
+    service.index([path])
+
+    path.write_text("one two")
+    service.index([path])
+
+    assert [chunk.text for chunk in retriever.chunks()] == ["one two"]
+
+
 def _indexed(*sources: str) -> BM25Retriever:
     retriever = BM25Retriever()
     retriever.add(
