@@ -33,6 +33,10 @@ def _parser() -> argparse.ArgumentParser:
     index.add_argument("paths", nargs="+", type=Path)
     index.set_defaults(handler=_index)
 
+    remove = commands.add_parser("remove", help="drop a file or folder from the index")
+    remove.add_argument("path", type=Path)
+    remove.set_defaults(handler=_remove)
+
     search = commands.add_parser("search", help="show the best matching chunks")
     search.add_argument("query")
     search.add_argument("-k", "--top-k", type=int, default=5)
@@ -51,6 +55,15 @@ def _index(container: Container, args: argparse.Namespace) -> int:
     print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
     for path in report.skipped:
         print(f"  skipped (unsupported): {path}", file=sys.stderr)
+    return 0
+
+
+def _remove(container: Container, args: argparse.Namespace) -> int:
+    report = container.removal_service().remove(args.path)
+    if not report.documents:
+        print(f"Nothing indexed under {args.path}.", file=sys.stderr)
+        return 1
+    print(f"Removed {len(report.documents)} documents ({report.chunks} chunks).")
     return 0
 
 

@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from docsage.application.services import IndexingService, QuestionAnsweringService
+from docsage.application.services import (
+    IndexingService,
+    QuestionAnsweringService,
+    RemovalService,
+)
 from docsage.domain.ports import Retriever
 from docsage.infrastructure.bm25 import JsonIndexRepository
 from docsage.infrastructure.chunking import SlidingWindowChunker
@@ -36,6 +40,9 @@ class Container:
             retriever=self._repository.load(),
             repository=self._repository,
         )
+
+    def removal_service(self) -> RemovalService:
+        return RemovalService(self._repository.load(), self._repository)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         # Imported lazily so commands that never call the API don't need credentials.

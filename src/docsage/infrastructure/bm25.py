@@ -52,6 +52,12 @@ class BM25Retriever:
         scored.sort(key=lambda result: result.score, reverse=True)
         return scored[:top_k]
 
+    def remove(self, source: str) -> int:
+        doomed = [chunk_id for chunk_id, chunk in self._chunks.items() if chunk.source == source]
+        for chunk_id in doomed:
+            self._remove(chunk_id)
+        return len(doomed)
+
     def chunks(self) -> list[Chunk]:
         return list(self._chunks.values())
 
