@@ -65,3 +65,17 @@ def test_repository_round_trip(tmp_path):
 
 def test_loading_missing_index_returns_empty_retriever(tmp_path):
     assert len(JsonIndexRepository(tmp_path / "missing.json").load()) == 0
+
+
+def test_repository_keeps_content_hash_and_reads_old_indexes(tmp_path):
+    path = tmp_path / "index.json"
+    retriever = BM25Retriever()
+    retriever.add([Chunk(id="a", source="a.txt", text="alpha", position=0, content_hash="abc")])
+    JsonIndexRepository(path).save(retriever)
+    assert JsonIndexRepository(path).load().chunks()[0].content_hash == "abc"
+
+    path.write_text(
+        '{"version": 1, "chunks": [{"id": "a", "source": "a.txt", "text": "x", "position": 0}]}',
+        encoding="utf-8",
+    )
+    assert JsonIndexRepository(path).load().chunks()[0].content_hash == ""

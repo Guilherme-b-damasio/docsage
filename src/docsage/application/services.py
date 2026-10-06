@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from docsage.domain.models import Answer, Document
@@ -25,6 +26,7 @@ class IndexingReport:
     documents: int
     chunks: int
     skipped: tuple[str, ...]
+    unchanged: int = 0
 
 
 class IndexingService:
@@ -42,8 +44,11 @@ class IndexingService:
         self._retriever = retriever
         self._repository = repository
 
-    def index(self, paths: Iterable[Path]) -> IndexingReport:
-        documents = chunks = 0
+    def index(self, paths: Iterable[Path], force: bool = False) -> IndexingReport:
+        """Indexes ``paths``; files whose content is already indexed are skipped
+        unless ``force`` is set."""
+        known = {} if force else self._known_hashes()
+        documents = chunks = unchanged = 0
         skipped: list[str] = []
         for path in paths:
             try:
@@ -51,13 +56,23 @@ class IndexingService:
             except UnsupportedFileError:
                 skipped.append(str(path))
                 continue
-            new_chunks = self._chunker.split(document)
+            digest = content_hash(document)
+            if known.get(document.source) == digest:
+                unchanged += 1
+                continue
+            new_chunks = [
+                replace(chunk, content_hash=digest) for chunk in self._chunker.split(document)
+            ]
             self._retriever.remove(document.source)
             self._retriever.add(new_chunks)
             documents += 1
             chunks += len(new_chunks)
-        self._repository.save(self._retriever)
-        return IndexingReport(documents, chunks, tuple(skipped))
+        if documents:
+            self._repository.save(self._retriever)
+        return IndexingReport(documents, chunks, tuple(skipped), unchanged)
+
+    def _known_hashes(self) -> dict[str, str]:
+        return {chunk.source: chunk.content_hash for chunk in self._retriever.chunks()}
 
     def _load(self, path: Path) -> Document:
         for loader in self._loaders:
@@ -90,6 +105,10 @@ class RemovalService:
 
 def _is_within(candidate: Path, target: Path) -> bool:
     return candidate == target or target in candidate.parents
+
+
+def content_hash(document: Document) -> str:
+    return hashlib.sha256(document.text.encode("utf-8")).hexdigest()
 
 
 class QuestionAnsweringService:
