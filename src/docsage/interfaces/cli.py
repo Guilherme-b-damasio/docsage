@@ -31,6 +31,9 @@ def _parser() -> argparse.ArgumentParser:
 
     index = commands.add_parser("index", help="index files or folders")
     index.add_argument("paths", nargs="+", type=Path)
+    index.add_argument(
+        "--force", action="store_true", help="re-index files even if they have not changed"
+    )
     index.set_defaults(handler=_index)
 
     remove = commands.add_parser("remove", help="drop a file or folder from the index")
@@ -51,8 +54,10 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _index(container: Container, args: argparse.Namespace) -> int:
-    report = container.indexing_service().index(_expand(args.paths))
+    report = container.indexing_service().index(_expand(args.paths), force=args.force)
     print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
+    if report.unchanged:
+        print(f"Skipped {report.unchanged} unchanged documents (use --force to re-index).")
     for path in report.skipped:
         print(f"  skipped (unsupported): {path}", file=sys.stderr)
     return 0
