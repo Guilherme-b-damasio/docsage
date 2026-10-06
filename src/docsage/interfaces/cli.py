@@ -1,0 +1,87 @@
+"""Command-line interface. Thin layer: parse args, call a use case, print."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Iterator, Sequence
+from pathlib import Path
+
+from docsage import __version__
+from docsage.container import DEFAULT_INDEX_PATH, Container, Settings
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    container = Container(
+        Settings(index_path=args.index, model=getattr(args, "model", None))
+    )
+    return args.handler(container, args)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="docsage", description="Ask questions about your documents."
+    )
+    parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument(
+        "--index", type=Path, default=DEFAULT_INDEX_PATH, help="index file location"
+    )
+    commands = parser.add_subparsers(required=True)
+
+    index = commands.add_parser("index", help="index files or folders")
+    index.add_argument("paths", nargs="+", type=Path)
+    index.set_defaults(handler=_index)
+
+    search = commands.add_parser("search", help="show the best matching chunks")
+    search.add_argument("query")
+    search.add_argument("-k", "--top-k", type=int, default=5)
+    search.set_defaults(handler=_search)
+
+    ask = commands.add_parser("ask", help="answer a question with Claude")
+    ask.add_argument("question")
+    ask.add_argument("-k", "--top-k", type=int, default=5)
+    ask.add_argument("--model", default=None)
+    ask.set_defaults(handler=_ask)
+    return parser
+
+
+def _index(container: Container, args: argparse.Namespace) -> int:
+    report = container.indexing_service().index(_expand(args.paths))
+    print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
+    for path in report.skipped:
+        print(f"  skipped (unsupported): {path}", file=sys.stderr)
+    return 0
+
+
+def _search(container: Container, args: argparse.Namespace) -> int:
+    results = container.retriever().search(args.query, args.top_k)
+    if not results:
+        print("No matches.")
+        return 1
+    for rank, result in enumerate(results, start=1):
+        preview = result.chunk.text[:160].replace("\n", " ")
+        print(f"{rank}. [{result.score:.2f}] {result.chunk.source}\n   {preview}...")
+    return 0
+
+
+def _ask(container: Container, args: argparse.Namespace) -> int:
+    answer = container.question_answering_service().ask(args.question, args.top_k)
+    print(answer.text)
+    if answer.sources:
+        print("\nSources:")
+        for index, result in enumerate(answer.sources, start=1):
+            print(f"  [{index}] {result.chunk.source}")
+    return 0
+
+
+def _expand(paths: Sequence[Path]) -> Iterator[Path]:
+    for path in paths:
+        if path.is_dir():
+            yield from sorted(p for p in path.rglob("*") if p.is_file())
+        else:
+            yield path
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
