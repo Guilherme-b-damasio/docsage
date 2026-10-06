@@ -11,13 +11,15 @@ docsage index ./docs
 docsage search "how is the index persisted?"
 docsage ask "what chunking strategy does the project use?"
 docsage remove ./docs/old-notes.md   # or a whole folder
+docsage stats                        # documents, chunks, top terms, index size
 ```
 
 Re-running `index` only processes files whose content changed since the last run;
 pass `--force` to rebuild every document.
 
-`search` and `ask` accept `--json` to print machine-readable output (ranked chunks with
-scores, or the answer with its cited sources), handy for scripts and other tools.
+`search`, `ask` and `stats` accept `--json` to print machine-readable output
+(ranked chunks with scores, the answer with its cited sources, or the index
+summary), handy for scripts and other tools.
 
 ### Configuration
 
@@ -41,9 +43,9 @@ The code follows a ports-and-adapters (hexagonal) layout:
 ```
 src/docsage/
 ├── domain/           entities (Document, Chunk, Answer) and ports (Protocols)
-├── application/      use cases: IndexingService, QuestionAnsweringService
+├── application/      use cases: indexing, removal, stats, question answering
 ├── infrastructure/   adapters: file loaders, chunker, BM25 retriever, Claude generator
-├── interfaces/       CLI
+├── interfaces/       CLI and shared JSON serializers
 └── container.py      composition root, wires adapters to ports
 ```
 

@@ -43,12 +43,22 @@ class Retriever(Protocol):
     def __len__(self) -> int: ...
 
 
+class TextTokenizer(Protocol):
+    """Splits text into the normalized terms used for ranking."""
+
+    def __call__(self, text: str) -> list[str]: ...
+
+
 class IndexRepository(Protocol):
     """Persists and restores a retriever's state."""
 
     def save(self, retriever: Retriever) -> None: ...
 
     def load(self) -> Retriever: ...
+
+    def size_bytes(self) -> int:
+        """Storage used by the persisted index, 0 when nothing is stored yet."""
+        ...
 
 
 class AnswerGenerator(Protocol):

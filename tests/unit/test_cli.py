@@ -104,3 +104,31 @@ def test_invalid_config_file_is_reported(tmp_path, capsys):
 
     assert main(["--config", str(config), "search", "x"]) == 2
     assert "chunk_size" in capsys.readouterr().err
+
+
+def test_stats_command(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha alpha beta", encoding="utf-8")
+    (tmp_path / "b.md").write_text("alpha gamma", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "stats", "--top", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "Documents:  2" in out
+    assert "Terms:      5 (3 distinct)" in out
+    assert "alpha  3" in out
+    assert "beta" not in out
+
+    assert main(["--index", str(index), "stats", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["chunks"] == 2
+    assert payload["top_terms"][0] == {"term": "alpha", "count": 3}
+    assert payload["index_bytes"] == index.stat().st_size
+
+
+def test_stats_on_empty_index(tmp_path, capsys):
+    assert main(["--index", str(tmp_path / "none.json"), "stats"]) == 0
+    out = capsys.readouterr().out
+    assert "Documents:  0" in out
+    assert "Index size: 0 B" in out
