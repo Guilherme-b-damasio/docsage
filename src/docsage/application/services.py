@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -14,6 +15,7 @@ from docsage.domain.ports import (
     DocumentLoader,
     IndexRepository,
     Retriever,
+    TextTokenizer,
 )
 
 
@@ -124,3 +126,41 @@ class QuestionAnsweringService:
             return Answer(question, "No relevant context found in the index.", ())
         text = self._generator.generate(question, results)
         return Answer(question, text, tuple(results))
+
+
+@dataclass(frozen=True)
+class IndexStats:
+    documents: int
+    chunks: int
+    terms: int
+    """Indexed terms summed over chunks (overlapping windows count twice)."""
+    vocabulary: int
+    top_terms: tuple[tuple[str, int], ...]
+    index_bytes: int
+
+
+class StatsService:
+    """Summarizes what is in the index."""
+
+    def __init__(
+        self, retriever: Retriever, tokenizer: TextTokenizer, repository: IndexRepository
+    ) -> None:
+        self._retriever = retriever
+        self._tokenizer = tokenizer
+        self._repository = repository
+
+    def stats(self, top: int = 10) -> IndexStats:
+        chunks = self._retriever.chunks()
+        frequencies: Counter[str] = Counter()
+        for chunk in chunks:
+            frequencies.update(self._tokenizer(chunk.text))
+        # Ties are broken alphabetically so the output is stable.
+        ranked = sorted(frequencies.items(), key=lambda item: (-item[1], item[0]))
+        return IndexStats(
+            documents=len({chunk.source for chunk in chunks}),
+            chunks=len(chunks),
+            terms=sum(frequencies.values()),
+            vocabulary=len(frequencies),
+            top_terms=tuple(ranked[:top]),
+            index_bytes=self._repository.size_bytes(),
+        )
