@@ -1,5 +1,6 @@
 from docsage.domain.models import Chunk
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository, tokenize
+from docsage.infrastructure.tokenizer import Tokenizer
 
 
 def _chunk(id_: str, text: str) -> Chunk:
@@ -79,3 +80,26 @@ def test_repository_keeps_content_hash_and_reads_old_indexes(tmp_path):
         encoding="utf-8",
     )
     assert JsonIndexRepository(path).load().chunks()[0].content_hash == ""
+
+
+def test_stopwords_do_not_contribute_to_the_score():
+    retriever = BM25Retriever(tokenizer=Tokenizer({"the", "of"}))
+    retriever.add(
+        [
+            _chunk("filler", "The end of the line of the story of the day."),
+            _chunk("topic", "Retrieval augmented generation."),
+        ]
+    )
+    assert retriever.search("the of", top_k=2) == []
+    assert retriever.search("the retrieval", top_k=2)[0].chunk.id == "topic"
+
+
+def test_repository_builds_retrievers_with_the_factory(tmp_path):
+    def factory():
+        return BM25Retriever(tokenizer=Tokenizer({"are"}))
+
+    repository = JsonIndexRepository(tmp_path / "index.json", factory)
+    repository.save(_retriever())
+    restored = repository.load()
+    assert restored.search("are", top_k=3) == []
+    assert restored.search("purr", top_k=1)[0].chunk.id == "cats"

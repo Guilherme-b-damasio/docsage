@@ -4,28 +4,30 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict
 from pathlib import Path
 
 from docsage.domain.models import Chunk, SearchResult
 from docsage.domain.ports import Retriever
+from docsage.infrastructure.tokenizer import Tokenizer
 
-_TOKEN = re.compile(r"\w+", re.UNICODE)
-
-
-def tokenize(text: str) -> list[str]:
-    return [token.lower() for token in _TOKEN.findall(text)]
+tokenize = Tokenizer()
 
 
 class BM25Retriever:
     """Okapi BM25 ranking over an in-memory set of chunks."""
 
-    def __init__(self, k1: float = 1.5, b: float = 0.75) -> None:
+    def __init__(
+        self,
+        k1: float = 1.5,
+        b: float = 0.75,
+        tokenizer: Callable[[str], list[str]] = tokenize,
+    ) -> None:
         self._k1 = k1
         self._b = b
+        self._tokenize = tokenizer
         self._chunks: dict[str, Chunk] = {}
         self._term_freqs: dict[str, Counter[str]] = {}
         self._doc_freq: Counter[str] = Counter()
@@ -34,13 +36,13 @@ class BM25Retriever:
         for chunk in chunks:
             if chunk.id in self._chunks:
                 self._remove(chunk.id)
-            freqs = Counter(tokenize(chunk.text))
+            freqs = Counter(self._tokenize(chunk.text))
             self._chunks[chunk.id] = chunk
             self._term_freqs[chunk.id] = freqs
             self._doc_freq.update(freqs.keys())
 
     def search(self, query: str, top_k: int) -> list[SearchResult]:
-        terms = tokenize(query)
+        terms = self._tokenize(query)
         if not terms or not self._chunks:
             return []
         avg_len = sum(sum(f.values()) for f in self._term_freqs.values()) / len(self)
@@ -87,8 +89,11 @@ class BM25Retriever:
 class JsonIndexRepository:
     """Stores the chunk set as JSON; term statistics are rebuilt on load."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self, path: Path, retriever_factory: Callable[[], BM25Retriever] = BM25Retriever
+    ) -> None:
         self._path = path
+        self._retriever_factory = retriever_factory
 
     def save(self, retriever: Retriever) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -96,7 +101,7 @@ class JsonIndexRepository:
         self._path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
     def load(self) -> BM25Retriever:
-        retriever = BM25Retriever()
+        retriever = self._retriever_factory()
         if self._path.exists():
             payload = json.loads(self._path.read_text(encoding="utf-8"))
             retriever.add(Chunk(**raw) for raw in payload["chunks"])

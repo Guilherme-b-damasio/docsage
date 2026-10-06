@@ -35,3 +35,12 @@ def test_index_command_skips_unchanged_files_unless_forced(tmp_path, capsys):
 
     main(["--index", str(index), "index", "--force", str(docs)])
     assert "Indexed 1 documents" in capsys.readouterr().out
+
+
+def test_search_ignores_stopwords(tmp_path):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("The capital of France is Paris.", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path / "a.md")])
+
+    assert main(["--index", str(index), "search", "what is the"]) == 1
+    assert main(["--index", str(index), "search", "qual é a capital"]) == 0

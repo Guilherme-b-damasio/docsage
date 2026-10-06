@@ -2,7 +2,8 @@
 
 Ask questions about your own documents. `docsage` indexes Markdown, text and PDF
 files, retrieves the most relevant passages with BM25, and asks Claude for an
-answer that cites its sources.
+answer that cites its sources. Common English and Portuguese stopwords are ignored
+when ranking, so questions phrased in either language match on their content words.
 
 ```bash
 pip install -e ".[pdf]"

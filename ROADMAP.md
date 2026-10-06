@@ -6,7 +6,7 @@ Work is picked from the top of each section. Check items off as they land on `de
 - [ ] Embedding-based retriever behind the `Retriever` port (local sentence-transformers model)
 - [ ] Hybrid retriever that fuses BM25 and embedding scores (reciprocal rank fusion)
 - [ ] Re-ranking step with Claude for the top-k candidates
-- [ ] Stopword lists for English and Portuguese in the tokenizer
+- [x] Stopword lists for English and Portuguese in the tokenizer
 - [x] Incremental indexing: skip files whose content hash has not changed
 - [x] `docsage remove <path>` to drop a document from the index
 
