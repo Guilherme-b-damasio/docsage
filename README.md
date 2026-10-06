@@ -1,0 +1,46 @@
+# docsage
+
+Ask questions about your own documents. `docsage` indexes Markdown, text and PDF
+files, retrieves the most relevant passages with BM25, and asks Claude for an
+answer that cites its sources.
+
+```bash
+pip install -e ".[pdf]"
+docsage index ./docs
+docsage search "how is the index persisted?"
+docsage ask "what chunking strategy does the project use?"
+```
+
+`ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
+before running it. `index` and `search` work offline.
+
+## Architecture
+
+The code follows a ports-and-adapters (hexagonal) layout:
+
+```
+src/docsage/
+├── domain/           entities (Document, Chunk, Answer) and ports (Protocols)
+├── application/      use cases: IndexingService, QuestionAnsweringService
+├── infrastructure/   adapters: file loaders, chunker, BM25 retriever, Claude generator
+├── interfaces/       CLI
+└── container.py      composition root, wires adapters to ports
+```
+
+- **Single responsibility.** Each adapter does one job: loading, chunking, ranking or generating.
+- **Open/closed.** New file formats or retrievers are new classes that implement a port. Existing code stays untouched.
+- **Dependency inversion.** Use cases depend on the Protocols in `domain/ports.py`, never on concrete adapters. That is why the tests can swap in fakes without mocking libraries.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+ruff check .
+```
+
+The project uses [git flow](CONTRIBUTING.md). See the [roadmap](ROADMAP.md) for planned work.
+
+## License
+
+MIT
