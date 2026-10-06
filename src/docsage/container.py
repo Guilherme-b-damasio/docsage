@@ -11,9 +11,10 @@ from docsage.application.services import (
     RemovalService,
 )
 from docsage.domain.ports import Retriever
-from docsage.infrastructure.bm25 import JsonIndexRepository
+from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import SlidingWindowChunker
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.tokenizer import multilingual_tokenizer
 
 DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
 
@@ -29,7 +30,10 @@ class Settings:
 class Container:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._repository = JsonIndexRepository(settings.index_path)
+        tokenizer = multilingual_tokenizer()
+        self._repository = JsonIndexRepository(
+            settings.index_path, lambda: BM25Retriever(tokenizer=tokenizer)
+        )
 
     def indexing_service(self) -> IndexingService:
         return IndexingService(
