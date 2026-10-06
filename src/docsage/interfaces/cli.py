@@ -10,7 +10,12 @@ from pathlib import Path
 from docsage import __version__
 from docsage.container import Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
-from docsage.interfaces.serializers import answer_to_dict, dumps, search_results_to_dict
+from docsage.interfaces.serializers import (
+    answer_to_dict,
+    dumps,
+    search_results_to_dict,
+    stats_to_dict,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -65,6 +70,11 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("--json", action="store_true", help="print results as JSON")
     search.set_defaults(handler=_search)
 
+    stats = commands.add_parser("stats", help="summarize the index")
+    stats.add_argument("--top", type=int, default=10, help="how many top terms to show")
+    stats.add_argument("--json", action="store_true", help="print stats as JSON")
+    stats.set_defaults(handler=_stats)
+
     ask = commands.add_parser("ask", help="answer a question with Claude")
     ask.add_argument("question")
     ask.add_argument("-k", "--top-k", type=int, default=5)
@@ -105,6 +115,32 @@ def _search(container: Container, args: argparse.Namespace) -> int:
         preview = result.chunk.text[:160].replace("\n", " ")
         print(f"{rank}. [{result.score:.2f}] {result.chunk.source}\n   {preview}...")
     return 0
+
+
+def _stats(container: Container, args: argparse.Namespace) -> int:
+    stats = container.stats_service().stats(args.top)
+    if args.json:
+        print(dumps(stats_to_dict(stats)))
+        return 0
+    print(f"Documents:  {stats.documents}")
+    print(f"Chunks:     {stats.chunks}")
+    print(f"Terms:      {stats.terms} ({stats.vocabulary} distinct)")
+    print(f"Index size: {_human_size(stats.index_bytes)}")
+    if stats.top_terms:
+        print("Top terms:")
+        width = max(len(term) for term, _ in stats.top_terms)
+        for term, count in stats.top_terms:
+            print(f"  {term:<{width}}  {count}")
+    return 0
+
+
+def _human_size(size: int) -> str:
+    if size < 1024:
+        return f"{size} B"
+    kilobytes = size / 1024
+    if kilobytes < 1024:
+        return f"{kilobytes:.1f} KB"
+    return f"{kilobytes / 1024:.1f} MB"
 
 
 def _ask(container: Container, args: argparse.Namespace) -> int:

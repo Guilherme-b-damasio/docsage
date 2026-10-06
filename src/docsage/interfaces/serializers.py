@@ -10,6 +10,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+from docsage.application.services import IndexStats
 from docsage.domain.models import Answer, Chunk, SearchResult
 
 
@@ -43,6 +44,17 @@ def answer_to_dict(answer: Answer) -> dict[str, Any]:
             search_result_to_dict(result, rank)
             for rank, result in enumerate(answer.sources, start=1)
         ],
+    }
+
+
+def stats_to_dict(stats: IndexStats) -> dict[str, Any]:
+    return {
+        "documents": stats.documents,
+        "chunks": stats.chunks,
+        "terms": stats.terms,
+        "vocabulary": stats.vocabulary,
+        "top_terms": [{"term": term, "count": count} for term, count in stats.top_terms],
+        "index_bytes": stats.index_bytes,
     }
 
 

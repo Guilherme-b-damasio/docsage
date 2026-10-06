@@ -10,6 +10,7 @@ from docsage.application.services import (
     IndexingService,
     QuestionAnsweringService,
     RemovalService,
+    StatsService,
 )
 from docsage.domain.ports import Retriever
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
@@ -39,9 +40,9 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
 class Container:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        tokenizer = multilingual_tokenizer()
+        self._tokenizer = multilingual_tokenizer()
         self._repository = JsonIndexRepository(
-            settings.index_path, lambda: BM25Retriever(tokenizer=tokenizer)
+            settings.index_path, lambda: BM25Retriever(tokenizer=self._tokenizer)
         )
 
     def indexing_service(self) -> IndexingService:
@@ -56,6 +57,9 @@ class Container:
 
     def removal_service(self) -> RemovalService:
         return RemovalService(self._repository.load(), self._repository)
+
+    def stats_service(self) -> StatsService:
+        return StatsService(self._repository.load(), self._tokenizer, self._repository)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         # Imported lazily so commands that never call the API don't need credentials.
