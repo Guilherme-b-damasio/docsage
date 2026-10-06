@@ -22,6 +22,8 @@ class Chunk:
     source: str
     text: str
     position: int
+    content_hash: str = ""
+    """Fingerprint of the whole source document, used to skip unchanged files."""
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,9 @@ docsage ask "what chunking strategy does the project use?"
 docsage remove ./docs/old-notes.md   # or a whole folder
 ```
 
+Re-running `index` only processes files whose content changed since the last run;
+pass `--force` to rebuild every document.
+
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 

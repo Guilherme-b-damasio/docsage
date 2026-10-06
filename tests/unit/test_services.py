@@ -5,6 +5,7 @@ from docsage.application.services import (
     QuestionAnsweringService,
     RemovalReport,
     RemovalService,
+    content_hash,
 )
 from docsage.domain.models import Chunk, Document
 from docsage.infrastructure.bm25 import BM25Retriever
@@ -45,6 +46,81 @@ def test_indexing_skips_unsupported_files(tmp_path: Path):
     assert (report.documents, report.chunks) == (1, 1)
     assert report.skipped == (str(tmp_path / "image.png"),)
     assert repository.saved is not None
+
+
+def test_reindexing_a_shrunk_file_drops_its_stale_chunks(tmp_path: Path):
+    path = tmp_path / "notes.md"
+    path.write_text("one two three four five six")
+    retriever = BM25Retriever()
+    service = IndexingService(
+        [PlainTextLoader()],
+        SlidingWindowChunker(size=2, overlap=0),
+        retriever,
+        InMemoryRepository(),
+    )
+    service.index([path])
+
+    path.write_text("one two")
+    service.index([path])
+
+    assert [chunk.text for chunk in retriever.chunks()] == ["one two"]
+
+
+class CountingChunker:
+    def __init__(self):
+        self.calls = 0
+        self._inner = SlidingWindowChunker()
+
+    def split(self, document):
+        self.calls += 1
+        return self._inner.split(document)
+
+
+def _incremental_setup(tmp_path: Path):
+    (tmp_path / "a.md").write_text("alpha")
+    (tmp_path / "b.md").write_text("beta")
+    chunker = CountingChunker()
+    repository = InMemoryRepository()
+    service = IndexingService([PlainTextLoader()], chunker, BM25Retriever(), repository)
+    service.index(sorted(tmp_path.iterdir()))
+    return service, chunker, repository
+
+
+def test_reindexing_skips_unchanged_files(tmp_path: Path):
+    service, chunker, repository = _incremental_setup(tmp_path)
+    repository.saved = None
+
+    report = service.index(sorted(tmp_path.iterdir()))
+
+    assert (report.documents, report.unchanged) == (0, 2)
+    assert chunker.calls == 2
+    assert repository.saved is None
+
+
+def test_reindexing_picks_up_modified_files(tmp_path: Path):
+    service, chunker, repository = _incremental_setup(tmp_path)
+    (tmp_path / "b.md").write_text("beta gamma")
+
+    report = service.index(sorted(tmp_path.iterdir()))
+
+    assert (report.documents, report.unchanged) == (1, 1)
+    assert repository.saved.search("gamma", top_k=1)[0].chunk.source == str(tmp_path / "b.md")
+
+
+def test_force_reindexes_unchanged_files(tmp_path: Path):
+    service, chunker, _ = _incremental_setup(tmp_path)
+
+    report = service.index(sorted(tmp_path.iterdir()), force=True)
+
+    assert (report.documents, report.unchanged) == (2, 0)
+    assert chunker.calls == 4
+
+
+def test_indexed_chunks_carry_the_document_hash(tmp_path: Path):
+    _, _, repository = _incremental_setup(tmp_path)
+    hashes = {chunk.source: chunk.content_hash for chunk in repository.saved.chunks()}
+    expected = content_hash(Document(source="", text="alpha"))
+    assert hashes[str(tmp_path / "a.md")] == expected
 
 
 def _indexed(*sources: str) -> BM25Retriever:
