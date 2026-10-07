@@ -38,3 +38,28 @@ def test_configure_logging_does_not_stack_handlers():
     configure_logging(stream=io.StringIO())
     logger = configure_logging(stream=io.StringIO())
     assert sum(getattr(h, "_docsage", False) for h in logger.handlers) == 1
+
+
+def test_formatter_appends_the_traceback_of_logged_exceptions():
+    stream = io.StringIO()
+    logger = configure_logging(stream=stream)
+    try:
+        raise ValueError("broken index")
+    except ValueError:
+        logger.getChild("x").exception("load failed", extra={"path": "index.json"})
+
+    first, *rest = stream.getvalue().splitlines()
+    assert first == "level=error logger=docsage.x event=\"load failed\" path=index.json"
+    assert rest[-1] == "ValueError: broken index"
+
+
+def test_formatter_quotes_empty_values():
+    assert KeyValueFormatter().format(_record("x", note="")).endswith('note=""')
+
+
+def test_configure_logging_keeps_handlers_it_did_not_add():
+    logger = logging.getLogger("docsage")
+    foreign = logging.NullHandler()
+    logger.addHandler(foreign)
+    configure_logging(stream=io.StringIO())
+    assert foreign in logger.handlers

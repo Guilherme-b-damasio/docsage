@@ -20,7 +20,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Markdown-aware chunker that splits on headings (keep the heading path as chunk metadata)
 - [x] Structured logging with a `--verbose` flag
 - [x] Type checking with mypy in CI
-- [ ] Test coverage report in CI
+- [x] Test coverage report in CI
 
 ## Milestone 0.3: MCP server
 - [ ] Add the official `mcp` Python SDK as an optional extra (`docsage[mcp]`)
