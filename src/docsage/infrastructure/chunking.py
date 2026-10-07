@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 
 from docsage.domain.models import Chunk, Document
 
@@ -22,24 +23,29 @@ class SlidingWindowChunker:
         self._step = size - overlap
 
     def split(self, document: Document) -> list[Chunk]:
-        words = document.text.split()
+        matches = list(_WORD.finditer(document.text))
         chunks: list[Chunk] = []
-        for position, start in enumerate(range(0, len(words), self._step)):
-            window = words[start : start + self._size]
+        for position, start in enumerate(range(0, len(matches), self._step)):
+            window = matches[start : start + self._size]
             if not window:
                 break
-            text = " ".join(window)
+            text = " ".join(match.group() for match in window)
             chunks.append(
                 Chunk(
                     id=_chunk_id(document.source, position),
                     source=document.source,
                     text=text,
                     position=position,
+                    first_page=document.page_at(window[0].start()),
+                    last_page=document.page_at(window[-1].start()),
                 )
             )
-            if start + self._size >= len(words):
+            if start + self._size >= len(matches):
                 break
         return chunks
+
+
+_WORD = re.compile(r"\S+")
 
 
 def _chunk_id(source: str, position: int) -> str:

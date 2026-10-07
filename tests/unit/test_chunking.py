@@ -36,3 +36,18 @@ def test_empty_document_yields_no_chunks():
 def test_invalid_configuration_is_rejected(size, overlap):
     with pytest.raises(ValueError):
         SlidingWindowChunker(size=size, overlap=overlap)
+
+
+def test_chunks_record_the_pages_they_span():
+    pages = ["a b c", "d e f", "g h"]
+    text = "\n\n".join(pages)
+    document = Document(source="a.pdf", text=text, page_offsets=(0, 7, 14))
+
+    chunks = SlidingWindowChunker(size=4, overlap=0).split(document)
+
+    assert [(c.first_page, c.last_page) for c in chunks] == [(1, 2), (2, 3)]
+
+
+def test_unpaged_documents_have_no_page_range():
+    chunk = SlidingWindowChunker().split(_doc(3))[0]
+    assert (chunk.first_page, chunk.last_page) == (None, None)
