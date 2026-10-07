@@ -35,10 +35,14 @@ class Chunk:
     """Fingerprint of the whole source document, used to skip unchanged files."""
     first_page: int | None = None
     last_page: int | None = None
+    section: str = ""
+    """Heading path the chunk belongs to, e.g. ``Setup > Install`` (Markdown only)."""
 
     @property
     def citation(self) -> str:
-        """Human-readable location, e.g. ``guide.pdf, p. 3`` or ``guide.pdf, pp. 3-4``."""
+        """Human-readable location, e.g. ``guide.pdf, p. 3`` or ``notes.md, Setup > Install``."""
+        if self.section:
+            return f"{self.source}, {self.section}"
         if self.first_page is None:
             return self.source
         if self.last_page is None or self.last_page == self.first_page:

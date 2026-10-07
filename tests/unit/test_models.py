@@ -36,3 +36,8 @@ def test_unpaged_document_has_no_page():
 def test_chunk_citation_includes_page_range(first, last, expected):
     chunk = Chunk(id="x", source="a.pdf", text="", position=0, first_page=first, last_page=last)
     assert chunk.citation == expected
+
+
+def test_chunk_citation_prefers_the_section():
+    chunk = Chunk(id="x", source="a.md", text="", position=0, section="Setup > Install")
+    assert chunk.citation == "a.md, Setup > Install"
