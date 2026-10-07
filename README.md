@@ -27,6 +27,15 @@ pass `--force` to rebuild every document.
 (ranked chunks with scores, the answer with its cited sources, or the index
 summary), handy for scripts and other tools.
 
+Add `-v`/`--verbose` before the command to log what docsage is doing to stderr,
+one `key=value` line per event (documents indexed or skipped, index loads and
+saves, retrieval counts, Claude token usage), so stdout stays clean for `--json`:
+
+```bash
+docsage --verbose index ./docs
+# level=debug logger=docsage.application.services event="indexed document" source=docs/a.md chunks=3
+```
+
 ### Configuration
 
 Put a `docsage.toml` in the folder you run `docsage` from (or pass `--config path`)
