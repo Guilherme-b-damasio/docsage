@@ -16,7 +16,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] `--json` output for `search` and `ask` (shared serializers in `interfaces/`)
 - [x] Config file support (`docsage.toml`) loaded into `Settings`
 - [x] `docsage stats`: documents, chunks, tokens, top terms, index size
-- [ ] Store page numbers for PDF chunks and show them in citations
+- [x] Store page numbers for PDF chunks and show them in citations
 - [ ] Markdown-aware chunker that splits on headings (keep the heading path as chunk metadata)
 - [ ] Structured logging with a `--verbose` flag
 - [ ] Type checking with mypy in CI

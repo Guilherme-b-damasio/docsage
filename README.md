@@ -14,6 +14,9 @@ docsage remove ./docs/old-notes.md   # or a whole folder
 docsage stats                        # documents, chunks, top terms, index size
 ```
 
+Citations point to the page for PDFs (`guide.pdf, p. 4` or `guide.pdf, pp. 4-5`),
+both in the terminal output and in the passages sent to Claude.
+
 Re-running `index` only processes files whose content changed since the last run;
 pass `--force` to rebuild every document.
 
