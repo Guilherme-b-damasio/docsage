@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Mapping
 from dataclasses import replace
 
 from docsage.domain.models import Chunk, Document
@@ -73,6 +74,18 @@ class MarkdownChunker:
                     )
                 )
         return chunks
+
+
+class ChunkerByType:
+    """Delegates to a chunker chosen by the document's ``type`` metadata."""
+
+    def __init__(self, chunkers: Mapping[str, Chunker], default: Chunker) -> None:
+        self._chunkers = dict(chunkers)
+        self._default = default
+
+    def split(self, document: Document) -> list[Chunk]:
+        chunker = self._chunkers.get(document.metadata.get("type", ""), self._default)
+        return chunker.split(document)
 
 
 def markdown_sections(text: str) -> list[tuple[str, str]]:

@@ -11,13 +11,15 @@ class PlainTextLoader:
     """Loads UTF-8 text-like files (.txt, .md, .rst)."""
 
     EXTENSIONS = frozenset({".txt", ".md", ".markdown", ".rst"})
+    MARKDOWN = frozenset({".md", ".markdown"})
 
     def supports(self, path: Path) -> bool:
         return path.suffix.lower() in self.EXTENSIONS
 
     def load(self, path: Path) -> Document:
         text = path.read_text(encoding="utf-8", errors="replace")
-        return Document(source=str(path), text=text, metadata={"type": "text"})
+        kind = "markdown" if path.suffix.lower() in self.MARKDOWN else "text"
+        return Document(source=str(path), text=text, metadata={"type": kind})
 
 
 class PdfLoader:
