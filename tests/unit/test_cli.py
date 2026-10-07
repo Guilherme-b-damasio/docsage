@@ -132,3 +132,14 @@ def test_stats_on_empty_index(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Documents:  0" in out
     assert "Index size: 0 B" in out
+
+
+def test_search_cites_the_markdown_section(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    guide = tmp_path / "guide.md"
+    guide.write_text("# Guide\n\n## Install\n\nRun pip install docsage.\n", encoding="utf-8")
+    main(["--index", str(index), "index", str(guide)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "pip"]) == 0
+    assert f"{guide}, Guide > Install" in capsys.readouterr().out

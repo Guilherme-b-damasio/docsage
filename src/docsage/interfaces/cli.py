@@ -113,7 +113,7 @@ def _search(container: Container, args: argparse.Namespace) -> int:
         return 1
     for rank, result in enumerate(results, start=1):
         preview = result.chunk.text[:160].replace("\n", " ")
-        print(f"{rank}. [{result.score:.2f}] {result.chunk.source}\n   {preview}...")
+        print(f"{rank}. [{result.score:.2f}] {result.chunk.citation}\n   {preview}...")
     return 0
 
 

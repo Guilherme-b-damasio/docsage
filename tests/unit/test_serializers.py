@@ -24,6 +24,7 @@ def test_search_results_are_ranked_and_rounded():
         "position": 0,
         "first_page": None,
         "last_page": None,
+        "section": "",
         "citation": "a.md",
         "text": "one",
     }
@@ -54,3 +55,12 @@ def test_chunk_page_range_is_serialized():
 
     assert payload["results"][0]["chunk"]["citation"] == "a.pdf, pp. 2-3"
     assert payload["results"][0]["chunk"]["first_page"] == 2
+
+
+def test_chunk_section_is_serialized():
+    chunk = Chunk(id="s", source="a.md", text="t", position=0, section="Guide > Install")
+
+    payload = search_results_to_dict("q", [SearchResult(chunk, 1.0)])["results"][0]["chunk"]
+
+    assert payload["section"] == "Guide > Install"
+    assert payload["citation"] == "a.md, Guide > Install"

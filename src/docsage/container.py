@@ -12,9 +12,9 @@ from docsage.application.services import (
     RemovalService,
     StatsService,
 )
-from docsage.domain.ports import Retriever
+from docsage.domain.ports import Chunker, Retriever
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
-from docsage.infrastructure.chunking import SlidingWindowChunker
+from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -48,12 +48,14 @@ class Container:
     def indexing_service(self) -> IndexingService:
         return IndexingService(
             loaders=default_loaders(),
-            chunker=SlidingWindowChunker(
-                self._settings.chunk_size, self._settings.chunk_overlap
-            ),
+            chunker=self._chunker(),
             retriever=self._repository.load(),
             repository=self._repository,
         )
+
+    def _chunker(self) -> Chunker:
+        window = SlidingWindowChunker(self._settings.chunk_size, self._settings.chunk_overlap)
+        return ChunkerByType({"markdown": MarkdownChunker(window)}, default=window)
 
     def removal_service(self) -> RemovalService:
         return RemovalService(self._repository.load(), self._repository)
