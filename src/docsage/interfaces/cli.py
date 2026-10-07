@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from docsage import __version__
@@ -18,6 +18,8 @@ from docsage.interfaces.serializers import (
     stats_to_dict,
 )
 
+Handler = Callable[[Container, argparse.Namespace], int]
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
@@ -29,7 +31,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ConfigError as error:
         print(f"docsage: {error}", file=sys.stderr)
         return 2
-    return args.handler(Container(settings), args)
+    handler: Handler = args.handler
+    return handler(Container(settings), args)
 
 
 def _config_path(explicit: Path | None) -> Path | None:

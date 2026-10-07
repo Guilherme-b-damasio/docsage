@@ -100,11 +100,10 @@ class JsonIndexRepository:
 
     def save(self, retriever: Retriever) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"version": 1, "chunks": [asdict(c) for c in retriever.chunks()]}
+        chunks = [asdict(c) for c in retriever.chunks()]
+        payload = {"version": 1, "chunks": chunks}
         self._path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        logger.debug(
-            "saved index", extra={"path": str(self._path), "chunks": len(payload["chunks"])}
-        )
+        logger.debug("saved index", extra={"path": str(self._path), "chunks": len(chunks)})
 
     def size_bytes(self) -> int:
         return self._path.stat().st_size if self._path.exists() else 0

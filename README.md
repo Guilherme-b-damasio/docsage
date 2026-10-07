@@ -74,6 +74,7 @@ src/docsage/
 pip install -e ".[dev]"
 pytest
 ruff check .
+mypy          # strict type checking of src/, also run in CI
 ```
 
 The project uses [git flow](CONTRIBUTING.md). See the [roadmap](ROADMAP.md) for planned work.
