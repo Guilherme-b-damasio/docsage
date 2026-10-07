@@ -19,7 +19,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Store page numbers for PDF chunks and show them in citations
 - [x] Markdown-aware chunker that splits on headings (keep the heading path as chunk metadata)
 - [x] Structured logging with a `--verbose` flag
-- [ ] Type checking with mypy in CI
+- [x] Type checking with mypy in CI
 - [ ] Test coverage report in CI
 
 ## Milestone 0.3: MCP server
