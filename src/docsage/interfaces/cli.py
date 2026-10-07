@@ -10,6 +10,7 @@ from pathlib import Path
 from docsage import __version__
 from docsage.container import Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
+from docsage.infrastructure.logs import configure_logging
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
@@ -20,6 +21,7 @@ from docsage.interfaces.serializers import (
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    configure_logging(verbose=args.verbose)
     try:
         settings = load_settings(
             _config_path(args.config), index_path=args.index, model=getattr(args, "model", None)
@@ -50,6 +52,9 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=f"settings file (default: ./{CONFIG_FILENAME} if present)",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="log debug events (key=value) to stderr"
     )
     commands = parser.add_subparsers(required=True)
 

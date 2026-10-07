@@ -143,3 +143,26 @@ def test_search_cites_the_markdown_section(tmp_path, capsys):
 
     assert main(["--index", str(index), "search", "pip"]) == 0
     assert f"{guide}, Guide > Install" in capsys.readouterr().out
+
+
+def test_verbose_flag_logs_events_to_stderr(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+
+    assert main(["--verbose", "--index", str(index), "index", str(tmp_path)]) == 0
+
+    captured = capsys.readouterr()
+    assert "Indexed 1 documents" in captured.out
+    assert "level=debug logger=docsage.application.services event=\"indexed document\"" in (
+        captured.err
+    )
+    assert "event=\"indexing finished\" documents=1 chunks=1" in captured.err
+
+
+def test_logs_are_quiet_without_verbose(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+
+    main(["--index", str(index), "index", str(tmp_path)])
+
+    assert "event=" not in capsys.readouterr().err

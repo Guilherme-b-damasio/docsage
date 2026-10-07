@@ -1,18 +1,7 @@
 import io
 import logging
 
-import pytest
-
-from docsage.infrastructure.logs import ROOT_LOGGER, KeyValueFormatter, configure_logging
-
-
-@pytest.fixture(autouse=True)
-def _restore_logger():
-    logger = logging.getLogger(ROOT_LOGGER)
-    handlers, level = list(logger.handlers), logger.level
-    yield
-    logger.handlers[:] = handlers
-    logger.setLevel(level)
+from docsage.infrastructure.logs import KeyValueFormatter, configure_logging
 
 
 def _record(message: str, **extra: object) -> logging.LogRecord:
