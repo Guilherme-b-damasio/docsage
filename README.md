@@ -51,6 +51,16 @@ model = "claude-opus-5-5"            # model used by `ask`
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 
+## What's new in 0.2
+
+- `--json` output for `search`, `ask` and `stats`, for scripts and other tools.
+- `docsage.toml` config file for the index path, chunking and model.
+- `docsage stats`: documents, chunks, terms, top terms and index size.
+- Citations with PDF page numbers and Markdown heading paths; Markdown is chunked
+  by section.
+- `--verbose` structured (`key=value`) logging on stderr.
+- CI runs strict mypy and reports test coverage.
+
 ## Architecture
 
 The code follows a ports-and-adapters (hexagonal) layout:
@@ -75,6 +85,7 @@ pip install -e ".[dev]"
 pytest
 ruff check .
 mypy          # strict type checking of src/, also run in CI
+pytest --cov  # coverage report; CI fails below 90% and publishes the summary
 ```
 
 The project uses [git flow](CONTRIBUTING.md). See the [roadmap](ROADMAP.md) for planned work.
