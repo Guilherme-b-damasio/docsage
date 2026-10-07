@@ -152,7 +152,7 @@ def _ask(container: Container, args: argparse.Namespace) -> int:
     if answer.sources:
         print("\nSources:")
         for index, result in enumerate(answer.sources, start=1):
-            print(f"  [{index}] {result.chunk.source}")
+            print(f"  [{index}] {result.chunk.citation}")
     return 0
 
 

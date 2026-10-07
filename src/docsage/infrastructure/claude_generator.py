@@ -51,7 +51,7 @@ class ClaudeAnswerGenerator:
 
 def build_prompt(question: str, context: Sequence[SearchResult]) -> str:
     passages = "\n\n".join(
-        f"[{index}] (source: {result.chunk.source})\n{result.chunk.text}"
+        f"[{index}] (source: {result.chunk.citation})\n{result.chunk.text}"
         for index, result in enumerate(context, start=1)
     )
     return f"<context>\n{passages}\n</context>\n\nQuestion: {question}"

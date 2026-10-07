@@ -22,6 +22,9 @@ def test_search_results_are_ranked_and_rounded():
         "id": "a.md#2.123456",
         "source": "a.md",
         "position": 0,
+        "first_page": None,
+        "last_page": None,
+        "citation": "a.md",
         "text": "one",
     }
 
@@ -42,3 +45,12 @@ def test_dumps_keeps_non_ascii_text():
 
     assert "ação" in text
     assert json.loads(text) == {"query": "ação", "results": []}
+
+
+def test_chunk_page_range_is_serialized():
+    chunk = Chunk(id="p", source="a.pdf", text="t", position=0, first_page=2, last_page=3)
+
+    payload = search_results_to_dict("q", [SearchResult(chunk, 1.0)])
+
+    assert payload["results"][0]["chunk"]["citation"] == "a.pdf, pp. 2-3"
+    assert payload["results"][0]["chunk"]["first_page"] == 2
