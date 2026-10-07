@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -14,6 +15,8 @@ from docsage.domain.ports import Retriever
 from docsage.infrastructure.tokenizer import Tokenizer
 
 tokenize = Tokenizer()
+
+logger = logging.getLogger(__name__)
 
 
 class BM25Retriever:
@@ -99,6 +102,9 @@ class JsonIndexRepository:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"version": 1, "chunks": [asdict(c) for c in retriever.chunks()]}
         self._path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        logger.debug(
+            "saved index", extra={"path": str(self._path), "chunks": len(payload["chunks"])}
+        )
 
     def size_bytes(self) -> int:
         return self._path.stat().st_size if self._path.exists() else 0
@@ -108,4 +114,5 @@ class JsonIndexRepository:
         if self._path.exists():
             payload = json.loads(self._path.read_text(encoding="utf-8"))
             retriever.add(Chunk(**raw) for raw in payload["chunks"])
+        logger.debug("loaded index", extra={"path": str(self._path), "chunks": len(retriever)})
         return retriever

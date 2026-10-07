@@ -57,5 +57,4 @@ def configure_logging(verbose: bool = False, stream: TextIO | None = None) -> lo
     handler._docsage = True  # type: ignore[attr-defined]
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG if verbose else logging.WARNING)
-    logger.propagate = False
     return logger

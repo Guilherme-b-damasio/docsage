@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 import anthropic
@@ -9,6 +10,8 @@ import anthropic
 from docsage.domain.models import SearchResult
 
 DEFAULT_MODEL = "claude-opus-5-5"
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "You answer questions using only the numbered context passages provided. "
@@ -44,7 +47,17 @@ class ClaudeAnswerGenerator:
             fallbacks="default",
             messages=[{"role": "user", "content": build_prompt(question, context)}],
         )
+        logger.debug(
+            "claude response",
+            extra={
+                "model": response.model,
+                "stop_reason": response.stop_reason,
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+            },
+        )
         if response.stop_reason == "refusal":
+            logger.warning("claude refused to answer", extra={"model": response.model})
             raise GenerationRefusedError("The model declined to answer this question.")
         return "".join(block.text for block in response.content if block.type == "text")
 

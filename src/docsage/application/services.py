@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
@@ -17,6 +18,8 @@ from docsage.domain.ports import (
     Retriever,
     TextTokenizer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class UnsupportedFileError(ValueError):
@@ -56,10 +59,12 @@ class IndexingService:
             try:
                 document = self._load(path)
             except UnsupportedFileError:
+                logger.debug("skipped unsupported file", extra={"path": str(path)})
                 skipped.append(str(path))
                 continue
             digest = content_hash(document)
             if known.get(document.source) == digest:
+                logger.debug("skipped unchanged document", extra={"source": document.source})
                 unchanged += 1
                 continue
             new_chunks = [
@@ -67,10 +72,23 @@ class IndexingService:
             ]
             self._retriever.remove(document.source)
             self._retriever.add(new_chunks)
+            logger.debug(
+                "indexed document",
+                extra={"source": document.source, "chunks": len(new_chunks)},
+            )
             documents += 1
             chunks += len(new_chunks)
         if documents:
             self._repository.save(self._retriever)
+        logger.info(
+            "indexing finished",
+            extra={
+                "documents": documents,
+                "chunks": chunks,
+                "unchanged": unchanged,
+                "skipped": len(skipped),
+            },
+        )
         return IndexingReport(documents, chunks, tuple(skipped), unchanged)
 
     def _known_hashes(self) -> dict[str, str]:
@@ -100,6 +118,10 @@ class RemovalService:
         sources = sorted({chunk.source for chunk in self._retriever.chunks()})
         matched = tuple(source for source in sources if _is_within(Path(source), path))
         chunks = sum(self._retriever.remove(source) for source in matched)
+        logger.info(
+            "removal finished",
+            extra={"path": str(path), "documents": len(matched), "chunks": chunks},
+        )
         if matched:
             self._repository.save(self._retriever)
         return RemovalReport(matched, chunks)
@@ -122,9 +144,11 @@ class QuestionAnsweringService:
 
     def ask(self, question: str, top_k: int = 5) -> Answer:
         results = self._retriever.search(question, top_k)
+        logger.debug("retrieved context", extra={"top_k": top_k, "results": len(results)})
         if not results:
             return Answer(question, "No relevant context found in the index.", ())
         text = self._generator.generate(question, results)
+        logger.debug("generated answer", extra={"characters": len(text)})
         return Answer(question, text, tuple(results))
 
 
