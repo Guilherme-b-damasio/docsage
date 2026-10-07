@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from docsage.application.services import (
@@ -180,3 +181,27 @@ def test_question_answering_without_context_skips_generator():
     assert answer.sources == ()
     assert generator.calls == []
 
+
+
+def test_indexing_logs_each_document_and_a_summary(tmp_path: Path, caplog):
+    (tmp_path / "notes.md").write_text("RAG combines retrieval and generation.")
+    (tmp_path / "image.png").write_bytes(b"\x89PNG")
+    service = IndexingService(
+        [PlainTextLoader()], SlidingWindowChunker(), BM25Retriever(), InMemoryRepository()
+    )
+    caplog.set_level(logging.DEBUG, logger="docsage")
+
+    service.index(sorted(tmp_path.iterdir()))
+
+    events = {record.getMessage(): record for record in caplog.records}
+    assert events["indexed document"].source == str(tmp_path / "notes.md")
+    assert events["skipped unsupported file"].path == str(tmp_path / "image.png")
+    summary = events["indexing finished"]
+    assert (summary.documents, summary.chunks, summary.skipped) == (1, 1, 1)
+
+
+def test_question_answering_logs_retrieval(caplog):
+    caplog.set_level(logging.DEBUG, logger="docsage")
+    QuestionAnsweringService(BM25Retriever(), FakeGenerator()).ask("anything", top_k=3)
+    record = next(r for r in caplog.records if r.getMessage() == "retrieved context")
+    assert (record.top_k, record.results) == (3, 0)
