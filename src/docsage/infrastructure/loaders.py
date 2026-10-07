@@ -33,9 +33,23 @@ class PdfLoader:
         pages = [page.extract_text() or "" for page in reader.pages]
         return Document(
             source=str(path),
-            text="\n\n".join(pages),
+            text=PAGE_SEPARATOR.join(pages),
             metadata={"type": "pdf", "pages": str(len(pages))},
+            page_offsets=page_offsets(pages),
         )
+
+
+PAGE_SEPARATOR = "\n\n"
+
+
+def page_offsets(pages: list[str]) -> tuple[int, ...]:
+    """Character offset of each page once joined with ``PAGE_SEPARATOR``."""
+    offsets: list[int] = []
+    position = 0
+    for page in pages:
+        offsets.append(position)
+        position += len(page) + len(PAGE_SEPARATOR)
+    return tuple(offsets)
 
 
 def default_loaders() -> list[PlainTextLoader | PdfLoader]:

@@ -19,6 +19,9 @@ def chunk_to_dict(chunk: Chunk) -> dict[str, Any]:
         "id": chunk.id,
         "source": chunk.source,
         "position": chunk.position,
+        "first_page": chunk.first_page,
+        "last_page": chunk.last_page,
+        "citation": chunk.citation,
         "text": chunk.text,
     }
 
