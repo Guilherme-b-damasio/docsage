@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal
 
 import anthropic
+from anthropic.types.beta import BetaMessageParam
 
 from docsage.domain.models import SearchResult
 
 DEFAULT_MODEL = "claude-opus-5-5"
+
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ class ClaudeAnswerGenerator:
         self,
         client: anthropic.Anthropic | None = None,
         model: str = DEFAULT_MODEL,
-        effort: str = "medium",
+        effort: Effort = "medium",
         max_tokens: int = 16000,
     ) -> None:
         self._client = client or anthropic.Anthropic()
@@ -38,6 +42,7 @@ class ClaudeAnswerGenerator:
         self._max_tokens = max_tokens
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str:
+        message: BetaMessageParam = {"role": "user", "content": build_prompt(question, context)}
         response = self._client.beta.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
@@ -45,7 +50,7 @@ class ClaudeAnswerGenerator:
             output_config={"effort": self._effort},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
-            messages=[{"role": "user", "content": build_prompt(question, context)}],
+            messages=[message],
         )
         logger.debug(
             "claude response",
