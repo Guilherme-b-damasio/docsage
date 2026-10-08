@@ -18,7 +18,11 @@ from docsage.container import Container, Settings  # noqa: E402
 from docsage.domain.models import Chunk  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
-from docsage.interfaces.mcp_server import PREVIEW_CHARACTERS, build_server  # noqa: E402
+from docsage.interfaces.mcp_server import (  # noqa: E402
+    PREVIEW_CHARACTERS,
+    build_server,
+    format_passages,
+)
 
 
 class FakeGenerator:
@@ -266,3 +270,83 @@ def test_resources_against_a_real_container(tmp_path):
     chunk = json.loads(read(services, f"docsage://chunks/{chunk_id}").contents[0].text)
     assert "Install with pip." in chunk["text"]
     assert chunk["citation"].endswith("notes.md, Setup")
+
+
+def get_prompt(services, name, arguments):
+    async def run():
+        async with Client(build_server(services)) as client:
+            return await client.get_prompt(name, arguments)
+
+    return asyncio.run(run())
+
+
+SECTIONED = [
+    Chunk(id="n-1", source="notes.md", text="Use pip.", position=1, section="Install"),
+    Chunk(id="n-0", source="notes.md", text="docsage indexes files.", position=0, section="Intro"),
+    Chunk(id="o-0", source="old.md", text="Use setup.py.", position=0, section="Install"),
+]
+
+
+def test_lists_prompts_with_their_arguments():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            return await client.list_prompts()
+
+    prompts = {prompt.name: prompt for prompt in asyncio.run(run()).prompts}
+
+    assert [arg.name for arg in prompts["summarize_document"].arguments] == ["source"]
+    assert [arg.name for arg in prompts["compare_documents"].arguments] == ["first", "second"]
+    assert all(arg.required for prompt in prompts.values() for arg in prompt.arguments)
+
+
+def test_summarize_document_embeds_numbered_passages_in_order():
+    result = get_prompt(FakeServices(SECTIONED), "summarize_document", {"source": "notes.md"})
+
+    (message,) = result.messages
+    assert message.role == "user"
+    text = message.content.text
+    assert text.startswith("Summarize the document notes.md")
+    assert text.endswith(
+        "[1] notes.md, Intro\ndocsage indexes files.\n\n[2] notes.md, Install\nUse pip."
+    )
+    assert "old.md" not in text
+
+
+def test_compare_documents_labels_passages_per_document():
+    result = get_prompt(
+        FakeServices(SECTIONED), "compare_documents", {"first": "notes.md", "second": "old.md"}
+    )
+
+    text = result.messages[0].content.text
+    assert "Document A: notes.md\n\n[A1] notes.md, Intro" in text
+    assert "[A2] notes.md, Install\nUse pip." in text
+    assert text.endswith("Document B: old.md\n\n[B1] old.md, Install\nUse setup.py.")
+
+
+def test_prompts_reject_documents_that_are_not_indexed():
+    async def run():
+        async with Client(build_server(FakeServices(SECTIONED))) as client:
+            with pytest.raises(MCPError, match="missing.md is not indexed") as error:
+                await client.get_prompt(
+                    "compare_documents", {"first": "notes.md", "second": "missing.md"}
+                )
+            return error.value
+
+    assert asyncio.run(run()).code == INVALID_PARAMS
+
+
+def test_format_passages_stops_at_the_budget():
+    chunks = [
+        Chunk(id=f"c-{n}", source="big.md", text="x" * 50, position=n) for n in range(5)
+    ]
+
+    text = format_passages(chunks, budget=130)
+
+    assert text.count("big.md\n") == 2
+    assert text.endswith("[3 more passages omitted to fit the prompt]")
+
+
+def test_format_passages_keeps_one_passage_even_over_budget():
+    chunk = Chunk(id="c-0", source="big.md", text="x" * 500, position=0)
+
+    assert format_passages([chunk], budget=10) == f"[1] big.md\n{'x' * 500}"
