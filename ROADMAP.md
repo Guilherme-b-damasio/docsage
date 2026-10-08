@@ -27,7 +27,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] `interfaces/mcp_server.py` exposing tools: `search_documents`, `ask_documents`
 - [x] MCP tools: `index_path`, `remove_path`, `index_stats`
 - [x] MCP resources: list indexed documents (`docsage://documents`) and read a chunk by id
-- [ ] MCP prompts: "summarize document", "compare two documents"
+- [x] MCP prompts: "summarize document", "compare two documents"
 - [ ] `docsage mcp` CLI command that starts the server over stdio
 - [ ] Streamable HTTP transport option (`docsage mcp --http --port 8765`)
 - [ ] Integration tests driving the server with an in-memory MCP client

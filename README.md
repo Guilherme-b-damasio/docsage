@@ -71,6 +71,16 @@ It also publishes two read-only resources (JSON):
 | `docsage://documents`         | every indexed document: chunk count, pages, sections, chunk ids |
 | `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk            |
 
+And two prompts that embed whole documents as numbered, citable passages
+(about 60k characters at most; the rest is left out and the prompt says so):
+
+| Prompt               | Arguments         | Asks for                                         |
+| -------------------- | ----------------- | ------------------------------------------------ |
+| `summarize_document` | `source`          | an overview and key points, citing `[1]`, `[2]`  |
+| `compare_documents`  | `first`, `second` | shared topics, agreements, differences (`[A1]`, `[B2]`) |
+
+Pass sources exactly as `docsage://documents` lists them.
+
 A `docsage mcp` command to start it over stdio is next on the [roadmap](ROADMAP.md).
 
 ## What's new in 0.2
