@@ -51,6 +51,13 @@ model = "claude-opus-5-5"            # model used by `ask`
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 
+### MCP server (in progress)
+
+`pip install -e ".[mcp]"` adds the official MCP SDK. `docsage.interfaces.mcp_server`
+builds a server with two tools, `search_documents` (ranked passages with citations,
+no model call) and `ask_documents` (a cited answer from Claude). A `docsage mcp`
+command to start it over stdio is next on the [roadmap](ROADMAP.md).
+
 ## What's new in 0.2
 
 - `--json` output for `search`, `ask` and `stats`, for scripts and other tools.
@@ -70,7 +77,7 @@ src/docsage/
 ├── domain/           entities (Document, Chunk, Answer) and ports (Protocols)
 ├── application/      use cases: indexing, removal, stats, question answering
 ├── infrastructure/   adapters: file loaders, chunker, BM25 retriever, Claude generator
-├── interfaces/       CLI and shared JSON serializers
+├── interfaces/       CLI, MCP server and shared JSON serializers
 └── container.py      composition root, wires adapters to ports
 ```
 
