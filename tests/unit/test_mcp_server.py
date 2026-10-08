@@ -6,9 +6,15 @@ pytest.importorskip("mcp")
 
 from mcp import Client  # noqa: E402
 
-from docsage.application.services import QuestionAnsweringService, SearchService  # noqa: E402
+from docsage.application.services import (  # noqa: E402
+    QuestionAnsweringService,
+    SearchService,
+    StatsService,
+)
+from docsage.container import Container, Settings  # noqa: E402
 from docsage.domain.models import Chunk  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
+from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
 from docsage.interfaces.mcp_server import PREVIEW_CHARACTERS, build_server  # noqa: E402
 
 
@@ -32,6 +38,12 @@ class FakeServices:
 
     def question_answering_service(self):
         return QuestionAnsweringService(self.retriever, self.generator)
+
+    def stats_service(self):
+        return StatsService(self.retriever, multilingual_tokenizer(), self)
+
+    def size_bytes(self):
+        return 2048
 
 
 CHUNKS = [
@@ -124,3 +136,53 @@ def test_search_documents_truncates_long_passages():
 
     assert text.endswith("...")
     assert len(text.splitlines()[-1]) <= PREVIEW_CHARACTERS + 3
+
+
+def test_index_stats_summarizes_the_index():
+    text = text_of(call(FakeServices(CHUNKS), "index_stats", {"top": 2}))
+
+    assert "Documents:  2" in text
+    assert "Chunks:     2" in text
+    assert "Index size: 2.0 KB" in text
+    assert text.splitlines()[-1] == "Top terms: capital (2), france (1)"
+
+
+def test_index_stats_rejects_negative_top():
+    assert call(FakeServices(), "index_stats", {"top": -1}).is_error
+
+
+def test_index_search_and_remove_against_a_real_container(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("alpha notes", encoding="utf-8")
+    (docs / "b.md").write_text("beta notes", encoding="utf-8")
+    (docs / "image.png").write_bytes(b"PNG-bytes")
+    services = Container(Settings(index_path=tmp_path / "index.json"))
+
+    indexed = text_of(call(services, "index_path", {"path": str(docs)}))
+    assert indexed.startswith("Indexed 2 documents into 2 chunks.")
+    assert "Skipped 1 unsupported files:" in indexed
+
+    again = text_of(call(services, "index_path", {"path": str(docs)}))
+    assert "Skipped 2 unchanged documents" in again
+    forced = call(services, "index_path", {"path": str(docs), "force": True})
+    assert text_of(forced).startswith("Indexed 2 documents")
+
+    assert "alpha notes" in text_of(call(services, "search_documents", {"query": "alpha"}))
+
+    removed = text_of(call(services, "remove_path", {"path": str(docs / "a.md")}))
+    assert removed.startswith("Removed 1 documents (1 chunks):")
+    assert "No indexed passages" in text_of(
+        call(services, "search_documents", {"query": "alpha"})
+    )
+    missing = text_of(call(services, "remove_path", {"path": str(docs / "a.md")}))
+    assert missing == f"Nothing indexed under {docs / 'a.md'}."
+
+
+def test_index_path_rejects_missing_paths(tmp_path):
+    services = Container(Settings(index_path=tmp_path / "index.json"))
+
+    result = call(services, "index_path", {"path": str(tmp_path / "nope")})
+
+    assert result.is_error
+    assert "does not exist" in text_of(result)
