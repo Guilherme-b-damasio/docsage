@@ -1,0 +1,7 @@
+Does docsage send my documents anywhere?
+Indexing and searching run offline. Only the ask command sends the retrieved passages
+to the Claude API, together with the question.
+
+Where is the index stored?
+In .docsage/index.json next to where you run the command, unless the index option or
+the docsage.toml config file points somewhere else.

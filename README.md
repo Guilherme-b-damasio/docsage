@@ -136,6 +136,12 @@ mypy          # strict type checking of src/, also run in CI
 pytest --cov  # coverage report; CI fails below 90% and publishes the summary
 ```
 
+`tests/unit/` covers each class with fakes. `tests/integration/` drives the MCP server
+end to end: one in-memory client session indexes the small corpus in
+`tests/fixtures/corpus/`, reads resources, searches, asks and removes, against a real
+on-disk index. Only the answer generator is faked (`Container(settings, generator)`),
+so no test calls the Claude API.
+
 The project uses [git flow](CONTRIBUTING.md). See the [roadmap](ROADMAP.md) for planned work.
 
 ## License

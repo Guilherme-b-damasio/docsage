@@ -14,7 +14,7 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.ports import Chunker
+from docsage.domain.ports import AnswerGenerator, Chunker
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
@@ -40,8 +40,10 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
 
 
 class Container:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, generator: AnswerGenerator | None = None) -> None:
+        """``generator`` replaces the Claude adapter, e.g. with an offline fake in tests."""
         self._settings = settings
+        self._generator = generator
         self._tokenizer = multilingual_tokenizer()
         self._repository = JsonIndexRepository(
             settings.index_path, lambda: BM25Retriever(tokenizer=self._tokenizer)
@@ -66,15 +68,17 @@ class Container:
         return StatsService(self._repository.load(), self._tokenizer, self._repository)
 
     def question_answering_service(self) -> QuestionAnsweringService:
+        return QuestionAnsweringService(self._repository.load(), self._answer_generator())
+
+    def _answer_generator(self) -> AnswerGenerator:
+        if self._generator is not None:
+            return self._generator
         # Imported lazily so commands that never call the API don't need credentials.
         from docsage.infrastructure.claude_generator import ClaudeAnswerGenerator
 
-        generator = (
-            ClaudeAnswerGenerator(model=self._settings.model)
-            if self._settings.model
-            else ClaudeAnswerGenerator()
-        )
-        return QuestionAnsweringService(self._repository.load(), generator)
+        if self._settings.model:
+            return ClaudeAnswerGenerator(model=self._settings.model)
+        return ClaudeAnswerGenerator()
 
     def catalog_service(self) -> CatalogService:
         return CatalogService(self._repository.load())
