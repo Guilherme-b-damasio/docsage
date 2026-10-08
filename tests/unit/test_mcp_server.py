@@ -1,12 +1,15 @@
 import asyncio
+import json
 
 import pytest
 
 pytest.importorskip("mcp")
 
-from mcp import Client  # noqa: E402
+from mcp import Client, MCPError  # noqa: E402
+from mcp.types import INVALID_PARAMS  # noqa: E402
 
 from docsage.application.services import (  # noqa: E402
+    CatalogService,
     QuestionAnsweringService,
     SearchService,
     StatsService,
@@ -42,6 +45,9 @@ class FakeServices:
     def stats_service(self):
         return StatsService(self.retriever, multilingual_tokenizer(), self)
 
+    def catalog_service(self):
+        return CatalogService(self.retriever)
+
     def size_bytes(self):
         return 2048
 
@@ -63,6 +69,14 @@ def call(services, tool, arguments):
     async def run():
         async with Client(build_server(services)) as client:
             return await client.call_tool(tool, arguments)
+
+    return asyncio.run(run())
+
+
+def read(services, uri):
+    async def run():
+        async with Client(build_server(services)) as client:
+            return await client.read_resource(uri)
 
     return asyncio.run(run())
 
@@ -186,3 +200,69 @@ def test_index_path_rejects_missing_paths(tmp_path):
 
     assert result.is_error
     assert "does not exist" in text_of(result)
+
+
+def test_lists_documents_resource_and_chunk_template():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            return await client.list_resources(), await client.list_resource_templates()
+
+    resources, templates = asyncio.run(run())
+
+    assert [str(item.uri) for item in resources.resources] == ["docsage://documents"]
+    assert [item.uri_template for item in templates.resource_templates] == [
+        "docsage://chunks/{chunk_id}"
+    ]
+
+
+def test_documents_resource_lists_sources_with_chunk_ids():
+    result = read(FakeServices(CHUNKS), "docsage://documents")
+
+    content = result.contents[0]
+    assert content.mime_type == "application/json"
+    documents = json.loads(content.text)["documents"]
+    assert documents == [
+        {"source": "a.md", "chunks": 1, "pages": None, "sections": [], "chunk_ids": ["a#0"]},
+        {"source": "b.pdf", "chunks": 1, "pages": 3, "sections": [], "chunk_ids": ["b#0"]},
+    ]
+
+
+def test_documents_resource_of_an_empty_index():
+    result = read(FakeServices(), "docsage://documents")
+
+    assert json.loads(result.contents[0].text) == {"documents": []}
+
+
+def test_chunk_resource_returns_text_and_citation():
+    chunk = Chunk(id="abc-0", source="b.pdf", text="Lisbon.", position=0, first_page=3)
+
+    result = read(FakeServices([chunk]), "docsage://chunks/abc-0")
+
+    payload = json.loads(result.contents[0].text)
+    assert payload["text"] == "Lisbon."
+    assert payload["citation"] == "b.pdf, p. 3"
+
+
+def test_chunk_resource_rejects_unknown_ids():
+    async def run():
+        async with Client(build_server(FakeServices(CHUNKS))) as client:
+            with pytest.raises(MCPError, match="No indexed chunk with id nope") as error:
+                await client.read_resource("docsage://chunks/nope")
+            return error.value
+
+    assert asyncio.run(run()).code == INVALID_PARAMS
+
+
+def test_resources_against_a_real_container(tmp_path):
+    (tmp_path / "notes.md").write_text("# Setup\n\nInstall with pip.", encoding="utf-8")
+    services = Container(Settings(index_path=tmp_path / "index.json"))
+    call(services, "index_path", {"path": str(tmp_path / "notes.md")})
+
+    documents = json.loads(read(services, "docsage://documents").contents[0].text)["documents"]
+    (document,) = documents
+    assert document["sections"] == ["Setup"]
+
+    (chunk_id,) = document["chunk_ids"]
+    chunk = json.loads(read(services, f"docsage://chunks/{chunk_id}").contents[0].text)
+    assert "Install with pip." in chunk["text"]
+    assert chunk["citation"].endswith("notes.md, Setup")
