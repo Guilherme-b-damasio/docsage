@@ -54,9 +54,17 @@ before running it. `index` and `search` work offline.
 ### MCP server (in progress)
 
 `pip install -e ".[mcp]"` adds the official MCP SDK. `docsage.interfaces.mcp_server`
-builds a server with two tools, `search_documents` (ranked passages with citations,
-no model call) and `ask_documents` (a cited answer from Claude). A `docsage mcp`
-command to start it over stdio is next on the [roadmap](ROADMAP.md).
+builds a server with these tools:
+
+| Tool               | What it does                                              |
+| ------------------ | --------------------------------------------------------- |
+| `search_documents` | ranked passages with citations, no model call             |
+| `ask_documents`    | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
+| `index_path`       | index a file or folder; unchanged files are skipped       |
+| `remove_path`      | drop a file or folder from the index (files stay on disk) |
+| `index_stats`      | documents, chunks, top terms and index size               |
+
+A `docsage mcp` command to start it over stdio is next on the [roadmap](ROADMAP.md).
 
 ## What's new in 0.2
 
