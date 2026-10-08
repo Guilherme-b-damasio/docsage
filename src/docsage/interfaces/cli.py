@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from docsage import __version__
 from docsage.container import Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
+from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
@@ -93,7 +94,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _index(container: Container, args: argparse.Namespace) -> int:
-    report = container.indexing_service().index(_expand(args.paths), force=args.force)
+    report = container.indexing_service().index(expand_paths(args.paths), force=args.force)
     print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
     if report.unchanged:
         print(f"Skipped {report.unchanged} unchanged documents (use --force to re-index).")
@@ -162,14 +163,6 @@ def _ask(container: Container, args: argparse.Namespace) -> int:
         for index, result in enumerate(answer.sources, start=1):
             print(f"  [{index}] {result.chunk.citation}")
     return 0
-
-
-def _expand(paths: Sequence[Path]) -> Iterator[Path]:
-    for path in paths:
-        if path.is_dir():
-            yield from sorted(p for p in path.rglob("*") if p.is_file())
-        else:
-            yield path
 
 
 if __name__ == "__main__":
