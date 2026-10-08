@@ -6,6 +6,7 @@ Requires the optional ``mcp`` extra (``pip install "docsage[mcp]"``).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol
 
 from mcp.server import MCPServer
@@ -13,15 +14,28 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from docsage import __version__
-from docsage.application.services import QuestionAnsweringService, SearchService
+from docsage.application.services import (
+    IndexingReport,
+    IndexingService,
+    IndexStats,
+    QuestionAnsweringService,
+    RemovalReport,
+    RemovalService,
+    SearchService,
+    StatsService,
+)
 from docsage.domain.models import Answer, SearchResult
+from docsage.interfaces.paths import expand_paths
+from docsage.interfaces.text import human_size
 
 SERVER_NAME = "docsage"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
-    "Use search_documents to find passages and ask_documents for a cited answer."
+    "Use search_documents to find passages and ask_documents for a cited answer. "
+    "index_path adds files or folders, remove_path drops them, index_stats summarizes."
 )
 MAX_TOP_K = 50
+MAX_TOP_TERMS = 100
 PREVIEW_CHARACTERS = 400
 
 
@@ -31,6 +45,12 @@ class ServiceProvider(Protocol):
     def search_service(self) -> SearchService: ...
 
     def question_answering_service(self) -> QuestionAnsweringService: ...
+
+    def indexing_service(self) -> IndexingService: ...
+
+    def removal_service(self) -> RemovalService: ...
+
+    def stats_service(self) -> StatsService: ...
 
 
 def build_server(services: ServiceProvider) -> MCPServer:
@@ -69,6 +89,50 @@ def build_server(services: ServiceProvider) -> MCPServer:
         answer = service.ask(_require(question, "question"), _clamp(top_k))
         return format_answer(answer)
 
+    @server.tool(
+        title="Index path",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=True
+        ),
+        structured_output=False,
+    )
+    def index_path(path: str, force: bool = False) -> str:
+        """Index a file or a folder (recursively) so it can be searched.
+
+        Supports Markdown, text and PDF. Files whose content has not changed since the
+        last run are skipped unless force is true. Relative paths are resolved from the
+        server's working directory.
+        """
+        target = _existing_path(path)
+        report = services.indexing_service().index(expand_paths([target]), force=force)
+        return format_indexing_report(report)
+
+    @server.tool(
+        title="Remove path",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=True, idempotent_hint=True
+        ),
+        structured_output=False,
+    )
+    def remove_path(path: str) -> str:
+        """Drop a file, or every file under a folder, from the index.
+
+        Only the index changes; the files on disk are never touched.
+        """
+        report = services.removal_service().remove(Path(_require(path, "path")))
+        return format_removal_report(path, report)
+
+    @server.tool(
+        title="Index stats",
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+        structured_output=False,
+    )
+    def index_stats(top: int = 10) -> str:
+        """Summarize the index: documents, chunks, terms, top terms and size on disk."""
+        if top < 0:
+            raise ToolError("top must not be negative")
+        return format_stats(services.stats_service().stats(min(top, MAX_TOP_TERMS)))
+
     return server
 
 
@@ -92,6 +156,44 @@ def format_answer(answer: Answer) -> str:
         for index, result in enumerate(answer.sources, start=1)
     )
     return f"{answer.text}\n\nSources:\n{sources}"
+
+
+def format_indexing_report(report: IndexingReport) -> str:
+    lines = [f"Indexed {report.documents} documents into {report.chunks} chunks."]
+    if report.unchanged:
+        lines.append(f"Skipped {report.unchanged} unchanged documents (pass force to re-index).")
+    if report.skipped:
+        lines.append(f"Skipped {len(report.skipped)} unsupported files:")
+        lines.extend(f"  {path}" for path in report.skipped)
+    return "\n".join(lines)
+
+
+def format_removal_report(path: str, report: RemovalReport) -> str:
+    if not report.documents:
+        return f"Nothing indexed under {path}."
+    lines = [f"Removed {len(report.documents)} documents ({report.chunks} chunks):"]
+    lines.extend(f"  {source}" for source in report.documents)
+    return "\n".join(lines)
+
+
+def format_stats(stats: IndexStats) -> str:
+    lines = [
+        f"Documents:  {stats.documents}",
+        f"Chunks:     {stats.chunks}",
+        f"Terms:      {stats.terms} ({stats.vocabulary} distinct)",
+        f"Index size: {human_size(stats.index_bytes)}",
+    ]
+    if stats.top_terms:
+        terms = ", ".join(f"{term} ({count})" for term, count in stats.top_terms)
+        lines.append(f"Top terms: {terms}")
+    return "\n".join(lines)
+
+
+def _existing_path(path: str) -> Path:
+    target = Path(_require(path, "path"))
+    if not target.exists():
+        raise ToolError(f"{path} does not exist")
+    return target
 
 
 def _preview(text: str) -> str:
