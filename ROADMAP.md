@@ -24,7 +24,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 
 ## Milestone 0.3: MCP server
 - [x] Add the official `mcp` Python SDK as an optional extra (`docsage[mcp]`)
-- [ ] `interfaces/mcp_server.py` exposing tools: `search_documents`, `ask_documents`
+- [x] `interfaces/mcp_server.py` exposing tools: `search_documents`, `ask_documents`
 - [ ] MCP tools: `index_path`, `remove_path`, `index_stats`
 - [ ] MCP resources: list indexed documents (`docsage://documents`) and read a chunk by id
 - [ ] MCP prompts: "summarize document", "compare two documents"
