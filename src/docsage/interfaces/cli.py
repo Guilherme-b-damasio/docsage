@@ -18,6 +18,7 @@ from docsage.interfaces.serializers import (
     search_results_to_dict,
     stats_to_dict,
 )
+from docsage.interfaces.text import human_size
 
 Handler = Callable[[Container, argparse.Namespace], int]
 
@@ -134,22 +135,13 @@ def _stats(container: Container, args: argparse.Namespace) -> int:
     print(f"Documents:  {stats.documents}")
     print(f"Chunks:     {stats.chunks}")
     print(f"Terms:      {stats.terms} ({stats.vocabulary} distinct)")
-    print(f"Index size: {_human_size(stats.index_bytes)}")
+    print(f"Index size: {human_size(stats.index_bytes)}")
     if stats.top_terms:
         print("Top terms:")
         width = max(len(term) for term, _ in stats.top_terms)
         for term, count in stats.top_terms:
             print(f"  {term:<{width}}  {count}")
     return 0
-
-
-def _human_size(size: int) -> str:
-    if size < 1024:
-        return f"{size} B"
-    kilobytes = size / 1024
-    if kilobytes < 1024:
-        return f"{kilobytes:.1f} KB"
-    return f"{kilobytes / 1024:.1f} MB"
 
 
 def _ask(container: Container, args: argparse.Namespace) -> int:
