@@ -53,8 +53,16 @@ before running it. `index` and `search` work offline.
 
 ### MCP server (in progress)
 
-`pip install -e ".[mcp]"` adds the official MCP SDK. `docsage.interfaces.mcp_server`
-builds a server with these tools:
+`pip install -e ".[mcp]"` adds the official MCP SDK, then `docsage mcp` serves the
+index over stdio (global options such as `--index` and `--config` still apply; logs
+go to stderr so stdout stays reserved for the protocol):
+
+```bash
+docsage --index ~/notes/.docsage/index.json mcp
+claude mcp add docsage -- docsage --index ~/notes/.docsage/index.json mcp
+```
+
+The server offers these tools:
 
 | Tool               | What it does                                              |
 | ------------------ | --------------------------------------------------------- |
@@ -81,7 +89,7 @@ And two prompts that embed whole documents as numbered, citable passages
 
 Pass sources exactly as `docsage://documents` lists them.
 
-A `docsage mcp` command to start it over stdio is next on the [roadmap](ROADMAP.md).
+An HTTP transport and a full client setup guide are next on the [roadmap](ROADMAP.md).
 
 ## What's new in 0.2
 
