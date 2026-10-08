@@ -9,7 +9,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from docsage.domain.models import Answer, Document
+from docsage.domain.models import Answer, Document, SearchResult
 from docsage.domain.ports import (
     AnswerGenerator,
     Chunker,
@@ -133,6 +133,18 @@ def _is_within(candidate: Path, target: Path) -> bool:
 
 def content_hash(document: Document) -> str:
     return hashlib.sha256(document.text.encode("utf-8")).hexdigest()
+
+
+class SearchService:
+    """Ranks indexed chunks against a query without calling any model."""
+
+    def __init__(self, retriever: Retriever) -> None:
+        self._retriever = retriever
+
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        results = self._retriever.search(query, top_k)
+        logger.debug("searched index", extra={"top_k": top_k, "results": len(results)})
+        return results
 
 
 class QuestionAnsweringService:
