@@ -17,3 +17,11 @@ def test_config_values_then_overrides(tmp_path):
     assert settings.model == "from-flag"
     assert settings.index_path == DEFAULT_INDEX_PATH
     assert isinstance(settings.index_path, Path)
+
+
+def test_catalog_service_reads_the_configured_index(tmp_path):
+    from docsage.container import Container
+
+    service = Container(Settings(index_path=tmp_path / "index.json")).catalog_service()
+
+    assert service.documents() == []
