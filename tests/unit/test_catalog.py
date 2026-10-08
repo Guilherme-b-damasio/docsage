@@ -23,10 +23,11 @@ def test_documents_are_summarized_and_sorted_by_source():
     documents = catalog(CHUNKS).documents()
 
     assert documents == [
-        DocumentSummary("a.txt", chunks=1, pages=None, sections=()),
-        DocumentSummary("guide.pdf", chunks=2, pages=5, sections=()),
-        DocumentSummary("notes.md", chunks=3, pages=None, sections=("Intro", "Setup")),
+        DocumentSummary("a.txt", ("t-0",), pages=None, sections=()),
+        DocumentSummary("guide.pdf", ("g-0", "g-1"), pages=5, sections=()),
+        DocumentSummary("notes.md", ("n-0", "n-1", "n-2"), pages=None, sections=("Intro", "Setup")),
     ]
+    assert documents[2].chunks == 3
 
 
 def test_documents_of_an_empty_index():

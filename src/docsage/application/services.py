@@ -205,11 +205,16 @@ class StatsService:
 @dataclass(frozen=True)
 class DocumentSummary:
     source: str
-    chunks: int
+    chunk_ids: tuple[str, ...]
+    """Ids of the document's chunks in reading order."""
     pages: int | None
     """Last page seen in the document's chunks, None for unpaged formats."""
     sections: tuple[str, ...]
     """Distinct heading paths in reading order (Markdown only)."""
+
+    @property
+    def chunks(self) -> int:
+        return len(self.chunk_ids)
 
 
 class CatalogService:
@@ -239,7 +244,7 @@ def _summarize(source: str, chunks: list[Chunk]) -> DocumentSummary:
     sections = dict.fromkeys(chunk.section for chunk in ordered if chunk.section)
     return DocumentSummary(
         source=source,
-        chunks=len(ordered),
+        chunk_ids=tuple(chunk.id for chunk in ordered),
         pages=max(pages) if pages else None,
         sections=tuple(sections),
     )
