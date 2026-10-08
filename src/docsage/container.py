@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from docsage.application.services import (
+    CatalogService,
     IndexingService,
     QuestionAnsweringService,
     RemovalService,
@@ -74,6 +75,9 @@ class Container:
             else ClaudeAnswerGenerator()
         )
         return QuestionAnsweringService(self._repository.load(), generator)
+
+    def catalog_service(self) -> CatalogService:
+        return CatalogService(self._repository.load())
 
     def search_service(self) -> SearchService:
         return SearchService(self._repository.load())

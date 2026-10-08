@@ -9,7 +9,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from docsage.domain.models import Answer, Document, SearchResult
+from docsage.domain.models import Answer, Chunk, Document, SearchResult
 from docsage.domain.ports import (
     AnswerGenerator,
     Chunker,
@@ -200,3 +200,46 @@ class StatsService:
             top_terms=tuple(ranked[:top]),
             index_bytes=self._repository.size_bytes(),
         )
+
+
+@dataclass(frozen=True)
+class DocumentSummary:
+    source: str
+    chunks: int
+    pages: int | None
+    """Last page seen in the document's chunks, None for unpaged formats."""
+    sections: tuple[str, ...]
+    """Distinct heading paths in reading order (Markdown only)."""
+
+
+class CatalogService:
+    """Lists indexed documents and looks up their chunks."""
+
+    def __init__(self, retriever: Retriever) -> None:
+        self._retriever = retriever
+
+    def documents(self) -> list[DocumentSummary]:
+        by_source: dict[str, list[Chunk]] = {}
+        for chunk in self._retriever.chunks():
+            by_source.setdefault(chunk.source, []).append(chunk)
+        return [_summarize(source, by_source[source]) for source in sorted(by_source)]
+
+    def document_chunks(self, source: str) -> list[Chunk]:
+        """Chunks of ``source`` in reading order, empty when it is not indexed."""
+        chunks = [chunk for chunk in self._retriever.chunks() if chunk.source == source]
+        return sorted(chunks, key=lambda chunk: chunk.position)
+
+    def chunk(self, chunk_id: str) -> Chunk | None:
+        return next((chunk for chunk in self._retriever.chunks() if chunk.id == chunk_id), None)
+
+
+def _summarize(source: str, chunks: list[Chunk]) -> DocumentSummary:
+    ordered = sorted(chunks, key=lambda chunk: chunk.position)
+    pages = [page for chunk in ordered for page in (chunk.first_page, chunk.last_page) if page]
+    sections = dict.fromkeys(chunk.section for chunk in ordered if chunk.section)
+    return DocumentSummary(
+        source=source,
+        chunks=len(ordered),
+        pages=max(pages) if pages else None,
+        sections=tuple(sections),
+    )
