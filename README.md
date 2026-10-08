@@ -62,6 +62,14 @@ docsage --index ~/notes/.docsage/index.json mcp
 claude mcp add docsage -- docsage --index ~/notes/.docsage/index.json mcp
 ```
 
+For clients that connect over the network, `--http` serves Streamable HTTP instead
+(default `127.0.0.1:8765`, endpoint `/mcp`; `--host` and `--port` change it):
+
+```bash
+docsage --index ~/notes/.docsage/index.json mcp --http --port 8765
+claude mcp add --transport http docsage http://127.0.0.1:8765/mcp
+```
+
 The server offers these tools:
 
 | Tool               | What it does                                              |
@@ -89,7 +97,7 @@ And two prompts that embed whole documents as numbered, citable passages
 
 Pass sources exactly as `docsage://documents` lists them.
 
-An HTTP transport and a full client setup guide are next on the [roadmap](ROADMAP.md).
+A full client setup guide is next on the [roadmap](ROADMAP.md).
 
 ## What's new in 0.2
 
