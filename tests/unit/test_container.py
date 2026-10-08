@@ -25,3 +25,22 @@ def test_catalog_service_reads_the_configured_index(tmp_path):
     service = Container(Settings(index_path=tmp_path / "index.json")).catalog_service()
 
     assert service.documents() == []
+
+
+def test_question_answering_uses_an_injected_generator(tmp_path):
+    from docsage.container import Container
+    from docsage.domain.models import Chunk
+
+    class FakeGenerator:
+        def generate(self, question, context):
+            return f"{question} -> {len(context)} passages"
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), FakeGenerator())
+    notes = tmp_path / "notes.md"
+    notes.write_text("Lisbon is the capital of Portugal.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    answer = container.question_answering_service().ask("Where is Lisbon?")
+
+    assert answer.text == "Where is Lisbon? -> 1 passages"
+    assert isinstance(answer.sources[0].chunk, Chunk)
