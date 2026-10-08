@@ -97,7 +97,8 @@ And two prompts that embed whole documents as numbered, citable passages
 
 Pass sources exactly as `docsage://documents` lists them.
 
-A full client setup guide is next on the [roadmap](ROADMAP.md).
+[docs/mcp.md](docs/mcp.md) walks through the Claude Code, Claude Desktop and HTTP
+setup, with every tool's arguments and a troubleshooting list.
 
 ## What's new in 0.2
 
