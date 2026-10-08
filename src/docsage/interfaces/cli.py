@@ -91,6 +91,9 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("--model", default=None)
     ask.add_argument("--json", action="store_true", help="print the answer as JSON")
     ask.set_defaults(handler=_ask)
+
+    mcp = commands.add_parser("mcp", help="serve the index to MCP clients over stdio")
+    mcp.set_defaults(handler=_mcp)
     return parser
 
 
@@ -154,6 +157,17 @@ def _ask(container: Container, args: argparse.Namespace) -> int:
         print("\nSources:")
         for index, result in enumerate(answer.sources, start=1):
             print(f"  [{index}] {result.chunk.citation}")
+    return 0
+
+
+def _mcp(container: Container, args: argparse.Namespace) -> int:
+    try:
+        from docsage.interfaces.mcp_server import build_server
+    except ImportError:
+        print('docsage: the MCP server needs: pip install "docsage[mcp]"', file=sys.stderr)
+        return 2
+    # stdout carries the protocol; logs already go to stderr.
+    build_server(container).run("stdio")
     return 0
 
 
