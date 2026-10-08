@@ -64,6 +64,13 @@ builds a server with these tools:
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | documents, chunks, top terms and index size               |
 
+It also publishes two read-only resources (JSON):
+
+| Resource                      | Contents                                                     |
+| ----------------------------- | ------------------------------------------------------------ |
+| `docsage://documents`         | every indexed document: chunk count, pages, sections, chunk ids |
+| `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk            |
+
 A `docsage mcp` command to start it over stdio is next on the [roadmap](ROADMAP.md).
 
 ## What's new in 0.2
