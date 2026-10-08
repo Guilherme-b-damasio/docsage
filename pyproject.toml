@@ -14,7 +14,8 @@ dependencies = ["anthropic>=1.0"]
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0"]
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "pytest-cov>=5.0", "pypdf>=4.0"]
+mcp = ["mcp>=2.3"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "pytest-cov>=5.0", "pypdf>=4.0", "mcp>=2.3"]
 
 [project.scripts]
 docsage = "docsage.interfaces.cli:main"
