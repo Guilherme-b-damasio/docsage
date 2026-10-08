@@ -10,7 +10,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from docsage.application.services import IndexStats
+from docsage.application.services import DocumentSummary, IndexStats
 from docsage.domain.models import Answer, Chunk, SearchResult
 
 
@@ -59,6 +59,16 @@ def stats_to_dict(stats: IndexStats) -> dict[str, Any]:
         "vocabulary": stats.vocabulary,
         "top_terms": [{"term": term, "count": count} for term, count in stats.top_terms],
         "index_bytes": stats.index_bytes,
+    }
+
+
+def document_summary_to_dict(summary: DocumentSummary) -> dict[str, Any]:
+    return {
+        "source": summary.source,
+        "chunks": summary.chunks,
+        "pages": summary.pages,
+        "sections": list(summary.sections),
+        "chunk_ids": list(summary.chunk_ids),
     }
 
 

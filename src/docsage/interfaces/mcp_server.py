@@ -10,11 +10,12 @@ from pathlib import Path
 from typing import Protocol
 
 from mcp.server import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
 from docsage import __version__
 from docsage.application.services import (
+    CatalogService,
     IndexingReport,
     IndexingService,
     IndexStats,
@@ -26,13 +27,18 @@ from docsage.application.services import (
 )
 from docsage.domain.models import Answer, SearchResult
 from docsage.interfaces.paths import expand_paths
+from docsage.interfaces.serializers import chunk_to_dict, document_summary_to_dict, dumps
 from docsage.interfaces.text import human_size
 
 SERVER_NAME = "docsage"
+DOCUMENTS_URI = "docsage://documents"
+CHUNK_URI_TEMPLATE = "docsage://chunks/{chunk_id}"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
-    "index_path adds files or folders, remove_path drops them, index_stats summarizes."
+    "index_path adds files or folders, remove_path drops them, index_stats summarizes. "
+    f"Read {DOCUMENTS_URI} to list indexed documents and their chunk ids, and "
+    f"{CHUNK_URI_TEMPLATE} for the full text of one chunk."
 )
 MAX_TOP_K = 50
 MAX_TOP_TERMS = 100
@@ -51,6 +57,8 @@ class ServiceProvider(Protocol):
     def removal_service(self) -> RemovalService: ...
 
     def stats_service(self) -> StatsService: ...
+
+    def catalog_service(self) -> CatalogService: ...
 
 
 def build_server(services: ServiceProvider) -> MCPServer:
@@ -132,6 +140,28 @@ def build_server(services: ServiceProvider) -> MCPServer:
         if top < 0:
             raise ToolError("top must not be negative")
         return format_stats(services.stats_service().stats(min(top, MAX_TOP_TERMS)))
+
+    @server.resource(
+        DOCUMENTS_URI,
+        title="Indexed documents",
+        description="Every indexed document with its chunk count, pages, sections and chunk ids.",
+        mime_type="application/json",
+    )
+    def documents() -> str:
+        summaries = services.catalog_service().documents()
+        return dumps({"documents": [document_summary_to_dict(item) for item in summaries]})
+
+    @server.resource(
+        CHUNK_URI_TEMPLATE,
+        title="Chunk",
+        description="Full text and citation of one indexed chunk.",
+        mime_type="application/json",
+    )
+    def chunk(chunk_id: str) -> str:
+        found = services.catalog_service().chunk(chunk_id)
+        if found is None:
+            raise ResourceNotFoundError(f"No indexed chunk with id {chunk_id}")
+        return dumps(chunk_to_dict(found))
 
     return server
 
