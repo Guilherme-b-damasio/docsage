@@ -22,6 +22,10 @@ from docsage.interfaces.text import human_size
 
 Handler = Callable[[Container, argparse.Namespace], int]
 
+DEFAULT_HTTP_HOST = "127.0.0.1"
+DEFAULT_HTTP_PORT = 8765
+HTTP_PATH = "/mcp"
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
@@ -92,7 +96,21 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("--json", action="store_true", help="print the answer as JSON")
     ask.set_defaults(handler=_ask)
 
-    mcp = commands.add_parser("mcp", help="serve the index to MCP clients over stdio")
+    mcp = commands.add_parser("mcp", help="serve the index to MCP clients (stdio or HTTP)")
+    mcp.add_argument(
+        "--http", action="store_true", help="serve over Streamable HTTP instead of stdio"
+    )
+    mcp.add_argument(
+        "--host",
+        default=DEFAULT_HTTP_HOST,
+        help=f"HTTP bind address (default: {DEFAULT_HTTP_HOST})",
+    )
+    mcp.add_argument(
+        "--port",
+        type=_port,
+        default=DEFAULT_HTTP_PORT,
+        help=f"HTTP port (default: {DEFAULT_HTTP_PORT})",
+    )
     mcp.set_defaults(handler=_mcp)
     return parser
 
@@ -166,9 +184,24 @@ def _mcp(container: Container, args: argparse.Namespace) -> int:
     except ImportError:
         print('docsage: the MCP server needs: pip install "docsage[mcp]"', file=sys.stderr)
         return 2
+    server = build_server(container)
+    if args.http:
+        url = f"http://{args.host}:{args.port}{HTTP_PATH}"
+        print(f"docsage: serving MCP over Streamable HTTP at {url}", file=sys.stderr)
+        server.run(
+            "streamable-http", host=args.host, port=args.port, streamable_http_path=HTTP_PATH
+        )
+        return 0
     # stdout carries the protocol; logs already go to stderr.
-    build_server(container).run("stdio")
+    server.run("stdio")
     return 0
+
+
+def _port(value: str) -> int:
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, got {port}")
+    return port
 
 
 if __name__ == "__main__":
