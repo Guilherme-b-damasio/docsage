@@ -6,6 +6,7 @@ from docsage.application.services import (
     QuestionAnsweringService,
     RemovalReport,
     RemovalService,
+    SearchService,
     content_hash,
 )
 from docsage.domain.models import Chunk, Document
@@ -205,3 +206,17 @@ def test_question_answering_logs_retrieval(caplog):
     QuestionAnsweringService(BM25Retriever(), FakeGenerator()).ask("anything", top_k=3)
     record = next(r for r in caplog.records if r.getMessage() == "retrieved context")
     assert (record.top_k, record.results) == (3, 0)
+
+
+def test_search_service_ranks_chunks_from_the_retriever():
+    retriever = BM25Retriever()
+    retriever.add(
+        [
+            Chunk(id="a#0", source="a.md", text="alpha notes", position=0),
+            Chunk(id="b#0", source="b.md", text="beta notes", position=0),
+        ]
+    )
+
+    results = SearchService(retriever).search("beta", top_k=3)
+
+    assert [result.chunk.source for result in results] == ["b.md"]

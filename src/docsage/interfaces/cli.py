@@ -112,7 +112,7 @@ def _remove(container: Container, args: argparse.Namespace) -> int:
 
 
 def _search(container: Container, args: argparse.Namespace) -> int:
-    results = container.retriever().search(args.query, args.top_k)
+    results = container.search_service().search(args.query, args.top_k)
     if args.json:
         print(dumps(search_results_to_dict(args.query, results)))
         return 0 if results else 1

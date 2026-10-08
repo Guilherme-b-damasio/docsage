@@ -10,9 +10,10 @@ from docsage.application.services import (
     IndexingService,
     QuestionAnsweringService,
     RemovalService,
+    SearchService,
     StatsService,
 )
-from docsage.domain.ports import Chunker, Retriever
+from docsage.domain.ports import Chunker
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
@@ -74,5 +75,5 @@ class Container:
         )
         return QuestionAnsweringService(self._repository.load(), generator)
 
-    def retriever(self) -> Retriever:
-        return self._repository.load()
+    def search_service(self) -> SearchService:
+        return SearchService(self._repository.load())
