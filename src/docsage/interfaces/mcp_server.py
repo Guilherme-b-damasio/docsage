@@ -9,9 +9,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
+from mcp import MCPError
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import INVALID_PARAMS, ToolAnnotations
 
 from docsage import __version__
 from docsage.application.services import (
@@ -25,7 +26,7 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.models import Answer, SearchResult
+from docsage.domain.models import Answer, Chunk, SearchResult
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import chunk_to_dict, document_summary_to_dict, dumps
 from docsage.interfaces.text import human_size
@@ -38,11 +39,14 @@ INSTRUCTIONS = (
     "Use search_documents to find passages and ask_documents for a cited answer. "
     "index_path adds files or folders, remove_path drops them, index_stats summarizes. "
     f"Read {DOCUMENTS_URI} to list indexed documents and their chunk ids, and "
-    f"{CHUNK_URI_TEMPLATE} for the full text of one chunk."
+    f"{CHUNK_URI_TEMPLATE} for the full text of one chunk. The summarize_document and "
+    "compare_documents prompts embed whole documents as citable passages."
 )
 MAX_TOP_K = 50
 MAX_TOP_TERMS = 100
 PREVIEW_CHARACTERS = 400
+PROMPT_CHARACTERS = 60_000
+"""Budget for document text embedded in a prompt, split evenly between compared documents."""
 
 
 class ServiceProvider(Protocol):
@@ -163,7 +167,54 @@ def build_server(services: ServiceProvider) -> MCPServer:
             raise ResourceNotFoundError(f"No indexed chunk with id {chunk_id}")
         return dumps(chunk_to_dict(found))
 
+    @server.prompt(title="Summarize document")
+    def summarize_document(source: str) -> str:
+        """Summarize one indexed document, citing its passages.
+
+        source is the document path exactly as listed by docsage://documents.
+        """
+        passages = format_passages(_document_chunks(services, source), PROMPT_CHARACTERS)
+        return (
+            f"Summarize the document {source} using only the passages below. "
+            "Start with a one-sentence overview, then list the key points. "
+            "Cite the passages you rely on as [1], [2], ...\n\n"
+            f"{passages}"
+        )
+
+    @server.prompt(title="Compare two documents")
+    def compare_documents(first: str, second: str) -> str:
+        """Compare two indexed documents: what they share, where they differ.
+
+        first and second are document paths exactly as listed by docsage://documents.
+        """
+        budget = PROMPT_CHARACTERS // 2
+        first_passages = format_passages(_document_chunks(services, first), budget, label="A")
+        second_passages = format_passages(_document_chunks(services, second), budget, label="B")
+        return (
+            f"Compare document A ({first}) with document B ({second}) using only the "
+            "passages below. Cover the topics both address, where they agree, where they "
+            "differ or contradict each other, and what only one of them covers. "
+            "Cite passages as [A1], [B2], ...\n\n"
+            f"Document A: {first}\n\n{first_passages}\n\n"
+            f"Document B: {second}\n\n{second_passages}"
+        )
+
     return server
+
+
+def format_passages(chunks: Sequence[Chunk], budget: int, label: str = "") -> str:
+    """Numbers ``chunks`` as citable passages, stopping before ``budget`` characters."""
+    blocks: list[str] = []
+    used = 0
+    for number, chunk in enumerate(chunks, start=1):
+        block = f"[{label}{number}] {chunk.citation}\n{chunk.text.strip()}"
+        if blocks and used + len(block) > budget:
+            omitted = len(chunks) - len(blocks)
+            blocks.append(f"[{omitted} more passages omitted to fit the prompt]")
+            break
+        blocks.append(block)
+        used += len(block)
+    return "\n\n".join(blocks)
 
 
 def format_search_results(query: str, results: Sequence[SearchResult]) -> str:
@@ -217,6 +268,16 @@ def format_stats(stats: IndexStats) -> str:
         terms = ", ".join(f"{term} ({count})" for term, count in stats.top_terms)
         lines.append(f"Top terms: {terms}")
     return "\n".join(lines)
+
+
+def _document_chunks(services: ServiceProvider, source: str) -> list[Chunk]:
+    chunks = services.catalog_service().document_chunks(source)
+    if not chunks:
+        raise MCPError(
+            INVALID_PARAMS,
+            f"{source} is not indexed; read {DOCUMENTS_URI} for the indexed sources",
+        )
+    return chunks
 
 
 def _existing_path(path: str) -> Path:
