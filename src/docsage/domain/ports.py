@@ -10,7 +10,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
-from docsage.domain.models import Chunk, Document, SearchResult
+from docsage.domain.models import Chunk, Document, Highlight, SearchResult
 
 
 class DocumentLoader(Protocol):
@@ -65,3 +65,9 @@ class AnswerGenerator(Protocol):
     """Produces a natural-language answer grounded on retrieved context."""
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str: ...
+
+
+class Highlighter(Protocol):
+    """Finds where a query's terms occur in a passage, for highlighted citations."""
+
+    def highlight(self, query: str, text: str) -> list[Highlight]: ...
