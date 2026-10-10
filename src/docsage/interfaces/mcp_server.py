@@ -243,8 +243,9 @@ def format_search_results(query: str, results: Sequence[SearchResult]) -> str:
         return f'No indexed passages match "{query}".'
     blocks = [f'{len(results)} passages for "{query}":']
     for rank, result in enumerate(results, start=1):
+        matched = f"; matched: {', '.join(result.matched_terms)}" if result.matched_terms else ""
         blocks.append(
-            f"[{rank}] {result.chunk.citation} (score {result.score:.2f})\n"
+            f"[{rank}] {result.chunk.citation} (score {result.score:.2f}{matched})\n"
             f"{_preview(result.chunk.text)}"
         )
     return "\n\n".join(blocks)

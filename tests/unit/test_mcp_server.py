@@ -109,7 +109,8 @@ def test_search_documents_returns_ranked_citations():
     assert not result.is_error
     text = text_of(result)
     assert text.startswith('2 passages for "Portugal capital":')
-    assert "[1] b.pdf, p. 3" in text
+    assert "[1] b.pdf, p. 3 (score " in text
+    assert "; matched: capital, portugal)" in text
     assert "Lisbon is the capital of Portugal." in text
 
 
