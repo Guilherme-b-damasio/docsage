@@ -9,7 +9,7 @@ from docsage.application.services import (
     SearchService,
     content_hash,
 )
-from docsage.domain.models import Chunk, Document
+from docsage.domain.models import Chunk, Document, Highlight
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.chunking import SlidingWindowChunker
 from docsage.infrastructure.loaders import PlainTextLoader
@@ -220,3 +220,48 @@ def test_search_service_ranks_chunks_from_the_retriever():
     results = SearchService(retriever).search("beta", top_k=3)
 
     assert [result.chunk.source for result in results] == ["b.md"]
+
+
+class FakeHighlighter:
+    def __init__(self):
+        self.calls = []
+
+    def highlight(self, query, text):
+        self.calls.append((query, text))
+        return [Highlight(0, 4, query)]
+
+
+def _alpha_beta_retriever():
+    retriever = BM25Retriever()
+    retriever.add(
+        [
+            Chunk(id="a#0", source="a.md", text="alpha notes", position=0),
+            Chunk(id="b#0", source="b.md", text="beta notes", position=0),
+        ]
+    )
+    return retriever
+
+
+def test_search_service_attaches_highlights_to_each_result():
+    highlighter = FakeHighlighter()
+
+    results = SearchService(_alpha_beta_retriever(), highlighter).search("beta", top_k=3)
+
+    assert [result.highlights for result in results] == [(Highlight(0, 4, "beta"),)]
+    assert highlighter.calls == [("beta", "beta notes")]
+
+
+def test_search_service_without_highlighter_leaves_results_bare():
+    results = SearchService(_alpha_beta_retriever()).search("beta", top_k=3)
+
+    assert results[0].highlights == ()
+
+
+def test_question_answering_highlights_sources_and_passes_them_on():
+    generator = FakeGenerator()
+    service = QuestionAnsweringService(_alpha_beta_retriever(), generator, FakeHighlighter())
+
+    answer = service.ask("alpha")
+
+    assert answer.sources[0].matched_terms == ("alpha",)
+    assert generator.calls[0][1][0].highlights == (Highlight(0, 4, "alpha"),)

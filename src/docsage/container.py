@@ -18,6 +18,7 @@ from docsage.domain.ports import AnswerGenerator, Chunker
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
+from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
 
@@ -45,6 +46,7 @@ class Container:
         self._settings = settings
         self._generator = generator
         self._tokenizer = multilingual_tokenizer()
+        self._highlighter = TermHighlighter(self._tokenizer)
         self._repository = JsonIndexRepository(
             settings.index_path, lambda: BM25Retriever(tokenizer=self._tokenizer)
         )
@@ -68,7 +70,9 @@ class Container:
         return StatsService(self._repository.load(), self._tokenizer, self._repository)
 
     def question_answering_service(self) -> QuestionAnsweringService:
-        return QuestionAnsweringService(self._repository.load(), self._answer_generator())
+        return QuestionAnsweringService(
+            self._repository.load(), self._answer_generator(), self._highlighter
+        )
 
     def _answer_generator(self) -> AnswerGenerator:
         if self._generator is not None:
@@ -84,4 +88,4 @@ class Container:
         return CatalogService(self._repository.load())
 
     def search_service(self) -> SearchService:
-        return SearchService(self._repository.load())
+        return SearchService(self._repository.load(), self._highlighter)

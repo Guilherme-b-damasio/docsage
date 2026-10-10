@@ -14,6 +14,7 @@ from docsage.domain.ports import (
     AnswerGenerator,
     Chunker,
     DocumentLoader,
+    Highlighter,
     IndexRepository,
     Retriever,
     TextTokenizer,
@@ -135,14 +136,27 @@ def content_hash(document: Document) -> str:
     return hashlib.sha256(document.text.encode("utf-8")).hexdigest()
 
 
+def _highlighted(
+    results: Sequence[SearchResult], query: str, highlighter: Highlighter | None
+) -> list[SearchResult]:
+    """Attaches the query's matches to each result when a highlighter is configured."""
+    if highlighter is None:
+        return list(results)
+    return [
+        replace(result, highlights=tuple(highlighter.highlight(query, result.chunk.text)))
+        for result in results
+    ]
+
+
 class SearchService:
     """Ranks indexed chunks against a query without calling any model."""
 
-    def __init__(self, retriever: Retriever) -> None:
+    def __init__(self, retriever: Retriever, highlighter: Highlighter | None = None) -> None:
         self._retriever = retriever
+        self._highlighter = highlighter
 
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
-        results = self._retriever.search(query, top_k)
+        results = _highlighted(self._retriever.search(query, top_k), query, self._highlighter)
         logger.debug("searched index", extra={"top_k": top_k, "results": len(results)})
         return results
 
@@ -150,12 +164,20 @@ class SearchService:
 class QuestionAnsweringService:
     """Retrieves relevant chunks and asks the generator for a grounded answer."""
 
-    def __init__(self, retriever: Retriever, generator: AnswerGenerator) -> None:
+    def __init__(
+        self,
+        retriever: Retriever,
+        generator: AnswerGenerator,
+        highlighter: Highlighter | None = None,
+    ) -> None:
         self._retriever = retriever
         self._generator = generator
+        self._highlighter = highlighter
 
     def ask(self, question: str, top_k: int = 5) -> Answer:
-        results = self._retriever.search(question, top_k)
+        results = _highlighted(
+            self._retriever.search(question, top_k), question, self._highlighter
+        )
         logger.debug("retrieved context", extra={"top_k": top_k, "results": len(results)})
         if not results:
             return Answer(question, "No relevant context found in the index.", ())
