@@ -10,7 +10,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
-from docsage.domain.models import Chunk, Document, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Document, Highlight, SearchResult
 
 
 class DocumentLoader(Protocol):
@@ -71,3 +71,9 @@ class Highlighter(Protocol):
     """Finds where a query's terms occur in a passage, for highlighted citations."""
 
     def highlight(self, query: str, text: str) -> list[Highlight]: ...
+
+
+class AnswerRenderer(Protocol):
+    """Turns an answer and its cited passages into a shareable report (HTML, text...)."""
+
+    def render(self, answer: Answer) -> str: ...
