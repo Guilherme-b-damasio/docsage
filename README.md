@@ -25,7 +25,10 @@ pass `--force` to rebuild every document.
 
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
-summary), handy for scripts and other tools.
+summary), handy for scripts and other tools. Each ranked chunk lists its
+`matched_terms` and `highlights`: the character offsets in the chunk's text where
+a query term occurs (`{"start": 4, "end": 9, "term": "index"}`), normalized the same
+way the ranking is, so a viewer can highlight exactly what matched.
 
 Add `-v`/`--verbose` before the command to log what docsage is doing to stderr,
 one `key=value` line per event (documents indexed or skipped, index loads and
