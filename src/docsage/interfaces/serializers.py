@@ -1,7 +1,7 @@
 """Turns domain objects into JSON-ready dicts.
 
-Shared by every interface (CLI ``--json`` today, the MCP server later) so they all
-expose the same shape.
+Shared by every interface (CLI ``--json`` and the MCP server's structured tool output)
+so they all expose the same shape.
 """
 
 from __future__ import annotations
@@ -10,7 +10,12 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from docsage.application.services import DocumentSummary, IndexStats
+from docsage.application.services import (
+    DocumentSummary,
+    IndexingReport,
+    IndexStats,
+    RemovalReport,
+)
 from docsage.domain.models import Answer, Chunk, SearchResult
 
 
@@ -70,6 +75,19 @@ def document_summary_to_dict(summary: DocumentSummary) -> dict[str, Any]:
         "sections": list(summary.sections),
         "chunk_ids": list(summary.chunk_ids),
     }
+
+
+def indexing_report_to_dict(report: IndexingReport) -> dict[str, Any]:
+    return {
+        "documents": report.documents,
+        "chunks": report.chunks,
+        "unchanged": report.unchanged,
+        "skipped": list(report.skipped),
+    }
+
+
+def removal_report_to_dict(path: str, report: RemovalReport) -> dict[str, Any]:
+    return {"path": path, "documents": list(report.documents), "chunks": report.chunks}
 
 
 def dumps(payload: dict[str, Any]) -> str:

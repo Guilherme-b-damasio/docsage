@@ -350,3 +350,77 @@ def test_format_passages_keeps_one_passage_even_over_budget():
     chunk = Chunk(id="c-0", source="big.md", text="x" * 500, position=0)
 
     assert format_passages([chunk], budget=10) == f"[1] big.md\n{'x' * 500}"
+
+
+def test_every_tool_publishes_an_output_schema():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            return await client.list_tools()
+
+    schemas = {tool.name: tool.output_schema for tool in asyncio.run(run()).tools}
+
+    assert all(schema and schema["type"] == "object" for schema in schemas.values())
+    assert schemas["search_documents"]["required"] == ["query", "results"]
+    assert set(schemas["index_stats"]["properties"]) == {
+        "documents",
+        "chunks",
+        "terms",
+        "vocabulary",
+        "top_terms",
+        "index_bytes",
+    }
+
+
+def test_search_documents_returns_structured_results_with_full_text():
+    long_text = "alpha " * 200
+    services = FakeServices([Chunk(id="l#0", source="long.md", text=long_text, position=0)])
+
+    result = call(services, "search_documents", {"query": "alpha"})
+
+    assert text_of(result).endswith("...")
+    (ranked,) = result.structured_content["results"]
+    assert result.structured_content["query"] == "alpha"
+    assert ranked["rank"] == 1
+    assert ranked["chunk"]["text"] == long_text
+    assert ranked["chunk"]["citation"] == "long.md"
+
+
+def test_ask_documents_returns_structured_answer():
+    result = call(FakeServices(CHUNKS), "ask_documents", {"question": "France?", "top_k": 1})
+
+    payload = result.structured_content
+    assert payload["question"] == "France?"
+    assert payload["answer"] == "Paris is the capital [1]."
+    assert [source["chunk"]["id"] for source in payload["sources"]] == ["a#0"]
+
+
+def test_index_stats_returns_structured_top_terms():
+    payload = call(FakeServices(CHUNKS), "index_stats", {"top": 1}).structured_content
+
+    assert payload["documents"] == 2
+    assert payload["index_bytes"] == 2048
+    assert payload["top_terms"] == [{"term": "capital", "count": 2}]
+
+
+def test_failed_tools_carry_no_structured_content():
+    result = call(FakeServices(), "index_stats", {"top": -1})
+
+    assert result.is_error
+    assert result.structured_content is None
+
+
+def test_index_and_remove_return_structured_reports(tmp_path):
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"PNG-bytes")
+    services = Container(Settings(index_path=tmp_path / "index.json"))
+
+    indexed = call(services, "index_path", {"path": str(tmp_path)}).structured_content
+    assert indexed["documents"] == 1
+    assert indexed["unchanged"] == 0
+    assert [path.endswith("image.png") for path in indexed["skipped"]] == [True]
+
+    target = str(tmp_path / "a.md")
+    removed = call(services, "remove_path", {"path": target}).structured_content
+    assert removed["path"] == target
+    assert removed["chunks"] == 1
+    assert len(removed["documents"]) == 1

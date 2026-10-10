@@ -99,6 +99,25 @@ The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only 
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths.
 
+### Structured output
+
+Every tool publishes an `outputSchema` and returns two things: readable text for the
+model, and `structuredContent` that matches the schema for applications and agents
+that want fields instead of prose. The structured shapes are the same as the CLI's
+`--json` output:
+
+| Tool               | `structuredContent`                                                     |
+| ------------------ | ----------------------------------------------------------------------- |
+| `search_documents` | `query`, `results[]` with `rank`, `score` and the full `chunk`          |
+| `ask_documents`    | `question`, `answer`, `sources[]` ranked like search results            |
+| `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
+| `remove_path`      | `path`, `documents[]`, `chunks`                                         |
+| `index_stats`      | `documents`, `chunks`, `terms`, `vocabulary`, `top_terms[]`, `index_bytes` |
+
+Search results carry each chunk's full text in `structuredContent`; the text output
+shortens long passages to a preview. A failed call returns an error and no structured
+content.
+
 ### Resources
 
 | Resource                      | Contents                                                       |

@@ -1,4 +1,7 @@
-"""MCP server. Thin layer like the CLI: validate arguments, call a use case, format text.
+"""MCP server. Thin layer like the CLI: validate arguments, call a use case, format output.
+
+Every tool returns readable text for the model plus structured content that matches
+its published output schema (``docsage.interfaces.mcp_schemas``) for applications.
 
 Requires the optional ``mcp`` extra (``pip install "docsage[mcp]"``).
 """
@@ -7,12 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import Annotated, Any, Protocol
 
 from mcp import MCPError
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
-from mcp.types import INVALID_PARAMS, ToolAnnotations
+from mcp.types import INVALID_PARAMS, CallToolResult, TextContent, ToolAnnotations
 
 from docsage import __version__
 from docsage.application.services import (
@@ -27,8 +30,24 @@ from docsage.application.services import (
     StatsService,
 )
 from docsage.domain.models import Answer, Chunk, SearchResult
+from docsage.interfaces.mcp_schemas import (
+    AnswerOutput,
+    IndexingOutput,
+    RemovalOutput,
+    SearchOutput,
+    StatsOutput,
+)
 from docsage.interfaces.paths import expand_paths
-from docsage.interfaces.serializers import chunk_to_dict, document_summary_to_dict, dumps
+from docsage.interfaces.serializers import (
+    answer_to_dict,
+    chunk_to_dict,
+    document_summary_to_dict,
+    dumps,
+    indexing_report_to_dict,
+    removal_report_to_dict,
+    search_results_to_dict,
+    stats_to_dict,
+)
 from docsage.interfaces.text import human_size
 
 SERVER_NAME = "docsage"
@@ -75,23 +94,23 @@ def build_server(services: ServiceProvider) -> MCPServer:
     @server.tool(
         title="Search documents",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
-        structured_output=False,
     )
-    def search_documents(query: str, top_k: int = 5) -> str:
+    def search_documents(query: str, top_k: int = 5) -> Annotated[CallToolResult, SearchOutput]:
         """Find the indexed passages that best match a query (BM25, no model call).
 
         Returns the passages ranked by score, each with its citation (file, page or
         Markdown section) so you can quote or open the source.
         """
         results = services.search_service().search(_require(query, "query"), _clamp(top_k))
-        return format_search_results(query, results)
+        return _result(
+            format_search_results(query, results), search_results_to_dict(query, results)
+        )
 
     @server.tool(
         title="Ask documents",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
-        structured_output=False,
     )
-    def ask_documents(question: str, top_k: int = 5) -> str:
+    def ask_documents(question: str, top_k: int = 5) -> Annotated[CallToolResult, AnswerOutput]:
         """Answer a question from the indexed documents with Claude, citing sources.
 
         Retrieves the top_k passages and asks Claude for an answer grounded on them.
@@ -99,16 +118,17 @@ def build_server(services: ServiceProvider) -> MCPServer:
         """
         service = services.question_answering_service()
         answer = service.ask(_require(question, "question"), _clamp(top_k))
-        return format_answer(answer)
+        return _result(format_answer(answer), answer_to_dict(answer))
 
     @server.tool(
         title="Index path",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=False, idempotent_hint=True
         ),
-        structured_output=False,
     )
-    def index_path(path: str, force: bool = False) -> str:
+    def index_path(
+        path: str, force: bool = False
+    ) -> Annotated[CallToolResult, IndexingOutput]:
         """Index a file or a folder (recursively) so it can be searched.
 
         Supports Markdown, text and PDF. Files whose content has not changed since the
@@ -117,33 +137,34 @@ def build_server(services: ServiceProvider) -> MCPServer:
         """
         target = _existing_path(path)
         report = services.indexing_service().index(expand_paths([target]), force=force)
-        return format_indexing_report(report)
+        return _result(format_indexing_report(report), indexing_report_to_dict(report))
 
     @server.tool(
         title="Remove path",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=True, idempotent_hint=True
         ),
-        structured_output=False,
     )
-    def remove_path(path: str) -> str:
+    def remove_path(path: str) -> Annotated[CallToolResult, RemovalOutput]:
         """Drop a file, or every file under a folder, from the index.
 
         Only the index changes; the files on disk are never touched.
         """
         report = services.removal_service().remove(Path(_require(path, "path")))
-        return format_removal_report(path, report)
+        return _result(
+            format_removal_report(path, report), removal_report_to_dict(path, report)
+        )
 
     @server.tool(
         title="Index stats",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
-        structured_output=False,
     )
-    def index_stats(top: int = 10) -> str:
+    def index_stats(top: int = 10) -> Annotated[CallToolResult, StatsOutput]:
         """Summarize the index: documents, chunks, terms, top terms and size on disk."""
         if top < 0:
             raise ToolError("top must not be negative")
-        return format_stats(services.stats_service().stats(min(top, MAX_TOP_TERMS)))
+        stats = services.stats_service().stats(min(top, MAX_TOP_TERMS))
+        return _result(format_stats(stats), stats_to_dict(stats))
 
     @server.resource(
         DOCUMENTS_URI,
@@ -268,6 +289,11 @@ def format_stats(stats: IndexStats) -> str:
         terms = ", ".join(f"{term} ({count})" for term, count in stats.top_terms)
         lines.append(f"Top terms: {terms}")
     return "\n".join(lines)
+
+
+def _result(text: str, payload: dict[str, Any]) -> CallToolResult:
+    """Pairs the text the model reads with the structured content applications parse."""
+    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=payload)
 
 
 def _document_chunks(services: ServiceProvider, source: str) -> list[Chunk]:
