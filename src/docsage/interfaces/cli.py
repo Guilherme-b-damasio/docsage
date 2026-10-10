@@ -11,6 +11,7 @@ from docsage import __version__
 from docsage.container import Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
+from docsage.infrastructure.units import human_size
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
@@ -18,7 +19,6 @@ from docsage.interfaces.serializers import (
     search_results_to_dict,
     stats_to_dict,
 )
-from docsage.interfaces.text import human_size
 
 Handler = Callable[[Container, argparse.Namespace], int]
 

@@ -1,4 +1,4 @@
-"""Plain-text helpers shared by the CLI and the MCP server."""
+"""Human-readable units shared by the CLI, the MCP server and the visual renderers."""
 
 from __future__ import annotations
 
