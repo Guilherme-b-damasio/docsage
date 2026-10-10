@@ -10,7 +10,14 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
-from docsage.domain.models import Answer, Chunk, Document, Highlight, SearchResult
+from docsage.domain.models import (
+    Answer,
+    Chunk,
+    Document,
+    Highlight,
+    IndexOverview,
+    SearchResult,
+)
 
 
 class DocumentLoader(Protocol):
@@ -77,3 +84,9 @@ class AnswerRenderer(Protocol):
     """Turns an answer and its cited passages into a shareable report (HTML, text...)."""
 
     def render(self, answer: Answer) -> str: ...
+
+
+class DashboardRenderer(Protocol):
+    """Turns an overview of the index into a dashboard (HTML, text...)."""
+
+    def render(self, overview: IndexOverview) -> str: ...
