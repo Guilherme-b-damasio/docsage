@@ -124,6 +124,18 @@ report = Container(load_settings()).answer_report_service("html").report("How do
 Path("answer.html").write_text(report.content, encoding="utf-8")
 ```
 
+### Index dashboard
+
+`docsage dashboard` writes a single-file HTML dashboard of the index: totals, documents
+per file type, a histogram of chunk lengths (in words) and the most frequent terms. The
+charts are inline SVG, so the page works offline, follows light and dark mode, shows
+each value on hover and has a "Show as table" view under every chart.
+
+```bash
+docsage dashboard -o dashboard.html     # then open it in a browser
+docsage dashboard --format text         # the same numbers as text bars in the terminal
+```
+
 ## What's new in 0.3
 
 - `docsage mcp` turns the index into an MCP server over stdio, or Streamable HTTP
