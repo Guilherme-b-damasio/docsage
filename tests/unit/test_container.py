@@ -83,3 +83,15 @@ def test_answer_report_service_renders_html_or_text(tmp_path):
     assert "**Lisbon**" in text.content
     with pytest.raises(ValueError, match="Unknown report format"):
         container.answer_report_service("pdf")
+
+
+def test_dashboard_service_rejects_unknown_formats(tmp_path):
+    import pytest
+
+    from docsage.container import Container
+
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+
+    assert "The index is empty" in container.dashboard_service().render()
+    with pytest.raises(ValueError, match="Unknown dashboard format"):
+        container.dashboard_service("svg")

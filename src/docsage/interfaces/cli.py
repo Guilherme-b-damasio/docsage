@@ -8,9 +8,10 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from docsage import __version__
-from docsage.container import Container, load_settings
+from docsage.container import DASHBOARD_FORMATS, Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
+from docsage.infrastructure.units import human_size
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
@@ -18,7 +19,6 @@ from docsage.interfaces.serializers import (
     search_results_to_dict,
     stats_to_dict,
 )
-from docsage.interfaces.text import human_size
 
 Handler = Callable[[Container, argparse.Namespace], int]
 
@@ -88,6 +88,20 @@ def _parser() -> argparse.ArgumentParser:
     stats.add_argument("--top", type=int, default=10, help="how many top terms to show")
     stats.add_argument("--json", action="store_true", help="print stats as JSON")
     stats.set_defaults(handler=_stats)
+
+    dashboard = commands.add_parser("dashboard", help="write an HTML dashboard of the index")
+    dashboard.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="file to write (default: print to stdout)",
+    )
+    dashboard.add_argument(
+        "--format", choices=sorted(DASHBOARD_FORMATS), default="html", help="default: html"
+    )
+    dashboard.add_argument("--top", type=int, default=15, help="how many top terms to chart")
+    dashboard.set_defaults(handler=_dashboard)
 
     ask = commands.add_parser("ask", help="answer a question with Claude")
     ask.add_argument("question")
@@ -164,6 +178,28 @@ def _stats(container: Container, args: argparse.Namespace) -> int:
         for term, count in stats.top_terms:
             print(f"  {term:<{width}}  {count}")
     return 0
+
+
+def _dashboard(container: Container, args: argparse.Namespace) -> int:
+    content = container.dashboard_service(args.format).render(top=args.top)
+    if args.output is None:
+        _write_stdout(content)
+        return 0
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(content, encoding="utf-8")
+    print(f"Wrote {args.output}")
+    return 0
+
+
+def _write_stdout(content: str) -> None:
+    """Writes ``content`` even when stdout's encoding (e.g. cp1252 when redirected on
+    Windows) cannot represent it, by sending UTF-8 bytes instead."""
+    try:
+        sys.stdout.write(content)
+    except UnicodeEncodeError:
+        sys.stdout.flush()
+        sys.stdout.buffer.write(content.encode("utf-8"))
+        sys.stdout.buffer.flush()
 
 
 def _ask(container: Container, args: argparse.Namespace) -> int:

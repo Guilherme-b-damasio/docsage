@@ -84,3 +84,28 @@ class Answer:
     question: str
     text: str
     sources: tuple[SearchResult, ...]
+
+
+@dataclass(frozen=True)
+class HistogramBin:
+    """Values ``low <= value <= high`` and how many fell in that range."""
+
+    low: int
+    high: int
+    count: int
+
+
+@dataclass(frozen=True)
+class IndexOverview:
+    """Everything the index dashboard shows, computed once from the stored chunks."""
+
+    documents: int
+    chunks: int
+    terms: int
+    vocabulary: int
+    index_bytes: int
+    documents_by_type: tuple[tuple[str, int], ...]
+    """``(file type, documents)`` pairs, most common type first."""
+    chunk_lengths: tuple[HistogramBin, ...]
+    """Distribution of chunk lengths in words, in ascending ranges."""
+    top_terms: tuple[tuple[str, int], ...]

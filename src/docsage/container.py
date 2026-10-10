@@ -9,19 +9,22 @@ from typing import Any
 from docsage.application.services import (
     AnswerReportService,
     CatalogService,
+    DashboardService,
     IndexingService,
     QuestionAnsweringService,
     RemovalService,
     SearchService,
     StatsService,
 )
-from docsage.domain.ports import AnswerGenerator, AnswerRenderer, Chunker
+from docsage.domain.ports import AnswerGenerator, AnswerRenderer, Chunker, DashboardRenderer
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
 from docsage.infrastructure.highlighting import TermHighlighter
+from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
 
@@ -30,6 +33,11 @@ DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
 REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
     "html": HtmlAnswerRenderer,
     "text": TextAnswerRenderer,
+}
+
+DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
+    "html": HtmlDashboardRenderer,
+    "text": TextDashboardRenderer,
 }
 
 
@@ -76,6 +84,16 @@ class Container:
 
     def stats_service(self) -> StatsService:
         return StatsService(self._repository.load(), self._tokenizer, self._repository)
+
+    def dashboard_service(self, dashboard_format: str = "html") -> DashboardService:
+        """``dashboard_format`` is a key of ``DASHBOARD_FORMATS``."""
+        try:
+            renderer = DASHBOARD_FORMATS[dashboard_format]()
+        except KeyError:
+            raise ValueError(f"Unknown dashboard format: {dashboard_format}") from None
+        retriever = self._repository.load()
+        stats = StatsService(retriever, self._tokenizer, self._repository)
+        return DashboardService(stats, retriever, renderer)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(

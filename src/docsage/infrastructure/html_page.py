@@ -15,13 +15,13 @@ BASE_CSS = """
 :root {
   --bg: #fbfbfa; --surface: #ffffff; --text: #1f2328; --muted: #59636e;
   --border: #d8dee4; --accent: #0b6bcb; --mark: #fff1a8; --mark-text: #1f2328;
-  --bar: #0b6bcb; --bar-alt: #8a63d2;
+  --bar: #0b6bcb; --grid: #e6e9ed;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1216; --surface: #171b21; --text: #e6e8eb; --muted: #9aa4b0;
     --border: #2d333b; --accent: #58a6ff; --mark: #6b5a12; --mark-text: #fff8d6;
-    --bar: #58a6ff; --bar-alt: #b392f0;
+    --bar: #4493f8; --grid: #252b33;
   }
 }
 * { box-sizing: border-box; }

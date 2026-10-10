@@ -9,11 +9,19 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from docsage.domain.models import Answer, Chunk, Document, SearchResult
+from docsage.domain.models import (
+    Answer,
+    Chunk,
+    Document,
+    HistogramBin,
+    IndexOverview,
+    SearchResult,
+)
 from docsage.domain.ports import (
     AnswerGenerator,
     AnswerRenderer,
     Chunker,
+    DashboardRenderer,
     DocumentLoader,
     Highlighter,
     IndexRepository,
@@ -244,6 +252,59 @@ class StatsService:
             top_terms=tuple(ranked[:top]),
             index_bytes=self._repository.size_bytes(),
         )
+
+
+class DashboardService:
+    """Builds the index overview the dashboard shows and renders it."""
+
+    def __init__(
+        self, stats: StatsService, retriever: Retriever, renderer: DashboardRenderer
+    ) -> None:
+        self._stats = stats
+        self._retriever = retriever
+        self._renderer = renderer
+
+    def overview(self, top: int = 15, bins: int = 10) -> IndexOverview:
+        stats = self._stats.stats(top)
+        chunks = self._retriever.chunks()
+        types = Counter(file_type(source) for source in {chunk.source for chunk in chunks})
+        return IndexOverview(
+            documents=stats.documents,
+            chunks=stats.chunks,
+            terms=stats.terms,
+            vocabulary=stats.vocabulary,
+            index_bytes=stats.index_bytes,
+            documents_by_type=tuple(sorted(types.items(), key=lambda item: (-item[1], item[0]))),
+            chunk_lengths=histogram([len(chunk.text.split()) for chunk in chunks], bins),
+            top_terms=stats.top_terms,
+        )
+
+    def render(self, top: int = 15, bins: int = 10) -> str:
+        return self._renderer.render(self.overview(top, bins))
+
+
+def file_type(source: str) -> str:
+    """Lower-case extension without the dot, e.g. ``md``; ``other`` when there is none."""
+    return Path(source).suffix.lower().lstrip(".") or "other"
+
+
+def histogram(values: Sequence[int], bins: int) -> tuple[HistogramBin, ...]:
+    """Splits ``values`` into at most ``bins`` equal-width integer ranges.
+
+    Every range is kept, even when empty, so gaps in the distribution stay visible.
+    """
+    if not values:
+        return ()
+    if bins < 1:
+        raise ValueError("bins must be at least 1")
+    low, high = min(values), max(values)
+    width = max(1, -(-(high - low + 1) // bins))
+    edges = range(low, high + 1, width)
+    counts = Counter((value - low) // width for value in values)
+    return tuple(
+        HistogramBin(start, min(start + width - 1, high), counts[index])
+        for index, start in enumerate(edges)
+    )
 
 
 @dataclass(frozen=True)

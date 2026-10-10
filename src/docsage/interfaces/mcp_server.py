@@ -30,6 +30,7 @@ from docsage.application.services import (
     StatsService,
 )
 from docsage.domain.models import Answer, Chunk, SearchResult
+from docsage.infrastructure.units import human_size
 from docsage.interfaces.mcp_schemas import (
     AnswerOutput,
     IndexingOutput,
@@ -48,7 +49,6 @@ from docsage.interfaces.serializers import (
     search_results_to_dict,
     stats_to_dict,
 )
-from docsage.interfaces.text import human_size
 
 SERVER_NAME = "docsage"
 DOCUMENTS_URI = "docsage://documents"
