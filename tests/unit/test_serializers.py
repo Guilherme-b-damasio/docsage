@@ -1,7 +1,7 @@
 import json
 
 from docsage.application.services import IndexingReport, RemovalReport
-from docsage.domain.models import Answer, Chunk, SearchResult
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
@@ -88,3 +88,25 @@ def test_removal_report_keeps_the_requested_path():
         "documents": ["docs/a.md", "docs/b.md"],
         "chunks": 3,
     }
+
+
+def test_search_results_include_matched_terms_and_offsets():
+    chunk = Chunk(id="a#0", source="a.md", text="Index the index", position=0)
+    highlights = (Highlight(0, 5, "index"), Highlight(10, 15, "index"))
+
+    (payload,) = search_results_to_dict("index", [SearchResult(chunk, 1.0, highlights)])[
+        "results"
+    ]
+
+    assert payload["matched_terms"] == ["index"]
+    assert payload["highlights"] == [
+        {"start": 0, "end": 5, "term": "index"},
+        {"start": 10, "end": 15, "term": "index"},
+    ]
+
+
+def test_results_without_highlights_serialize_empty_lists():
+    (payload,) = search_results_to_dict("x", [_result("one", 1.0)])["results"]
+
+    assert payload["matched_terms"] == []
+    assert payload["highlights"] == []
