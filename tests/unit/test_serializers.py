@@ -1,9 +1,12 @@
 import json
 
+from docsage.application.services import IndexingReport, RemovalReport
 from docsage.domain.models import Answer, Chunk, SearchResult
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
+    indexing_report_to_dict,
+    removal_report_to_dict,
     search_results_to_dict,
 )
 
@@ -64,3 +67,24 @@ def test_chunk_section_is_serialized():
 
     assert payload["section"] == "Guide > Install"
     assert payload["citation"] == "a.md, Guide > Install"
+
+
+def test_indexing_report_lists_skipped_files():
+    report = IndexingReport(documents=2, chunks=5, skipped=("a.png",), unchanged=1)
+
+    assert indexing_report_to_dict(report) == {
+        "documents": 2,
+        "chunks": 5,
+        "unchanged": 1,
+        "skipped": ["a.png"],
+    }
+
+
+def test_removal_report_keeps_the_requested_path():
+    report = RemovalReport(documents=("docs/a.md", "docs/b.md"), chunks=3)
+
+    assert removal_report_to_dict("docs", report) == {
+        "path": "docs",
+        "documents": ["docs/a.md", "docs/b.md"],
+        "chunks": 3,
+    }
