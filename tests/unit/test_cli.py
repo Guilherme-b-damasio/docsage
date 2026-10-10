@@ -176,3 +176,48 @@ def test_search_lists_the_matched_terms(tmp_path, capsys):
 
     assert main(["--index", str(index), "search", "capital of france"]) == 0
     assert "(matched: capital, france)" in capsys.readouterr().out
+
+
+def test_dashboard_command_writes_an_html_file(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes about retrieval", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path / "a.md")])
+    capsys.readouterr()
+    output = tmp_path / "out" / "dashboard.html"
+
+    assert main(["--index", str(index), "dashboard", "-o", str(output)]) == 0
+
+    assert f"Wrote {output}" in capsys.readouterr().out
+    html = output.read_text(encoding="utf-8")
+    assert html.startswith("<!doctype html>")
+    assert "<title>md: 1</title>" in html
+
+
+def test_dashboard_command_prints_text(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha alpha beta", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path / "a.md")])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "dashboard", "--format", "text", "--top", "1"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Documents:  1" in out
+    assert "Top terms:\n  alpha" in out
+    assert "beta" not in out
+
+
+def test_dashboard_falls_back_to_utf8_bytes_on_a_narrow_stdout(tmp_path, monkeypatch):
+    import io
+    import sys
+
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha beta", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path / "a.md")])
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+
+    assert main(["--index", str(index), "dashboard", "--format", "text"]) == 0
+
+    sys.stdout.flush()
+    assert "█" in raw.getvalue().decode("utf-8")
