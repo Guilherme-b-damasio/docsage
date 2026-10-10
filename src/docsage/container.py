@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from docsage.application.services import (
+    AnswerReportService,
     CatalogService,
     IndexingService,
     QuestionAnsweringService,
@@ -14,15 +15,22 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.ports import AnswerGenerator, Chunker
+from docsage.domain.ports import AnswerGenerator, AnswerRenderer, Chunker
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
 from docsage.infrastructure.config import read_config
 from docsage.infrastructure.highlighting import TermHighlighter
+from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
 
 DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
+
+REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
+    "html": HtmlAnswerRenderer,
+    "text": TextAnswerRenderer,
+}
 
 
 @dataclass(frozen=True)
@@ -73,6 +81,14 @@ class Container:
         return QuestionAnsweringService(
             self._repository.load(), self._answer_generator(), self._highlighter
         )
+
+    def answer_report_service(self, report_format: str = "html") -> AnswerReportService:
+        """``report_format`` is a key of ``REPORT_FORMATS``."""
+        try:
+            renderer = REPORT_FORMATS[report_format]()
+        except KeyError:
+            raise ValueError(f"Unknown report format: {report_format}") from None
+        return AnswerReportService(self.question_answering_service(), renderer)
 
     def _answer_generator(self) -> AnswerGenerator:
         if self._generator is not None:
