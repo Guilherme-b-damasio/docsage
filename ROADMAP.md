@@ -36,7 +36,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 
 ## Milestone 0.4: Visual output
 - [x] Citation highlighting: return the matched terms and offsets for each chunk
-- [ ] HTML report renderer for an answer (question, answer, cited passages with highlights)
+- [x] HTML report renderer for an answer (question, answer, cited passages with highlights)
 - [ ] Index dashboard (HTML): documents per type, chunk length histogram, top terms
 - [ ] Score breakdown chart per search result (BM25 term contributions)
 - [ ] Serve visual output from the MCP server as UI resources (MCP Apps) where the client supports it, with a plain-text fallback

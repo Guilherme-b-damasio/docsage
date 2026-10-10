@@ -59,3 +59,27 @@ def test_search_results_carry_highlights_from_the_shared_tokenizer(tmp_path):
     assert result.matched_terms == ("index",)
     (highlight,) = result.highlights
     assert result.chunk.text[highlight.start : highlight.end] == "Index"
+
+
+def test_answer_report_service_renders_html_or_text(tmp_path):
+    import pytest
+
+    from docsage.container import Container
+
+    class FakeGenerator:
+        def generate(self, question, context):
+            return "Lisbon [1]."
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), FakeGenerator())
+    notes = tmp_path / "notes.md"
+    notes.write_text("Lisbon is the capital of Portugal.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    html = container.answer_report_service().report("Where is Lisbon?")
+    text = container.answer_report_service("text").report("Where is Lisbon?")
+
+    assert html.answer.text == "Lisbon [1]."
+    assert '<mark title="lisbon">Lisbon</mark>' in html.content
+    assert "**Lisbon**" in text.content
+    with pytest.raises(ValueError, match="Unknown report format"):
+        container.answer_report_service("pdf")

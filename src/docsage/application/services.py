@@ -12,6 +12,7 @@ from pathlib import Path
 from docsage.domain.models import Answer, Chunk, Document, SearchResult
 from docsage.domain.ports import (
     AnswerGenerator,
+    AnswerRenderer,
     Chunker,
     DocumentLoader,
     Highlighter,
@@ -184,6 +185,27 @@ class QuestionAnsweringService:
         text = self._generator.generate(question, results)
         logger.debug("generated answer", extra={"characters": len(text)})
         return Answer(question, text, tuple(results))
+
+
+@dataclass(frozen=True)
+class AnswerReport:
+    answer: Answer
+    content: str
+    """The rendered report, e.g. a complete HTML document."""
+
+
+class AnswerReportService:
+    """Answers a question and renders the answer with its cited passages as a report."""
+
+    def __init__(self, answering: QuestionAnsweringService, renderer: AnswerRenderer) -> None:
+        self._answering = answering
+        self._renderer = renderer
+
+    def report(self, question: str, top_k: int = 5) -> AnswerReport:
+        answer = self._answering.ask(question, top_k)
+        content = self._renderer.render(answer)
+        logger.debug("rendered answer report", extra={"characters": len(content)})
+        return AnswerReport(answer, content)
 
 
 @dataclass(frozen=True)

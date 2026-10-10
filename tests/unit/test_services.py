@@ -265,3 +265,23 @@ def test_question_answering_highlights_sources_and_passes_them_on():
 
     assert answer.sources[0].matched_terms == ("alpha",)
     assert generator.calls[0][1][0].highlights == (Highlight(0, 4, "alpha"),)
+
+
+def test_answer_report_service_renders_the_answer():
+    from docsage.application.services import AnswerReportService
+
+    retriever = BM25Retriever()
+    retriever.add([Chunk("a#0", "a.md", "Paris is in France.", 0)])
+    rendered = []
+
+    class Renderer:
+        def render(self, answer):
+            rendered.append(answer)
+            return f"<{answer.text}>"
+
+    service = AnswerReportService(QuestionAnsweringService(retriever, FakeGenerator()), Renderer())
+    report = service.report("Where is Paris?", top_k=3)
+
+    assert report.content == "<answer from 1 passages>"
+    assert rendered == [report.answer]
+    assert report.answer.sources[0].chunk.source == "a.md"

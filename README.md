@@ -107,6 +107,23 @@ counts without parsing the text.
 [docs/mcp.md](docs/mcp.md) walks through the Claude Code, Claude Desktop and HTTP
 setup, with every tool's arguments and a troubleshooting list.
 
+### Visual reports
+
+An answer can be rendered as a single, self-contained HTML page: the question, the
+answer with each `[n]` citation linked to its passage, and every cited passage with
+the matched query terms highlighted. The page inlines its CSS (no network needed) and
+follows the system's light or dark mode. A plain-text renderer is the fallback for
+clients that cannot show HTML (matched terms appear in `**bold**`).
+
+```python
+from pathlib import Path
+
+from docsage.container import Container, load_settings
+
+report = Container(load_settings()).answer_report_service("html").report("How does BM25 work?")
+Path("answer.html").write_text(report.content, encoding="utf-8")
+```
+
 ## What's new in 0.3
 
 - `docsage mcp` turns the index into an MCP server over stdio, or Streamable HTTP
@@ -135,8 +152,9 @@ The code follows a ports-and-adapters (hexagonal) layout:
 ```
 src/docsage/
 ├── domain/           entities (Document, Chunk, Answer) and ports (Protocols)
-├── application/      use cases: indexing, removal, stats, question answering
-├── infrastructure/   adapters: file loaders, chunker, BM25 retriever, Claude generator
+├── application/      use cases: indexing, removal, stats, question answering, reports
+├── infrastructure/   adapters: file loaders, chunker, BM25 retriever, Claude generator,
+│                     HTML and plain-text renderers
 ├── interfaces/       CLI, MCP server and shared JSON serializers
 └── container.py      composition root, wires adapters to ports
 ```
