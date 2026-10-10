@@ -51,7 +51,7 @@ model = "claude-opus-5-5"            # model used by `ask`
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 
-### MCP server (in progress)
+### MCP server
 
 `pip install -e ".[mcp]"` adds the official MCP SDK, then `docsage mcp` serves the
 index over stdio (global options such as `--index` and `--config` still apply; logs
@@ -97,8 +97,23 @@ And two prompts that embed whole documents as numbered, citable passages
 
 Pass sources exactly as `docsage://documents` lists them.
 
+Every tool also publishes an output schema and returns `structuredContent` with the
+same fields as the CLI's `--json` output, so agents can read scores, citations and
+counts without parsing the text.
+
 [docs/mcp.md](docs/mcp.md) walks through the Claude Code, Claude Desktop and HTTP
 setup, with every tool's arguments and a troubleshooting list.
+
+## What's new in 0.3
+
+- `docsage mcp` turns the index into an MCP server over stdio, or Streamable HTTP
+  with `--http`.
+- Tools to search, ask, index, remove and summarize the index, each with an output
+  schema and structured content next to the text.
+- `docsage://documents` and `docsage://chunks/{chunk_id}` resources, plus
+  `summarize_document` and `compare_documents` prompts.
+- [docs/mcp.md](docs/mcp.md): setup for Claude Code, Claude Desktop and HTTP clients.
+- An integration suite drives the server with an in-memory MCP client.
 
 ## What's new in 0.2
 

@@ -32,7 +32,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Streamable HTTP transport option (`docsage mcp --http --port 8765`)
 - [x] Integration tests driving the server with an in-memory MCP client
 - [x] `docs/mcp.md`: setup for Claude Desktop and Claude Code (`claude mcp add`)
-- [ ] Return structured tool output (JSON schema) alongside text
+- [x] Return structured tool output (JSON schema) alongside text
 
 ## Milestone 0.4: Visual output
 - [ ] Citation highlighting: return the matched terms and offsets for each chunk
