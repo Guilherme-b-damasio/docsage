@@ -166,3 +166,13 @@ def test_logs_are_quiet_without_verbose(tmp_path, capsys):
     main(["--index", str(index), "index", str(tmp_path)])
 
     assert "event=" not in capsys.readouterr().err
+
+
+def test_search_lists_the_matched_terms(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("Paris is the capital of France.", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path / "a.md")])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "capital of france"]) == 0
+    assert "(matched: capital, france)" in capsys.readouterr().out

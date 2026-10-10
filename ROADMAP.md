@@ -35,7 +35,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Return structured tool output (JSON schema) alongside text
 
 ## Milestone 0.4: Visual output
-- [ ] Citation highlighting: return the matched terms and offsets for each chunk
+- [x] Citation highlighting: return the matched terms and offsets for each chunk
 - [ ] HTML report renderer for an answer (question, answer, cited passages with highlights)
 - [ ] Index dashboard (HTML): documents per type, chunk length histogram, top terms
 - [ ] Score breakdown chart per search result (BM25 term contributions)

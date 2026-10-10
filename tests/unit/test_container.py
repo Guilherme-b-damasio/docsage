@@ -44,3 +44,18 @@ def test_question_answering_uses_an_injected_generator(tmp_path):
 
     assert answer.text == "Where is Lisbon? -> 1 passages"
     assert isinstance(answer.sources[0].chunk, Chunk)
+
+
+def test_search_results_carry_highlights_from_the_shared_tokenizer(tmp_path):
+    from docsage.container import Container
+
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+    notes = tmp_path / "notes.md"
+    notes.write_text("The Index lives on disk.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    (result,) = container.search_service().search("where is the index?")
+
+    assert result.matched_terms == ("index",)
+    (highlight,) = result.highlights
+    assert result.chunk.text[highlight.start : highlight.end] == "Index"

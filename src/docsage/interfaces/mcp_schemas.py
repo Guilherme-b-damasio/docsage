@@ -22,9 +22,18 @@ class ChunkOutput(TypedDict):
     text: str
 
 
+class HighlightOutput(TypedDict):
+    start: int
+    end: int
+    term: str
+
+
 class RankedChunkOutput(TypedDict):
     rank: int
     score: float
+    matched_terms: list[str]
+    highlights: list[HighlightOutput]
+    """Character offsets into ``chunk.text`` where each query term occurs."""
     chunk: ChunkOutput
 
 

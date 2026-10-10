@@ -17,6 +17,7 @@ from docsage.application.services import (  # noqa: E402
 from docsage.container import Container, Settings  # noqa: E402
 from docsage.domain.models import Chunk  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
+from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
 from docsage.interfaces.mcp_server import (  # noqa: E402
     PREVIEW_CHARACTERS,
@@ -39,12 +40,13 @@ class FakeServices:
         self.retriever = BM25Retriever()
         self.retriever.add(chunks)
         self.generator = FakeGenerator()
+        self.highlighter = TermHighlighter(multilingual_tokenizer())
 
     def search_service(self):
-        return SearchService(self.retriever)
+        return SearchService(self.retriever, self.highlighter)
 
     def question_answering_service(self):
-        return QuestionAnsweringService(self.retriever, self.generator)
+        return QuestionAnsweringService(self.retriever, self.generator, self.highlighter)
 
     def stats_service(self):
         return StatsService(self.retriever, multilingual_tokenizer(), self)
@@ -107,7 +109,8 @@ def test_search_documents_returns_ranked_citations():
     assert not result.is_error
     text = text_of(result)
     assert text.startswith('2 passages for "Portugal capital":')
-    assert "[1] b.pdf, p. 3" in text
+    assert "[1] b.pdf, p. 3 (score " in text
+    assert "; matched: capital, portugal)" in text
     assert "Lisbon is the capital of Portugal." in text
 
 
@@ -424,3 +427,15 @@ def test_index_and_remove_return_structured_reports(tmp_path):
     assert removed["path"] == target
     assert removed["chunks"] == 1
     assert len(removed["documents"]) == 1
+
+
+def test_search_documents_returns_highlight_offsets():
+    result = call(FakeServices(CHUNKS), "search_documents", {"query": "Portugal capital"})
+
+    top = result.structured_content["results"][0]
+    assert top["matched_terms"] == ["capital", "portugal"]
+    text = top["chunk"]["text"]
+    assert [text[item["start"] : item["end"]] for item in top["highlights"]] == [
+        "capital",
+        "Portugal",
+    ]

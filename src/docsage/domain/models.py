@@ -51,11 +51,30 @@ class Chunk:
 
 
 @dataclass(frozen=True)
+class Highlight:
+    """A span of a chunk's text that matched a query term."""
+
+    start: int
+    """Character offset where the match starts in ``Chunk.text``."""
+    end: int
+    """Character offset just past the match, so ``text[start:end]`` is the matched word."""
+    term: str
+    """Normalized query term the span matched, e.g. ``index`` for ``Index``."""
+
+
+@dataclass(frozen=True)
 class SearchResult:
     """A chunk paired with its relevance score for a query."""
 
     chunk: Chunk
     score: float
+    highlights: tuple[Highlight, ...] = ()
+    """Where the query terms occur in the chunk, in text order (empty if not computed)."""
+
+    @property
+    def matched_terms(self) -> tuple[str, ...]:
+        """Distinct query terms found in the chunk, in order of first occurrence."""
+        return tuple(dict.fromkeys(highlight.term for highlight in self.highlights))
 
 
 @dataclass(frozen=True)
