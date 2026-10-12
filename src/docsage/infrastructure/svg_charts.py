@@ -7,7 +7,7 @@ data end, separated by a 2px gap, and carry a ``<title>`` that browsers show on 
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from html import escape
 
 WIDTH = 800
@@ -17,13 +17,20 @@ RADIUS = 4
 CHAR_WIDTH = 7.5
 """Rough width of one 12px label character, used to size the label column."""
 
+ValueFormat = Callable[[float], str]
+thousands: ValueFormat = "{:,}".format
+"""Default value label: ``1,234`` for counts."""
 
-def bar_chart(rows: Sequence[tuple[str, int]], label: str) -> str:
+
+def bar_chart(
+    rows: Sequence[tuple[str, float]], label: str, value_format: ValueFormat = thousands
+) -> str:
     """Horizontal bars, one per ``(name, value)`` row, with the value at each bar's tip."""
     if not rows:
         return ""
     names_width = min(180, max(40, int(max(len(name) for name, _ in rows) * CHAR_WIDTH) + 20))
-    values_width = int(len(f"{max(value for _, value in rows):,}") * CHAR_WIDTH) + 12
+    widest = max(len(value_format(value)) for _, value in rows)
+    values_width = int(widest * CHAR_WIDTH) + 12
     track = WIDTH - names_width - values_width
     peak = max(value for _, value in rows) or 1
     height = len(rows) * (BAR + GAP) - GAP
@@ -33,12 +40,12 @@ def bar_chart(rows: Sequence[tuple[str, int]], label: str) -> str:
         length = track * value / peak
         middle = top + BAR / 2
         marks.append(
-            f'<g class="mark"><title>{escape(name)}: {value:,}</title>'
+            f'<g class="mark"><title>{escape(name)}: {value_format(value)}</title>'
             f'<text class="axis" x="{names_width - 12}" y="{middle}" text-anchor="end" '
             f'dominant-baseline="central">{escape(_clip(name, names_width))}</text>'
             f'<path class="bar" d="{_horizontal_bar(names_width, top, length)}"/>'
             f'<text class="value" x="{names_width + length + 6:.1f}" y="{middle}" '
-            f'dominant-baseline="central">{value:,}</text></g>'
+            f'dominant-baseline="central">{value_format(value)}</text></g>'
         )
     return _svg(height, label, "".join(marks))
 
@@ -75,10 +82,14 @@ def column_chart(columns: Sequence[tuple[str, int]], label: str) -> str:
     return _svg(plot + 44, label, "".join(marks))
 
 
-def data_table(headers: tuple[str, str], rows: Sequence[tuple[str, int]]) -> str:
+def data_table(
+    headers: tuple[str, str],
+    rows: Sequence[tuple[str, float]],
+    value_format: ValueFormat = thousands,
+) -> str:
     """The chart's numbers as a collapsible table, so nothing depends on the graphic."""
     body = "".join(
-        f"<tr><td>{escape(name)}</td><td>{value:,}</td></tr>" for name, value in rows
+        f"<tr><td>{escape(name)}</td><td>{value_format(value)}</td></tr>" for name, value in rows
     )
     return (
         "<details><summary>Show as table</summary>"

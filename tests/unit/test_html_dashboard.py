@@ -85,3 +85,13 @@ def test_empty_dashboard_explains_how_to_index():
 
     assert "The index is empty" in html
     assert "<svg" not in html
+
+
+def test_bar_chart_and_table_accept_a_value_format():
+    two_decimals = "{:.2f}".format
+    svg = bar_chart([("bm25", 1.23456), ("rank", 0.5)], "Breakdown", two_decimals)
+    table = data_table(("Term", "Score"), [("bm25", 1.23456)], two_decimals)
+
+    assert "<title>bm25: 1.23</title>" in svg
+    assert ">0.50</text>" in svg
+    assert "<td>1.23</td>" in table
