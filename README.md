@@ -29,6 +29,10 @@ summary), handy for scripts and other tools. Each ranked chunk lists its
 `matched_terms` and `highlights`: the character offsets in the chunk's text where
 a query term occurs (`{"start": 4, "end": 9, "term": "index"}`), normalized the same
 way the ranking is, so a viewer can highlight exactly what matched.
+Results also carry `contributions`, the BM25 score split by query term
+(`{"term": "index", "score": 1.42}`, largest first, summing to `score`), so you can see
+why a passage ranked where it did; `docsage search "query" --explain` prints the same
+breakdown under each result, and the HTML answer report charts it for every source.
 
 Add `-v`/`--verbose` before the command to log what docsage is doing to stderr,
 one `key=value` line per event (documents indexed or skipped, index loads and

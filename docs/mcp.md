@@ -108,7 +108,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 
 | Tool               | `structuredContent`                                                     |
 | ------------------ | ----------------------------------------------------------------------- |
-| `search_documents` | `query`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]` and the full `chunk` |
+| `search_documents` | `query`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
 | `ask_documents`    | `question`, `answer`, `sources[]` ranked like search results            |
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
@@ -117,7 +117,8 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 Search results carry each chunk's full text in `structuredContent`; the text output
 shortens long passages to a preview. Each `highlights[]` entry gives the `start` and
 `end` character offsets in `chunk.text` where a query `term` occurs, so a client can
-render the passage with the matches marked. A failed call returns an error and no structured
+render the passage with the matches marked. Each `contributions[]` entry gives the
+share of `score` a query `term` added (BM25), largest first. A failed call returns an error and no structured
 content.
 
 ### Resources
