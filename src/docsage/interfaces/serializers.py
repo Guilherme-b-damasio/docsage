@@ -16,7 +16,14 @@ from docsage.application.services import (
     IndexStats,
     RemovalReport,
 )
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
+from docsage.domain.models import (
+    Answer,
+    Chunk,
+    Highlight,
+    IndexOverview,
+    SearchResult,
+    TermScore,
+)
 
 
 def chunk_to_dict(chunk: Chunk) -> dict[str, Any]:
@@ -79,6 +86,24 @@ def stats_to_dict(stats: IndexStats) -> dict[str, Any]:
         "vocabulary": stats.vocabulary,
         "top_terms": [{"term": term, "count": count} for term, count in stats.top_terms],
         "index_bytes": stats.index_bytes,
+    }
+
+
+def overview_to_dict(overview: IndexOverview) -> dict[str, Any]:
+    return {
+        "documents": overview.documents,
+        "chunks": overview.chunks,
+        "terms": overview.terms,
+        "vocabulary": overview.vocabulary,
+        "index_bytes": overview.index_bytes,
+        "documents_by_type": [
+            {"type": name, "documents": count} for name, count in overview.documents_by_type
+        ],
+        "chunk_lengths": [
+            {"low": item.low, "high": item.high, "chunks": item.count}
+            for item in overview.chunk_lengths
+        ],
+        "top_terms": [{"term": term, "count": count} for term, count in overview.top_terms],
     }
 
 

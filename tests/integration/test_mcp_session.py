@@ -65,6 +65,7 @@ def test_a_client_session_indexes_reads_searches_asks_and_removes(corpus, servic
                 "index_path",
                 "remove_path",
                 "index_stats",
+                "index_dashboard",
             }
             assert tools["remove_path"].annotations.destructive_hint is True
             assert tools["index_path"].annotations.destructive_hint is False
@@ -104,6 +105,12 @@ def test_a_client_session_indexes_reads_searches_asks_and_removes(corpus, servic
 
             stats = text_of(await client.call_tool("index_stats", {}))
             assert "Documents:  3" in stats
+
+            dashboard = await client.call_tool("index_dashboard", {})
+            assert dashboard.structured_content["documents"] == 3
+            assert "<svg" in dashboard.meta["docsage/html"]
+            view = await client.read_resource(tools["index_dashboard"].meta["ui"]["resourceUri"])
+            assert "ui/initialize" in view.contents[0].text
 
             removed = await client.call_tool("remove_path", {"path": str(corpus / "faq.txt")})
             assert text_of(removed).startswith("Removed 1 documents")

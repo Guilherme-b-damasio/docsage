@@ -1,11 +1,20 @@
 import json
 
 from docsage.application.services import IndexingReport, RemovalReport
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
+from docsage.domain.models import (
+    Answer,
+    Chunk,
+    Highlight,
+    HistogramBin,
+    IndexOverview,
+    SearchResult,
+    TermScore,
+)
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
     indexing_report_to_dict,
+    overview_to_dict,
     removal_report_to_dict,
     search_results_to_dict,
 )
@@ -125,3 +134,26 @@ def test_search_results_include_rounded_term_contributions():
         {"term": "alpha", "score": 1.2346},
         {"term": "beta", "score": 0.5},
     ]
+
+
+def test_overview_names_every_count():
+    overview = IndexOverview(
+        documents=2,
+        chunks=3,
+        terms=30,
+        vocabulary=9,
+        index_bytes=512,
+        documents_by_type=(("md", 2),),
+        chunk_lengths=(HistogramBin(1, 4, 2), HistogramBin(5, 8, 1)),
+        top_terms=(("alpha", 4),),
+    )
+
+    payload = overview_to_dict(overview)
+
+    assert payload["documents_by_type"] == [{"type": "md", "documents": 2}]
+    assert payload["chunk_lengths"] == [
+        {"low": 1, "high": 4, "chunks": 2},
+        {"low": 5, "high": 8, "chunks": 1},
+    ]
+    assert payload["top_terms"] == [{"term": "alpha", "count": 4}]
+    assert payload["index_bytes"] == 512

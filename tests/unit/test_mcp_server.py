@@ -10,6 +10,7 @@ from mcp.types import INVALID_PARAMS  # noqa: E402
 
 from docsage.application.services import (  # noqa: E402
     CatalogService,
+    DashboardService,
     QuestionAnsweringService,
     SearchService,
     StatsService,
@@ -18,6 +19,9 @@ from docsage.container import Container, Settings  # noqa: E402
 from docsage.domain.models import Chunk  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
 from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
+from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer  # noqa: E402
+from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY  # noqa: E402
+from docsage.infrastructure.text_dashboard import TextDashboardRenderer  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
 from docsage.interfaces.mcp_server import (  # noqa: E402
     PREVIEW_CHARACTERS,
@@ -53,6 +57,11 @@ class FakeServices:
 
     def catalog_service(self):
         return CatalogService(self.retriever)
+
+    def dashboard_service(self, dashboard_format="html"):
+        renderers = {"html": HtmlDashboardRenderer, "text": TextDashboardRenderer}
+        renderer = renderers[dashboard_format]()
+        return DashboardService(self.stats_service(), self.retriever, renderer)
 
     def size_bytes(self):
         return 2048
@@ -216,7 +225,7 @@ def test_lists_documents_resource_and_chunk_template():
 
     resources, templates = asyncio.run(run())
 
-    assert [str(item.uri) for item in resources.resources] == ["docsage://documents"]
+    assert "docsage://documents" in [str(item.uri) for item in resources.resources]
     assert [item.uri_template for item in templates.resource_templates] == [
         "docsage://chunks/{chunk_id}"
     ]
@@ -449,3 +458,56 @@ def test_search_documents_returns_the_score_breakdown():
     assert sum(item["score"] for item in top["contributions"]) == pytest.approx(
         top["score"], abs=1e-3
     )
+
+
+def test_index_dashboard_returns_text_numbers_and_the_html_page_for_its_view():
+    result = call(FakeServices(CHUNKS), "index_dashboard", {"top": 3})
+
+    assert not result.is_error
+    assert "Documents" in text_of(result) and "<html" not in text_of(result)
+    assert result.structured_content["documents"] == 2
+    assert result.structured_content["documents_by_type"] == [
+        {"type": "md", "documents": 1},
+        {"type": "pdf", "documents": 1},
+    ]
+    assert sum(item["chunks"] for item in result.structured_content["chunk_lengths"]) == 2
+    assert len(result.structured_content["top_terms"]) == 3
+    assert result.meta[HTML_META_KEY].startswith("<!doctype html>")
+    assert "<svg" in result.meta[HTML_META_KEY]
+
+
+def test_index_dashboard_rejects_negative_top():
+    result = call(FakeServices(CHUNKS), "index_dashboard", {"top": -1})
+
+    assert result.is_error
+
+
+def test_tools_without_a_view_carry_no_html():
+    result = call(FakeServices(CHUNKS), "search_documents", {"query": "capital"})
+
+    assert not (result.meta or {}).get(HTML_META_KEY)
+
+
+def test_index_dashboard_links_its_mcp_apps_view():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            tools = await client.list_tools()
+            resources = await client.list_resources()
+            return tools, resources
+
+    tools, resources = asyncio.run(run())
+    tool = next(item for item in tools.tools if item.name == "index_dashboard")
+    view_uri = tool.meta["ui"]["resourceUri"]
+    view = next(item for item in resources.resources if str(item.uri) == view_uri)
+
+    assert view_uri.startswith("ui://")
+    assert view.mime_type == APP_MIME_TYPE
+    assert view.meta == {"ui": {"prefersBorder": True}}
+
+
+def test_dashboard_view_is_the_mcp_apps_shell():
+    result = read(FakeServices(), "ui://docsage/dashboard")
+    content = result.contents[0]
+
+    assert content.mime_type == APP_MIME_TYPE
+    assert "ui/initialize" in content.text and HTML_META_KEY in content.text

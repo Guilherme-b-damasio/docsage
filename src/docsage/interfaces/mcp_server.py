@@ -2,6 +2,8 @@
 
 Every tool returns readable text for the model plus structured content that matches
 its published output schema (``docsage.interfaces.mcp_schemas``) for applications.
+Tools with visual output also link an MCP Apps view (a ``ui://`` resource): hosts that
+support MCP Apps show the rendered HTML page, the others show the text.
 
 Requires the optional ``mcp`` extra (``pip install "docsage[mcp]"``).
 """
@@ -20,6 +22,7 @@ from mcp.types import INVALID_PARAMS, CallToolResult, TextContent, ToolAnnotatio
 from docsage import __version__
 from docsage.application.services import (
     CatalogService,
+    DashboardService,
     IndexingReport,
     IndexingService,
     IndexStats,
@@ -30,9 +33,11 @@ from docsage.application.services import (
     StatsService,
 )
 from docsage.domain.models import Answer, Chunk, SearchResult
+from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
 from docsage.infrastructure.units import human_size
 from docsage.interfaces.mcp_schemas import (
     AnswerOutput,
+    DashboardOutput,
     IndexingOutput,
     RemovalOutput,
     SearchOutput,
@@ -45,6 +50,7 @@ from docsage.interfaces.serializers import (
     document_summary_to_dict,
     dumps,
     indexing_report_to_dict,
+    overview_to_dict,
     removal_report_to_dict,
     search_results_to_dict,
     stats_to_dict,
@@ -53,10 +59,12 @@ from docsage.interfaces.serializers import (
 SERVER_NAME = "docsage"
 DOCUMENTS_URI = "docsage://documents"
 CHUNK_URI_TEMPLATE = "docsage://chunks/{chunk_id}"
+DASHBOARD_VIEW_URI = "ui://docsage/dashboard"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
-    "index_path adds files or folders, remove_path drops them, index_stats summarizes. "
+    "index_path adds files or folders, remove_path drops them, index_stats summarizes "
+    "and index_dashboard charts the index. "
     f"Read {DOCUMENTS_URI} to list indexed documents and their chunk ids, and "
     f"{CHUNK_URI_TEMPLATE} for the full text of one chunk. The summarize_document and "
     "compare_documents prompts embed whole documents as citable passages."
@@ -82,6 +90,8 @@ class ServiceProvider(Protocol):
     def stats_service(self) -> StatsService: ...
 
     def catalog_service(self) -> CatalogService: ...
+
+    def dashboard_service(self, dashboard_format: str = "html") -> DashboardService: ...
 
 
 def build_server(services: ServiceProvider) -> MCPServer:
@@ -165,6 +175,34 @@ def build_server(services: ServiceProvider) -> MCPServer:
             raise ToolError("top must not be negative")
         stats = services.stats_service().stats(min(top, MAX_TOP_TERMS))
         return _result(format_stats(stats), stats_to_dict(stats))
+
+    @server.tool(
+        title="Index dashboard",
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+        meta=_view_meta(DASHBOARD_VIEW_URI),
+    )
+    def index_dashboard(top: int = 15) -> Annotated[CallToolResult, DashboardOutput]:
+        """Chart the index: documents per file type, chunk lengths and top terms.
+
+        Hosts that support MCP Apps show an interactive HTML dashboard; the text
+        version carries the same numbers.
+        """
+        if top < 0:
+            raise ToolError("top must not be negative")
+        html = services.dashboard_service("html")
+        overview = html.overview(min(top, MAX_TOP_TERMS))
+        text = services.dashboard_service("text").render_overview(overview)
+        return _result(text, overview_to_dict(overview), html.render_overview(overview))
+
+    @server.resource(
+        DASHBOARD_VIEW_URI,
+        title="Index dashboard view",
+        description="MCP Apps view that shows the HTML dashboard returned by index_dashboard.",
+        mime_type=APP_MIME_TYPE,
+        meta={"ui": {"prefersBorder": True}},
+    )
+    def dashboard_view() -> str:
+        return app_view("docsage index", __version__)
 
     @server.resource(
         DOCUMENTS_URI,
@@ -292,9 +330,22 @@ def format_stats(stats: IndexStats) -> str:
     return "\n".join(lines)
 
 
-def _result(text: str, payload: dict[str, Any]) -> CallToolResult:
-    """Pairs the text the model reads with the structured content applications parse."""
-    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=payload)
+def _result(text: str, payload: dict[str, Any], html: str | None = None) -> CallToolResult:
+    """Pairs the text the model reads with the structured content applications parse.
+
+    ``html`` is a rendered page for the tool's MCP Apps view; it travels in ``_meta``,
+    which hosts never add to the model's context.
+    """
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=payload,
+        _meta={HTML_META_KEY: html} if html is not None else None,
+    )
+
+
+def _view_meta(uri: str) -> dict[str, Any]:
+    """Tool ``_meta`` linking the tool to its MCP Apps view."""
+    return {"ui": {"resourceUri": uri}}
 
 
 def _document_chunks(services: ServiceProvider, source: str) -> list[Chunk]:

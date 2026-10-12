@@ -95,6 +95,7 @@ The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only 
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
+| `index_dashboard`  | `top`                      | charts of file types, chunk lengths and top terms         |
 
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths.
@@ -113,6 +114,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
 | `index_stats`      | `documents`, `chunks`, `terms`, `vocabulary`, `top_terms[]`, `index_bytes` |
+| `index_dashboard`  | the `index_stats` fields plus `documents_by_type[]` and `chunk_lengths[]` (`low`, `high`, `chunks`) |
 
 Search results carry each chunk's full text in `structuredContent`; the text output
 shortens long passages to a preview. Each `highlights[]` entry gives the `start` and
@@ -127,6 +129,7 @@ content.
 | ----------------------------- | -------------------------------------------------------------- |
 | `docsage://documents`         | every indexed document: chunk count, pages, sections, chunk ids |
 | `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk              |
+| `ui://docsage/dashboard`      | the MCP Apps view of `index_dashboard` (see Visual output)     |
 
 ### Prompts
 
