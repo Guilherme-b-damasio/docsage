@@ -119,6 +119,17 @@ the matched query terms highlighted. The page inlines its CSS (no network needed
 follows the system's light or dark mode. A plain-text renderer is the fallback for
 clients that cannot show HTML (matched terms appear in `**bold**`).
 
+`docsage report` answers a question with Claude and writes the report: to stdout by
+default, to a file with `-o`, or as plain text with `--format text`. `--open` shows it in
+the default browser (in a temporary file unless `-o` is given):
+
+```bash
+docsage report "How does BM25 work?" --open
+docsage report "How does BM25 work?" -o reports/bm25.html
+```
+
+From Python:
+
 ```python
 from pathlib import Path
 
