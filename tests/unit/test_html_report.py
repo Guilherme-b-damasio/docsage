@@ -18,6 +18,15 @@ def test_page_is_self_contained_and_supports_dark_mode():
     assert "http://" not in html and "https://" not in html
 
 
+def test_page_lets_a_data_theme_attribute_override_the_system_theme():
+    html = page("Title", "<p>body</p>")
+
+    assert ':root:not([data-theme="light"])' in html
+    assert ':root[data-theme="dark"]' in html
+    dark_rules = html.split(':root[data-theme="dark"]')[1]
+    assert "--bg: #0f1216" in dark_rules.split("}")[0]
+
+
 def test_highlighted_escapes_text_and_marks_spans():
     text = "a <b> c"
     assert highlighted(text, [Highlight(6, 7, "c")]) == 'a &lt;b&gt; <mark title="c">c</mark>'
