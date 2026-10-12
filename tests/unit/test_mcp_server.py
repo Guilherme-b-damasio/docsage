@@ -13,6 +13,7 @@ from docsage.application.services import (  # noqa: E402
     CatalogService,
     DashboardService,
     QuestionAnsweringService,
+    RelationService,
     SearchService,
     StatsService,
 )
@@ -67,7 +68,8 @@ class FakeServices:
     def dashboard_service(self, dashboard_format="html"):
         renderers = {"html": HtmlDashboardRenderer, "text": TextDashboardRenderer}
         renderer = renderers[dashboard_format]()
-        return DashboardService(self.stats_service(), self.retriever, renderer)
+        relations = RelationService(self.retriever, multilingual_tokenizer())
+        return DashboardService(self.stats_service(), self.retriever, renderer, relations)
 
     def size_bytes(self):
         return 2048
@@ -478,6 +480,9 @@ def test_index_dashboard_returns_text_numbers_and_the_html_page_for_its_view():
     ]
     assert sum(item["chunks"] for item in result.structured_content["chunk_lengths"]) == 2
     assert len(result.structured_content["top_terms"]) == 3
+    assert result.structured_content["relations"] == [
+        {"first": "a.md", "second": "b.pdf", "shared_terms": ["capital"]}
+    ]
     assert result.meta[HTML_META_KEY].startswith("<!doctype html>")
     assert "<svg" in result.meta[HTML_META_KEY]
 

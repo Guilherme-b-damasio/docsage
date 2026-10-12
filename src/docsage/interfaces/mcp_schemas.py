@@ -94,6 +94,13 @@ class LengthBinOutput(TypedDict):
     chunks: int
 
 
+class RelationOutput(TypedDict):
+    first: str
+    second: str
+    shared_terms: list[str]
+    """Characteristic terms both documents share, most characteristic first."""
+
+
 class DashboardOutput(TypedDict):
     documents: int
     chunks: int
@@ -103,3 +110,4 @@ class DashboardOutput(TypedDict):
     documents_by_type: list[FileTypeCountOutput]
     chunk_lengths: list[LengthBinOutput]
     top_terms: list[TermCountOutput]
+    relations: list[RelationOutput]
