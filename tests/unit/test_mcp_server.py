@@ -9,6 +9,7 @@ from mcp import Client, MCPError  # noqa: E402
 from mcp.types import INVALID_PARAMS  # noqa: E402
 
 from docsage.application.services import (  # noqa: E402
+    AnswerReportService,
     CatalogService,
     DashboardService,
     QuestionAnsweringService,
@@ -20,6 +21,7 @@ from docsage.domain.models import Chunk  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
 from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer  # noqa: E402
+from docsage.infrastructure.html_report import HtmlAnswerRenderer  # noqa: E402
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY  # noqa: E402
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
@@ -51,6 +53,10 @@ class FakeServices:
 
     def question_answering_service(self):
         return QuestionAnsweringService(self.retriever, self.generator, self.highlighter)
+
+    def answer_report_service(self, report_format="html"):
+        assert report_format == "html"
+        return AnswerReportService(self.question_answering_service(), HtmlAnswerRenderer())
 
     def stats_service(self):
         return StatsService(self.retriever, multilingual_tokenizer(), self)
@@ -511,3 +517,26 @@ def test_dashboard_view_is_the_mcp_apps_shell():
 
     assert content.mime_type == APP_MIME_TYPE
     assert "ui/initialize" in content.text and HTML_META_KEY in content.text
+
+
+def test_ask_documents_returns_the_html_report_for_its_view():
+    result = call(FakeServices(CHUNKS), "ask_documents", {"question": "capital of France?"})
+
+    html = result.meta[HTML_META_KEY]
+    assert html.startswith("<!doctype html>")
+    assert "capital of France?" in html and "<mark" in html
+    assert "<mark" not in text_of(result)
+
+
+def test_ask_documents_links_the_answer_report_view():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            tools = await client.list_tools()
+            view = await client.read_resource("ui://docsage/answer-report")
+            return tools, view
+
+    tools, view = asyncio.run(run())
+    tool = next(item for item in tools.tools if item.name == "ask_documents")
+
+    assert tool.meta == {"ui": {"resourceUri": "ui://docsage/answer-report"}}
+    assert view.contents[0].mime_type == APP_MIME_TYPE

@@ -97,9 +97,9 @@ def test_a_client_session_indexes_reads_searches_asks_and_removes(corpus, servic
             prompt_text = prompt.messages[0].content.text
             assert "[1] " in prompt_text and "Python 3.11" in prompt_text
 
-            answer = text_of(
-                await client.call_tool("ask_documents", {"question": "How do I install it?"})
-            )
+            asked = await client.call_tool("ask_documents", {"question": "How do I install it?"})
+            assert "How do I install it?" in asked.meta["docsage/html"]
+            answer = text_of(asked)
             assert answer.startswith("Install it with pip [1].")
             assert "Sources:" in answer
 

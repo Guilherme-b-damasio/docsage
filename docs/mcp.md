@@ -130,6 +130,7 @@ content.
 | `docsage://documents`         | every indexed document: chunk count, pages, sections, chunk ids |
 | `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk              |
 | `ui://docsage/dashboard`      | the MCP Apps view of `index_dashboard` (see Visual output)     |
+| `ui://docsage/answer-report`  | the MCP Apps view of `ask_documents` (see Visual output)       |
 
 ### Prompts
 

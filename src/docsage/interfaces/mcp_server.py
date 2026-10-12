@@ -21,6 +21,7 @@ from mcp.types import INVALID_PARAMS, CallToolResult, TextContent, ToolAnnotatio
 
 from docsage import __version__
 from docsage.application.services import (
+    AnswerReportService,
     CatalogService,
     DashboardService,
     IndexingReport,
@@ -60,6 +61,7 @@ SERVER_NAME = "docsage"
 DOCUMENTS_URI = "docsage://documents"
 CHUNK_URI_TEMPLATE = "docsage://chunks/{chunk_id}"
 DASHBOARD_VIEW_URI = "ui://docsage/dashboard"
+ANSWER_VIEW_URI = "ui://docsage/answer-report"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
@@ -82,6 +84,8 @@ class ServiceProvider(Protocol):
     def search_service(self) -> SearchService: ...
 
     def question_answering_service(self) -> QuestionAnsweringService: ...
+
+    def answer_report_service(self, report_format: str = "html") -> AnswerReportService: ...
 
     def indexing_service(self) -> IndexingService: ...
 
@@ -119,16 +123,28 @@ def build_server(services: ServiceProvider) -> MCPServer:
     @server.tool(
         title="Ask documents",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
+        meta=_view_meta(ANSWER_VIEW_URI),
     )
     def ask_documents(question: str, top_k: int = 5) -> Annotated[CallToolResult, AnswerOutput]:
         """Answer a question from the indexed documents with Claude, citing sources.
 
         Retrieves the top_k passages and asks Claude for an answer grounded on them.
-        Needs ANTHROPIC_API_KEY in the server's environment.
+        Needs ANTHROPIC_API_KEY in the server's environment. Hosts that support MCP Apps
+        also show an HTML report with the cited passages highlighted.
         """
-        service = services.question_answering_service()
-        answer = service.ask(_require(question, "question"), _clamp(top_k))
-        return _result(format_answer(answer), answer_to_dict(answer))
+        service = services.answer_report_service("html")
+        report = service.report(_require(question, "question"), _clamp(top_k))
+        return _result(format_answer(report.answer), answer_to_dict(report.answer), report.content)
+
+    @server.resource(
+        ANSWER_VIEW_URI,
+        title="Answer report view",
+        description="MCP Apps view that shows the HTML answer report returned by ask_documents.",
+        mime_type=APP_MIME_TYPE,
+        meta={"ui": {"prefersBorder": True}},
+    )
+    def answer_view() -> str:
+        return app_view("docsage answer", __version__)
 
     @server.tool(
         title="Index path",
