@@ -1,7 +1,7 @@
 import json
 
 from docsage.application.services import IndexingReport, RemovalReport
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
@@ -110,3 +110,18 @@ def test_results_without_highlights_serialize_empty_lists():
 
     assert payload["matched_terms"] == []
     assert payload["highlights"] == []
+    assert payload["contributions"] == []
+
+
+def test_search_results_include_rounded_term_contributions():
+    chunk = Chunk(id="a#0", source="a.md", text="alpha beta", position=0)
+    contributions = (TermScore("alpha", 1.234567), TermScore("beta", 0.5))
+
+    (payload,) = search_results_to_dict(
+        "alpha beta", [SearchResult(chunk, 1.734567, (), contributions)]
+    )["results"]
+
+    assert payload["contributions"] == [
+        {"term": "alpha", "score": 1.2346},
+        {"term": "beta", "score": 0.5},
+    ]

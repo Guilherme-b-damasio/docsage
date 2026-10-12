@@ -439,3 +439,13 @@ def test_search_documents_returns_highlight_offsets():
         "capital",
         "Portugal",
     ]
+
+
+def test_search_documents_returns_the_score_breakdown():
+    result = call(FakeServices(CHUNKS), "search_documents", {"query": "Portugal capital"})
+
+    top = result.structured_content["results"][0]
+    assert {item["term"] for item in top["contributions"]} == {"capital", "portugal"}
+    assert sum(item["score"] for item in top["contributions"]) == pytest.approx(
+        top["score"], abs=1e-3
+    )
