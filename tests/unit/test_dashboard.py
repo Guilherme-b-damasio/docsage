@@ -91,3 +91,12 @@ def test_overview_of_an_empty_index():
     assert overview.documents == 0
     assert overview.documents_by_type == ()
     assert overview.chunk_lengths == ()
+
+
+def test_render_overview_renders_an_overview_built_earlier():
+    renderer = RecordingRenderer()
+    service = _service([Chunk("a#0", "a.md", "alpha", 0)], renderer)
+    overview = service.overview()
+
+    assert service.render_overview(overview) == "rendered"
+    assert renderer.overviews == [overview]

@@ -86,8 +86,14 @@ The server offers these tools:
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | documents, chunks, top terms and index size               |
+| `index_dashboard`  | charts of file types, chunk lengths and top terms         |
 
-It also publishes two read-only resources (JSON):
+In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
+`ask_documents` shows the HTML answer report with highlighted citations and
+`index_dashboard` the HTML dashboard, right in the conversation; other hosts get the
+same content as text.
+
+It also publishes two read-only resources (JSON), plus the two `ui://` views:
 
 | Resource                      | Contents                                                     |
 | ----------------------------- | ------------------------------------------------------------ |

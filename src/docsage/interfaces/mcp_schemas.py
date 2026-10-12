@@ -80,3 +80,26 @@ class StatsOutput(TypedDict):
     vocabulary: int
     top_terms: list[TermCountOutput]
     index_bytes: int
+
+
+class FileTypeCountOutput(TypedDict):
+    type: str
+    documents: int
+
+
+class LengthBinOutput(TypedDict):
+    low: int
+    high: int
+    """Inclusive bounds of the range, in words."""
+    chunks: int
+
+
+class DashboardOutput(TypedDict):
+    documents: int
+    chunks: int
+    terms: int
+    vocabulary: int
+    index_bytes: int
+    documents_by_type: list[FileTypeCountOutput]
+    chunk_lengths: list[LengthBinOutput]
+    top_terms: list[TermCountOutput]

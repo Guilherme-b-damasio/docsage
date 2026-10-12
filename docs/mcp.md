@@ -95,6 +95,7 @@ The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only 
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
+| `index_dashboard`  | `top`                      | charts of file types, chunk lengths and top terms         |
 
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths.
@@ -113,6 +114,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
 | `index_stats`      | `documents`, `chunks`, `terms`, `vocabulary`, `top_terms[]`, `index_bytes` |
+| `index_dashboard`  | the `index_stats` fields plus `documents_by_type[]` and `chunk_lengths[]` (`low`, `high`, `chunks`) |
 
 Search results carry each chunk's full text in `structuredContent`; the text output
 shortens long passages to a preview. Each `highlights[]` entry gives the `start` and
@@ -127,6 +129,8 @@ content.
 | ----------------------------- | -------------------------------------------------------------- |
 | `docsage://documents`         | every indexed document: chunk count, pages, sections, chunk ids |
 | `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk              |
+| `ui://docsage/dashboard`      | the MCP Apps view of `index_dashboard` (see Visual output)     |
+| `ui://docsage/answer-report`  | the MCP Apps view of `ask_documents` (see Visual output)       |
 
 ### Prompts
 
@@ -136,6 +140,26 @@ content.
 | `compare_documents`  | `first`, `second` | shared topics, agreements, differences (`[A1]`, `[B2]`) |
 
 Pass sources exactly as `docsage://documents` lists them.
+
+### Visual output (MCP Apps)
+
+`ask_documents` and `index_dashboard` link an [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+view through their `_meta.ui.resourceUri`. Hosts that support MCP Apps render that
+`ui://` resource (`text/html;profile=mcp-app`) in a sandboxed frame next to the tool
+call and show:
+
+- `ask_documents`: the HTML answer report, with every cited passage and its matched
+  terms highlighted and a score breakdown chart per source.
+- `index_dashboard`: the HTML index dashboard, with stat tiles and charts of file
+  types, chunk lengths and top terms.
+
+The server renders the page and sends it in the tool result's `_meta["docsage/html"]`,
+which hosts never add to the model's context; the view swaps it in, follows the host's
+light or dark theme and reports its height. Nothing is loaded from the network.
+
+Hosts without MCP Apps ignore the link and show the text content, which always carries
+the answer with its sources or the dashboard as text bars, so every tool stays usable
+from any client.
 
 ## Troubleshooting
 

@@ -1,7 +1,9 @@
 """Self-contained HTML page shell shared by the visual renderers.
 
 Every page inlines its CSS, so a report opens offline and can be attached or shared as a
-single file. Colors are CSS custom properties redefined under ``prefers-color-scheme: dark``.
+single file. Colors are CSS custom properties redefined under ``prefers-color-scheme: dark``;
+a ``data-theme`` attribute of ``light`` or ``dark`` on ``<html>`` overrides the system choice,
+e.g. when an MCP host tells an embedded view which theme it uses.
 """
 
 from __future__ import annotations
@@ -11,19 +13,27 @@ from html import escape
 
 from docsage.domain.models import Highlight
 
-BASE_CSS = """
+DARK_COLORS = """
+--bg: #0f1216; --surface: #171b21; --text: #e6e8eb; --muted: #9aa4b0;
+--border: #2d333b; --accent: #58a6ff; --mark: #6b5a12; --mark-text: #fff8d6;
+--bar: #4493f8; --grid: #252b33;
+""".strip()
+
+BASE_CSS = (
+    """
 :root {
   --bg: #fbfbfa; --surface: #ffffff; --text: #1f2328; --muted: #59636e;
   --border: #d8dee4; --accent: #0b6bcb; --mark: #fff1a8; --mark-text: #1f2328;
   --bar: #0b6bcb; --grid: #e6e9ed;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1216; --surface: #171b21; --text: #e6e8eb; --muted: #9aa4b0;
-    --border: #2d333b; --accent: #58a6ff; --mark: #6b5a12; --mark-text: #fff8d6;
-    --bar: #4493f8; --grid: #252b33;
-  }
+  :root:not([data-theme="light"]) { """
+    + DARK_COLORS
+    + """ }
 }
+:root[data-theme="dark"] { """
+    + DARK_COLORS
+    + """ }
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
@@ -39,7 +49,8 @@ a { color: var(--accent); }
   padding: 16px; margin: 0 0 12px;
 }
 mark { background: var(--mark); color: var(--mark-text); border-radius: 3px; padding: 0 2px; }
-""".strip()
+"""
+).strip()
 
 
 def page(title: str, body: str, extra_css: str = "") -> str:

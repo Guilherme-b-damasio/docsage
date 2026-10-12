@@ -280,7 +280,11 @@ class DashboardService:
         )
 
     def render(self, top: int = 15, bins: int = 10) -> str:
-        return self._renderer.render(self.overview(top, bins))
+        return self.render_overview(self.overview(top, bins))
+
+    def render_overview(self, overview: IndexOverview) -> str:
+        """Renders an overview built earlier, e.g. to show it in several formats."""
+        return self._renderer.render(overview)
 
 
 def file_type(source: str) -> str:
