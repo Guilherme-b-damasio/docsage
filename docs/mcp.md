@@ -141,6 +141,26 @@ content.
 
 Pass sources exactly as `docsage://documents` lists them.
 
+### Visual output (MCP Apps)
+
+`ask_documents` and `index_dashboard` link an [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+view through their `_meta.ui.resourceUri`. Hosts that support MCP Apps render that
+`ui://` resource (`text/html;profile=mcp-app`) in a sandboxed frame next to the tool
+call and show:
+
+- `ask_documents`: the HTML answer report, with every cited passage and its matched
+  terms highlighted and a score breakdown chart per source.
+- `index_dashboard`: the HTML index dashboard, with stat tiles and charts of file
+  types, chunk lengths and top terms.
+
+The server renders the page and sends it in the tool result's `_meta["docsage/html"]`,
+which hosts never add to the model's context; the view swaps it in, follows the host's
+light or dark theme and reports its height. Nothing is loaded from the network.
+
+Hosts without MCP Apps ignore the link and show the text content, which always carries
+the answer with its sources or the dashboard as text bars, so every tool stays usable
+from any client.
+
 ## Troubleshooting
 
 - **The server does not start.** Run the exact command from the client config in a
