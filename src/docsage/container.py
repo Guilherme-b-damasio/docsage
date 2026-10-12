@@ -25,6 +25,7 @@ from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -39,6 +40,7 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
 DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
     "html": HtmlDashboardRenderer,
     "text": TextDashboardRenderer,
+    "mermaid": MermaidDashboardRenderer,
 }
 
 
