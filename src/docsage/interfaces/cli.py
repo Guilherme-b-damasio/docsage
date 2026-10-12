@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
+import webbrowser
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -130,6 +132,11 @@ def _parser() -> argparse.ArgumentParser:
     report.add_argument(
         "--format", choices=sorted(REPORT_FORMATS), default="html", help="default: html"
     )
+    report.add_argument(
+        "--open",
+        action="store_true",
+        help="open the report in the default browser (a temporary file unless -o is given)",
+    )
     report.set_defaults(handler=_report)
 
     mcp = commands.add_parser("mcp", help="serve the index to MCP clients (stdio or HTTP)")
@@ -212,8 +219,16 @@ def _dashboard(container: Container, args: argparse.Namespace) -> int:
 
 def _report(container: Container, args: argparse.Namespace) -> int:
     report = container.answer_report_service(args.format).report(args.question, args.top_k)
-    _write_output(report.content, args.output)
+    output: Path | None = args.output
+    if output is None and args.open:
+        output = Path(tempfile.mkdtemp(prefix="docsage-")) / f"report.{_EXTENSIONS[args.format]}"
+    _write_output(report.content, output)
+    if args.open and output is not None and not webbrowser.open(output.resolve().as_uri()):
+        print(f"docsage: could not open a browser, the report is at {output}", file=sys.stderr)
     return 0
+
+
+_EXTENSIONS = {"html": "html", "text": "txt"}
 
 
 def _write_output(content: str, output: Path | None) -> None:

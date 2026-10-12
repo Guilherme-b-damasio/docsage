@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from docsage.interfaces.cli import main
 
@@ -285,3 +286,49 @@ def test_report_prints_the_text_format_to_stdout(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert out.splitlines()[:2] == ["alpha?", "======"]
     assert "**alpha** notes" in out
+
+
+def _indexed(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+    return index
+
+
+def test_report_open_writes_a_temporary_file_and_opens_it(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url) or True)
+
+    assert main(["--index", str(index), "report", "alpha?", "--open"]) == 0
+
+    (url,) = opened
+    assert url.startswith("file:") and url.endswith("/report.html")
+    written = Path(capsys.readouterr().out.removeprefix("Wrote ").strip())
+    assert written.as_uri() == url
+    assert "<h1>alpha?</h1>" in written.read_text(encoding="utf-8")
+
+
+def test_report_open_uses_the_output_path_when_given(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url) or True)
+    output = tmp_path / "answer.txt"
+
+    args = ["--index", str(index), "report", "alpha?", "--format", "text", "-o", str(output)]
+    assert main([*args, "--open"]) == 0
+
+    assert opened == [output.resolve().as_uri()]
+
+
+def test_report_open_says_where_the_file_is_without_a_browser(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    monkeypatch.setattr("webbrowser.open", lambda url: False)
+
+    assert main(["--index", str(index), "report", "alpha?", "--open"]) == 0
+
+    assert "could not open a browser, the report is at" in capsys.readouterr().err
