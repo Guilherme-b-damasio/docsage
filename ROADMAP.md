@@ -42,7 +42,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Serve visual output from the MCP server as UI resources (MCP Apps) where the client supports it, with a plain-text fallback
 - [x] `docsage report <question> --open` to render and open the HTML answer report
 - [x] Mermaid diagram of document relationships (shared top terms) in the dashboard
-- [ ] Screenshots / GIF of the visual output in the README
+- [x] Screenshots / GIF of the visual output in the README
 
 ## Milestone 0.5: Better retrieval
 - [ ] Embedding-based retriever behind the `Retriever` port (local sentence-transformers model)

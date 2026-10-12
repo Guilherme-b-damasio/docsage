@@ -95,7 +95,7 @@ The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only 
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
-| `index_dashboard`  | `top`                      | charts of file types, chunk lengths and top terms         |
+| `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms and related documents |
 
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths.
