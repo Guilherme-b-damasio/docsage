@@ -1,4 +1,4 @@
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
 from docsage.infrastructure.html_page import highlighted, page
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 
@@ -60,3 +60,20 @@ def test_report_without_sources_has_no_sources_section():
 
     assert "<h2>Sources</h2>" not in html
     assert "Answered from 0 passages" in html
+
+
+def test_report_charts_each_sources_score_breakdown():
+    chunk = Chunk("a.md#0", "a.md", "BM25 ranks chunks.", 0)
+    contributions = (TermScore("bm25", 0.9), TermScore("ranks", 0.35))
+    result = SearchResult(chunk, 1.25, (), contributions)
+
+    html = HtmlAnswerRenderer().render(Answer("Q?", "A [1].", (result,)))
+
+    assert "<h3>Score breakdown</h3>" in html
+    assert 'aria-label="Score breakdown of source 1"' in html
+    assert "<title>bm25: 0.90</title>" in html
+    assert "<td>ranks</td><td>0.35</td>" in html
+
+
+def test_report_omits_the_breakdown_when_the_retriever_gave_none():
+    assert "Score breakdown" not in HtmlAnswerRenderer().render(_answer())

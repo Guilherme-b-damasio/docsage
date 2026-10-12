@@ -11,6 +11,7 @@ from docsage import __version__
 from docsage.container import DASHBOARD_FORMATS, Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
+from docsage.infrastructure.text_report import breakdown
 from docsage.infrastructure.units import human_size
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
@@ -82,6 +83,9 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("query")
     search.add_argument("-k", "--top-k", type=int, default=5)
     search.add_argument("--json", action="store_true", help="print results as JSON")
+    search.add_argument(
+        "--explain", action="store_true", help="show how much each query term adds to the score"
+    )
     search.set_defaults(handler=_search)
 
     stats = commands.add_parser("stats", help="summarize the index")
@@ -160,6 +164,8 @@ def _search(container: Container, args: argparse.Namespace) -> int:
         preview = result.chunk.text[:160].replace("\n", " ")
         matched = f" (matched: {', '.join(result.matched_terms)})" if result.matched_terms else ""
         print(f"{rank}. [{result.score:.2f}] {result.chunk.citation}{matched}\n   {preview}...")
+        if args.explain and result.contributions:
+            print(f"   score = {breakdown(result.contributions)}")
     return 0
 
 

@@ -28,12 +28,19 @@ class HighlightOutput(TypedDict):
     term: str
 
 
+class TermScoreOutput(TypedDict):
+    term: str
+    score: float
+
+
 class RankedChunkOutput(TypedDict):
     rank: int
     score: float
     matched_terms: list[str]
     highlights: list[HighlightOutput]
     """Character offsets into ``chunk.text`` where each query term occurs."""
+    contributions: list[TermScoreOutput]
+    """How much each query term added to ``score`` (BM25), largest first."""
     chunk: ChunkOutput
 
 

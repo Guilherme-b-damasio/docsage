@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import asdict
 from pathlib import Path
 
-from docsage.domain.models import Chunk, SearchResult
+from docsage.domain.models import Chunk, SearchResult, TermScore
 from docsage.domain.ports import Retriever
 from docsage.infrastructure.tokenizer import Tokenizer
 
@@ -51,9 +51,10 @@ class BM25Retriever:
         avg_len = sum(sum(f.values()) for f in self._term_freqs.values()) / len(self)
         scored: list[SearchResult] = []
         for chunk_id, freqs in self._term_freqs.items():
-            score = self._score(terms, freqs, avg_len)
-            if score > 0:
-                scored.append(SearchResult(self._chunks[chunk_id], score))
+            contributions = self._contributions(terms, freqs, avg_len)
+            if contributions:
+                score = sum(item.score for item in contributions)
+                scored.append(SearchResult(self._chunks[chunk_id], score, (), contributions))
         scored.sort(key=lambda result: result.score, reverse=True)
         return scored[:top_k]
 
@@ -69,10 +70,17 @@ class BM25Retriever:
     def __len__(self) -> int:
         return len(self._chunks)
 
-    def _score(self, terms: list[str], freqs: Counter[str], avg_len: float) -> float:
+    def _contributions(
+        self, terms: list[str], freqs: Counter[str], avg_len: float
+    ) -> tuple[TermScore, ...]:
+        """Each matching query term's BM25 share, largest first.
+
+        A term repeated in the query counts once per occurrence, as in the classic formula,
+        so its contribution is summed into a single entry.
+        """
         length = sum(freqs.values())
         total = len(self)
-        score = 0.0
+        shares: dict[str, float] = {}
         for term in terms:
             tf = freqs.get(term, 0)
             if not tf:
@@ -80,8 +88,9 @@ class BM25Retriever:
             df = self._doc_freq[term]
             idf = math.log(1 + (total - df + 0.5) / (df + 0.5))
             norm = tf + self._k1 * (1 - self._b + self._b * length / avg_len)
-            score += idf * tf * (self._k1 + 1) / norm
-        return score
+            shares[term] = shares.get(term, 0.0) + idf * tf * (self._k1 + 1) / norm
+        ranked = sorted(shares.items(), key=lambda item: (-item[1], item[0]))
+        return tuple(TermScore(term, score) for term, score in ranked if score > 0)
 
     def _remove(self, chunk_id: str) -> None:
         self._doc_freq.subtract(self._term_freqs.pop(chunk_id).keys())

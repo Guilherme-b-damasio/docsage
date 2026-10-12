@@ -7,6 +7,7 @@ from html import escape
 
 from docsage.domain.models import Answer, SearchResult
 from docsage.infrastructure.html_page import highlighted, page
+from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
 
 _CITATION = re.compile(r"\[(\d+)\]")
 
@@ -25,7 +26,13 @@ REPORT_CSS = """
   display: inline-block; border: 1px solid var(--border); border-radius: 999px;
   padding: 0 8px; margin: 0 4px 4px 0; font-size: 0.8rem; color: var(--muted);
 }
+.breakdown { margin-top: 12px; }
+.breakdown h3 { font-size: 0.9rem; font-weight: 600; margin: 0 0 8px; color: var(--muted); }
 """
+
+
+def _score_label(value: float) -> str:
+    return f"{value:.2f}"
 
 
 class HtmlAnswerRenderer:
@@ -49,7 +56,7 @@ class HtmlAnswerRenderer:
                 self._source_html(rank, result)
                 for rank, result in enumerate(answer.sources, start=1)
             )
-        return page(f"docsage: {answer.question}", "\n".join(body), REPORT_CSS)
+        return page(f"docsage: {answer.question}", "\n".join(body), REPORT_CSS + CHART_CSS)
 
     def _answer_html(self, answer: Answer) -> str:
         paragraphs = [part.strip() for part in re.split(r"\n\s*\n", answer.text) if part.strip()]
@@ -79,8 +86,21 @@ class HtmlAnswerRenderer:
             f'<header><span class="rank">[{rank}] {escape(result.chunk.citation)}</span>'
             f'<span class="muted">score {result.score:.2f}</span></header>\n'
             f"<blockquote>{highlighted(result.chunk.text, result.highlights)}</blockquote>"
-            f"{terms_html}\n</article>"
+            f"{terms_html}{breakdown_html(rank, result)}\n</article>"
         )
+
+
+def breakdown_html(rank: int, result: SearchResult) -> str:
+    """A bar per query term showing how much it added to the result's score."""
+    if not result.contributions:
+        return ""
+    rows = [(item.term, item.score) for item in result.contributions]
+    return (
+        '\n<section class="breakdown">'
+        "<h3>Score breakdown</h3>"
+        f"{bar_chart(rows, f'Score breakdown of source {rank}', _score_label)}"
+        f"{data_table(('Term', 'Score'), rows, _score_label)}</section>"
+    )
 
 
 def _plural(count: int, noun: str) -> str:

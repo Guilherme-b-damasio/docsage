@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from docsage.domain.models import Answer, Highlight
+from docsage.domain.models import Answer, Highlight, TermScore
 
 
 class TextAnswerRenderer:
@@ -20,7 +20,14 @@ class TextAnswerRenderer:
                 f"[{rank}] {result.chunk.citation} (score {result.score:.2f})",
                 _indent(emphasized(result.chunk.text, result.highlights)),
             ]
+            if result.contributions:
+                lines.append(f"    score = {breakdown(result.contributions)}")
         return "\n".join(lines) + "\n"
+
+
+def breakdown(contributions: Sequence[TermScore]) -> str:
+    """The score as a sum of its terms, e.g. ``bm25 1.20 + rank 0.30``."""
+    return " + ".join(f"{item.term} {item.score:.2f}" for item in contributions)
 
 
 def emphasized(text: str, highlights: Sequence[Highlight]) -> str:

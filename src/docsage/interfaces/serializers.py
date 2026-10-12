@@ -16,7 +16,7 @@ from docsage.application.services import (
     IndexStats,
     RemovalReport,
 )
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
 
 
 def chunk_to_dict(chunk: Chunk) -> dict[str, Any]:
@@ -36,12 +36,17 @@ def highlight_to_dict(highlight: Highlight) -> dict[str, Any]:
     return {"start": highlight.start, "end": highlight.end, "term": highlight.term}
 
 
+def term_score_to_dict(contribution: TermScore) -> dict[str, Any]:
+    return {"term": contribution.term, "score": round(contribution.score, 4)}
+
+
 def search_result_to_dict(result: SearchResult, rank: int) -> dict[str, Any]:
     return {
         "rank": rank,
         "score": round(result.score, 4),
         "matched_terms": list(result.matched_terms),
         "highlights": [highlight_to_dict(item) for item in result.highlights],
+        "contributions": [term_score_to_dict(item) for item in result.contributions],
         "chunk": chunk_to_dict(result.chunk),
     }
 

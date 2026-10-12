@@ -221,3 +221,25 @@ def test_dashboard_falls_back_to_utf8_bytes_on_a_narrow_stdout(tmp_path, monkeyp
 
     sys.stdout.flush()
     assert "█" in raw.getvalue().decode("utf-8")
+
+
+def test_search_explain_prints_the_score_breakdown(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha beta notes", encoding="utf-8")
+    (tmp_path / "b.md").write_text("gamma notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "alpha beta", "--explain"]) == 0
+    explained = capsys.readouterr().out.split("   score = ")[1]
+    assert "alpha " in explained and "beta " in explained
+
+
+def test_search_hides_the_breakdown_without_explain(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "alpha"]) == 0
+    assert "score = " not in capsys.readouterr().out
