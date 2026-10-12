@@ -243,3 +243,45 @@ def test_search_hides_the_breakdown_without_explain(tmp_path, capsys):
 
     assert main(["--index", str(index), "search", "alpha"]) == 0
     assert "score = " not in capsys.readouterr().out
+
+
+class _FakeGenerator:
+    def generate(self, question, context):
+        return f"Alpha is described in [1]. ({len(context)} passages)"
+
+
+def _offline(monkeypatch):
+    """Makes the CLI build containers whose generator never calls the Claude API."""
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    monkeypatch.setattr(cli, "Container", lambda settings: Container(settings, _FakeGenerator()))
+
+
+def test_report_writes_an_html_answer_report(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    output = tmp_path / "out" / "answer.html"
+
+    assert main(["--index", str(index), "report", "what is alpha?", "-o", str(output)]) == 0
+
+    html = output.read_text(encoding="utf-8")
+    assert "<h1>what is alpha?</h1>" in html
+    assert '<a class="cite" href="#source-1">[1]</a>' in html
+    assert f"Wrote {output}" in capsys.readouterr().out
+
+
+def test_report_prints_the_text_format_to_stdout(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "report", "alpha?", "--format", "text"]) == 0
+
+    out = capsys.readouterr().out
+    assert out.splitlines()[:2] == ["alpha?", "======"]
+    assert "**alpha** notes" in out

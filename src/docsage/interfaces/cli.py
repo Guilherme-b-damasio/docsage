@@ -8,7 +8,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from docsage import __version__
-from docsage.container import DASHBOARD_FORMATS, Container, load_settings
+from docsage.container import DASHBOARD_FORMATS, REPORT_FORMATS, Container, load_settings
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
 from docsage.infrastructure.text_report import breakdown
@@ -114,6 +114,24 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("--json", action="store_true", help="print the answer as JSON")
     ask.set_defaults(handler=_ask)
 
+    report = commands.add_parser(
+        "report", help="answer a question with Claude and write an HTML report"
+    )
+    report.add_argument("question")
+    report.add_argument("-k", "--top-k", type=int, default=5)
+    report.add_argument("--model", default=None)
+    report.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="file to write (default: print to stdout)",
+    )
+    report.add_argument(
+        "--format", choices=sorted(REPORT_FORMATS), default="html", help="default: html"
+    )
+    report.set_defaults(handler=_report)
+
     mcp = commands.add_parser("mcp", help="serve the index to MCP clients (stdio or HTTP)")
     mcp.add_argument(
         "--http", action="store_true", help="serve over Streamable HTTP instead of stdio"
@@ -188,13 +206,24 @@ def _stats(container: Container, args: argparse.Namespace) -> int:
 
 def _dashboard(container: Container, args: argparse.Namespace) -> int:
     content = container.dashboard_service(args.format).render(top=args.top)
-    if args.output is None:
-        _write_stdout(content)
-        return 0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(content, encoding="utf-8")
-    print(f"Wrote {args.output}")
+    _write_output(content, args.output)
     return 0
+
+
+def _report(container: Container, args: argparse.Namespace) -> int:
+    report = container.answer_report_service(args.format).report(args.question, args.top_k)
+    _write_output(report.content, args.output)
+    return 0
+
+
+def _write_output(content: str, output: Path | None) -> None:
+    """Prints ``content``, or writes it to ``output`` and says where."""
+    if output is None:
+        _write_stdout(content)
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(content, encoding="utf-8")
+    print(f"Wrote {output}")
 
 
 def _write_stdout(content: str) -> None:
