@@ -63,6 +63,14 @@ class Highlight:
 
 
 @dataclass(frozen=True)
+class TermScore:
+    """How much one query term added to a result's relevance score."""
+
+    term: str
+    score: float
+
+
+@dataclass(frozen=True)
 class SearchResult:
     """A chunk paired with its relevance score for a query."""
 
@@ -70,6 +78,8 @@ class SearchResult:
     score: float
     highlights: tuple[Highlight, ...] = ()
     """Where the query terms occur in the chunk, in text order (empty if not computed)."""
+    contributions: tuple[TermScore, ...] = ()
+    """Per-term share of ``score``, largest first (empty when the retriever cannot tell)."""
 
     @property
     def matched_terms(self) -> tuple[str, ...]:

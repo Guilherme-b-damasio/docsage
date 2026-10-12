@@ -1,3 +1,5 @@
+import pytest
+
 from docsage.domain.models import Chunk
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository, tokenize
 from docsage.infrastructure.tokenizer import Tokenizer
@@ -114,3 +116,20 @@ def test_repository_reports_index_size(tmp_path):
     repository.save(retriever)
 
     assert repository.size_bytes() == (tmp_path / "index.json").stat().st_size > 0
+
+
+def test_search_breaks_the_score_down_by_query_term():
+    result = _retriever().search("python language cats", top_k=1)[0]
+
+    assert result.chunk.id == "python"
+    assert {item.term for item in result.contributions} == {"python", "language"}
+    assert sum(item.score for item in result.contributions) == pytest.approx(result.score)
+    scores = [item.score for item in result.contributions]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_repeated_query_term_is_one_contribution():
+    result = _retriever().search("cats cats", top_k=1)[0]
+
+    assert [item.term for item in result.contributions] == ["cats"]
+    assert result.contributions[0].score == pytest.approx(result.score)
