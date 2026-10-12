@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from html import escape
 
-from docsage.domain.models import HistogramBin, IndexOverview
+from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
 from docsage.infrastructure.html_page import page
-from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, column_chart, data_table
+from docsage.infrastructure.mermaid import document_labels, edge_label, relations_diagram
+from docsage.infrastructure.svg_charts import (
+    CHART_CSS,
+    bar_chart,
+    column_chart,
+    data_table,
+    network_chart,
+)
 from docsage.infrastructure.units import human_size
 
 DASHBOARD_CSS = """
@@ -16,12 +23,14 @@ DASHBOARD_CSS = """
 .card > h2:first-child { margin-top: 0; }
 .tile .number { font-size: 1.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tile .caption { color: var(--muted); font-size: 0.9rem; }
+pre { overflow-x: auto; font-size: 0.85rem; background: var(--bg); padding: 8px; }
 """
 
 
 class HtmlDashboardRenderer:
-    """Stat tiles plus three inline-SVG charts: documents per file type, chunk lengths
-    and top terms. Every chart has a hover tooltip and a table view underneath."""
+    """Stat tiles plus inline-SVG charts: documents per file type, chunk lengths, top
+    terms and, when documents share top terms, a graph of related documents. Every
+    chart has a hover tooltip and a table view underneath."""
 
     def render(self, overview: IndexOverview) -> str:
         body = [
@@ -50,6 +59,8 @@ class HtmlDashboardRenderer:
                     overview.top_terms,
                 ),
             ]
+            if overview.relations:
+                body.append(self._relations(overview.relations))
         else:
             body.append('<p class="card">The index is empty. Run <code>docsage index</code>.</p>')
         return page("docsage index", "\n".join(body), CHART_CSS + DASHBOARD_CSS)
@@ -76,6 +87,35 @@ class HtmlDashboardRenderer:
         return (
             f'<section class="card">\n<h2>{escape(title)}</h2>\n{chart}\n'
             f"{data_table(headers, rows)}\n</section>"
+        )
+
+    @staticmethod
+    def _relations(relations: tuple[DocumentRelation, ...]) -> str:
+        sources = sorted({source for item in relations for source in (item.first, item.second)})
+        labels = document_labels(sources)
+        position = {source: index for index, source in enumerate(sources)}
+        edges = [
+            (
+                position[item.first],
+                position[item.second],
+                item.strength,
+                f"{labels[item.first]} ↔ {labels[item.second]}: {', '.join(item.shared_terms)}",
+            )
+            for item in relations
+        ]
+        rows = tuple(
+            (f"{labels[item.first]} ↔ {labels[item.second]} ({edge_label(item)})", item.strength)
+            for item in relations
+        )
+        chart = network_chart([labels[source] for source in sources], edges, "Related documents")
+        return (
+            '<section class="card">\n<h2>Related documents</h2>\n'
+            '<p class="muted">Documents linked by the characteristic terms they share; '
+            "thicker lines share more terms.</p>\n"
+            f"{chart}\n{data_table(('Documents', 'Shared terms'), rows)}\n"
+            "<details><summary>Mermaid source</summary>"
+            f"<pre><code>{escape(relations_diagram(relations))}</code></pre></details>\n"
+            "</section>"
         )
 
 

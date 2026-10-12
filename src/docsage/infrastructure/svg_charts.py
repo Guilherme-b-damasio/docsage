@@ -7,6 +7,7 @@ data end, separated by a 2px gap, and carry a ``<title>`` that browsers show on 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from html import escape
 
@@ -82,6 +83,47 @@ def column_chart(columns: Sequence[tuple[str, int]], label: str) -> str:
     return _svg(plot + 44, label, "".join(marks))
 
 
+def network_chart(
+    nodes: Sequence[str], edges: Sequence[tuple[int, int, int, str]], label: str
+) -> str:
+    """Nodes on a circle joined by edges ``(first, second, weight, tooltip)``.
+
+    ``first`` and ``second`` index into ``nodes``; heavier edges are drawn thicker.
+    Each node's name sits outside the circle so names never cross the edges.
+    """
+    if not nodes:
+        return ""
+    radius = 140
+    centre_x, centre_y = WIDTH / 2, radius + 24
+    points = [
+        (
+            centre_x + radius * math.cos(math.pi + 2 * math.pi * index / len(nodes)),
+            centre_y + radius * math.sin(math.pi + 2 * math.pi * index / len(nodes)),
+        )
+        for index in range(len(nodes))
+    ]
+    peak = max((weight for *_, weight, _ in edges), default=1) or 1
+    marks = []
+    for first, second, weight, tooltip in edges:
+        (x1, y1), (x2, y2) = points[first], points[second]
+        marks.append(
+            f'<g class="mark"><title>{escape(tooltip)}</title>'
+            f'<line class="edge" x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'stroke-width="{1.5 + 4.5 * weight / peak:.1f}"/></g>'
+        )
+    for name, (x, y) in zip(nodes, points, strict=True):
+        dx, dy = (x - centre_x) / radius, (y - centre_y) / radius
+        anchor = "start" if dx > 0.3 else "end" if dx < -0.3 else "middle"
+        marks.append(
+            f'<g class="mark"><title>{escape(name)}</title>'
+            f'<circle class="node" cx="{x:.1f}" cy="{y:.1f}" r="6"/>'
+            f'<text class="value" x="{x + 12 * dx:.1f}" y="{y + 14 * dy:.1f}" '
+            f'text-anchor="{anchor}" dominant-baseline="central">'
+            f"{escape(_clip(name, 200))}</text></g>"
+        )
+    return _svg(2 * centre_y, label, "".join(marks))
+
+
 def data_table(
     headers: tuple[str, str],
     rows: Sequence[tuple[str, float]],
@@ -107,6 +149,9 @@ svg.chart .bar { fill: var(--bar); }
 svg.chart .grid { stroke: var(--grid); stroke-width: 1; }
 svg.chart .hit { fill: transparent; }
 svg.chart .mark:hover .bar { opacity: 0.8; }
+svg.chart .edge { stroke: var(--bar); stroke-linecap: round; opacity: 0.45; }
+svg.chart .mark:hover .edge { opacity: 1; }
+svg.chart .node { fill: var(--surface); stroke: var(--bar); stroke-width: 2; }
 details { margin-top: 12px; font-size: 0.9rem; }
 summary { cursor: pointer; color: var(--muted); }
 table { border-collapse: collapse; margin-top: 8px; }

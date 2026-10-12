@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from docsage.domain.models import IndexOverview
+from docsage.infrastructure.mermaid import document_labels
 from docsage.infrastructure.units import human_size
 
 BAR_WIDTH = 30
@@ -31,6 +32,8 @@ class TextDashboardRenderer:
         for title, rows in sections:
             if rows:
                 lines += ["", f"{title}:", *bars(rows)]
+        if overview.relations:
+            lines += ["", "Related documents (shared top terms):", *relation_lines(overview)]
         return "\n".join(lines) + "\n"
 
 
@@ -41,6 +44,17 @@ def bars(rows: Sequence[tuple[str, int]], width: int = BAR_WIDTH) -> list[str]:
     return [
         f"  {name:<{names}}  {'█' * round(width * value / peak)} {value:,}".rstrip()
         for name, value in rows
+    ]
+
+
+def relation_lines(overview: IndexOverview) -> list[str]:
+    """One ``a.md <-> b.md: shared, terms`` line per related pair."""
+    relations = overview.relations
+    sources = {item.first for item in relations} | {item.second for item in relations}
+    labels = document_labels(sorted(sources))
+    return [
+        f"  {labels[item.first]} <-> {labels[item.second]}: {', '.join(item.shared_terms)}"
+        for item in relations
     ]
 
 
