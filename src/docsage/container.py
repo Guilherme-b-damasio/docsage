@@ -12,6 +12,7 @@ from docsage.application.services import (
     DashboardService,
     IndexingService,
     QuestionAnsweringService,
+    RelationService,
     RemovalService,
     SearchService,
     StatsService,
@@ -93,7 +94,8 @@ class Container:
             raise ValueError(f"Unknown dashboard format: {dashboard_format}") from None
         retriever = self._repository.load()
         stats = StatsService(retriever, self._tokenizer, self._repository)
-        return DashboardService(stats, retriever, renderer)
+        relations = RelationService(retriever, self._tokenizer)
+        return DashboardService(stats, retriever, renderer, relations)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(

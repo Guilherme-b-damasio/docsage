@@ -106,6 +106,20 @@ class HistogramBin:
 
 
 @dataclass(frozen=True)
+class DocumentRelation:
+    """Two documents linked by the characteristic terms they have in common."""
+
+    first: str
+    second: str
+    shared_terms: tuple[str, ...]
+    """Terms among the top terms of both documents, most characteristic first."""
+
+    @property
+    def strength(self) -> int:
+        return len(self.shared_terms)
+
+
+@dataclass(frozen=True)
 class IndexOverview:
     """Everything the index dashboard shows, computed once from the stored chunks."""
 
@@ -119,3 +133,5 @@ class IndexOverview:
     chunk_lengths: tuple[HistogramBin, ...]
     """Distribution of chunk lengths in words, in ascending ranges."""
     top_terms: tuple[tuple[str, int], ...]
+    relations: tuple[DocumentRelation, ...] = ()
+    """Pairs of documents sharing top terms, strongest first."""
