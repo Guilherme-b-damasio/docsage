@@ -134,6 +134,8 @@ docsage report "How does BM25 work?" --open
 docsage report "How does BM25 work?" -o reports/bm25.html
 ```
 
+![Answer report: the answer with linked citations, then each cited passage with its matched terms highlighted and a score breakdown chart](docs/images/answer-report-light.png)
+
 From Python:
 
 ```python
@@ -162,6 +164,24 @@ docsage dashboard -o dashboard.html     # then open it in a browser
 docsage dashboard --format text         # the same numbers as text bars in the terminal
 docsage dashboard --format mermaid      # related documents as a Mermaid graph
 ```
+
+![Index dashboard in dark mode: stat tiles, documents per file type, chunk lengths, top terms and the related documents graph](docs/images/dashboard-dark.png)
+
+`python scripts/screenshots.py` regenerates both screenshots from this repository's own
+docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
+
+## What's new in 0.4
+
+- Search results and answers carry highlight offsets and a per-term BM25 score
+  breakdown (`search --explain`, JSON and MCP structured output).
+- `docsage report` renders an answer as a self-contained HTML page with highlighted
+  citations and score charts; `--open` shows it in the browser.
+- `docsage dashboard`: an offline HTML dashboard of the index with charts of file
+  types, chunk lengths, top terms and a graph of related documents
+  (`--format text` and `--format mermaid` too).
+- In MCP Apps hosts, `ask_documents` and the new `index_dashboard` tool show those
+  HTML pages right in the conversation, following the host's light or dark theme;
+  other clients get the same content as text.
 
 ## What's new in 0.3
 
