@@ -1,4 +1,4 @@
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
 from docsage.infrastructure.text_report import TextAnswerRenderer, emphasized
 
 
@@ -21,3 +21,12 @@ def test_text_report_lists_numbered_sources_with_emphasis():
 def test_text_report_without_sources():
     text = TextAnswerRenderer().render(Answer("Q?", "Nothing found.", ()))
     assert "Sources:" not in text
+
+
+def test_text_report_spells_out_the_score_breakdown():
+    chunk = Chunk("a.md#0", "a.md", "BM25 ranks.", 0)
+    result = SearchResult(chunk, 1.5, (), (TermScore("bm25", 1.2), TermScore("ranks", 0.3)))
+
+    text = TextAnswerRenderer().render(Answer("Q?", "A.", (result,)))
+
+    assert "    score = bm25 1.20 + ranks 0.30" in text
