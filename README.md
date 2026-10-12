@@ -86,7 +86,7 @@ The server offers these tools:
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | documents, chunks, top terms and index size               |
-| `index_dashboard`  | charts of file types, chunk lengths and top terms         |
+| `index_dashboard`  | charts of file types, chunk lengths, top terms and related documents |
 
 In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
 `ask_documents` shows the HTML answer report with highlighted citations and
@@ -152,9 +152,15 @@ per file type, a histogram of chunk lengths (in words) and the most frequent ter
 charts are inline SVG, so the page works offline, follows light and dark mode, shows
 each value on hover and has a "Show as table" view under every chart.
 
+A "Related documents" graph links documents that share characteristic terms (frequent
+in the document, rare across the index), with thicker lines for more shared terms. Its
+Mermaid source is one click away, and `--format mermaid` prints just that diagram, ready
+to paste into a Markdown file or a GitHub issue.
+
 ```bash
 docsage dashboard -o dashboard.html     # then open it in a browser
 docsage dashboard --format text         # the same numbers as text bars in the terminal
+docsage dashboard --format mermaid      # related documents as a Mermaid graph
 ```
 
 ## What's new in 0.3

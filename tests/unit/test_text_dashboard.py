@@ -1,4 +1,4 @@
-from docsage.domain.models import HistogramBin, IndexOverview
+from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer, bars
 
 
@@ -34,3 +34,12 @@ def test_text_dashboard_lists_totals_and_charts():
 def test_text_dashboard_of_an_empty_index_has_no_charts():
     overview = IndexOverview(0, 0, 0, 0, 0, (), (), ())
     assert ":\n  " not in TextDashboardRenderer().render(overview)
+
+
+def test_text_dashboard_lists_related_documents():
+    relation = DocumentRelation("docs/a.md", "b.md", ("bm25", "ranking"))
+    overview = IndexOverview(2, 2, 6, 4, 10, (("md", 2),), (), (), (relation,))
+
+    text = TextDashboardRenderer().render(overview)
+
+    assert "Related documents (shared top terms):\n  a.md <-> b.md: bm25, ranking" in text

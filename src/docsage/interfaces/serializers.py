@@ -104,6 +104,14 @@ def overview_to_dict(overview: IndexOverview) -> dict[str, Any]:
             for item in overview.chunk_lengths
         ],
         "top_terms": [{"term": term, "count": count} for term, count in overview.top_terms],
+        "relations": [
+            {
+                "first": item.first,
+                "second": item.second,
+                "shared_terms": list(item.shared_terms),
+            }
+            for item in overview.relations
+        ],
     }
 
 

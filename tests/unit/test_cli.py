@@ -332,3 +332,18 @@ def test_report_open_says_where_the_file_is_without_a_browser(tmp_path, capsys, 
     assert main(["--index", str(index), "report", "alpha?", "--open"]) == 0
 
     assert "could not open a browser, the report is at" in capsys.readouterr().err
+
+
+def test_dashboard_command_prints_a_mermaid_diagram_of_related_documents(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("retrieval ranking with bm25", encoding="utf-8")
+    (tmp_path / "b.md").write_text("bm25 ranking explained", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "dashboard", "--format", "mermaid"]) == 0
+
+    out = capsys.readouterr().out
+    assert out.startswith("graph LR\n")
+    assert '["a.md"]' in out and '["b.md"]' in out
+    assert "bm25" in out and "ranking" in out

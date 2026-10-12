@@ -12,6 +12,7 @@ from docsage.application.services import (
     DashboardService,
     IndexingService,
     QuestionAnsweringService,
+    RelationService,
     RemovalService,
     SearchService,
     StatsService,
@@ -24,6 +25,7 @@ from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -38,6 +40,7 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
 DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
     "html": HtmlDashboardRenderer,
     "text": TextDashboardRenderer,
+    "mermaid": MermaidDashboardRenderer,
 }
 
 
@@ -93,7 +96,8 @@ class Container:
             raise ValueError(f"Unknown dashboard format: {dashboard_format}") from None
         retriever = self._repository.load()
         stats = StatsService(retriever, self._tokenizer, self._repository)
-        return DashboardService(stats, retriever, renderer)
+        relations = RelationService(retriever, self._tokenizer)
+        return DashboardService(stats, retriever, renderer, relations)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(

@@ -1,8 +1,8 @@
 import re
 
-from docsage.domain.models import HistogramBin, IndexOverview
+from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
-from docsage.infrastructure.svg_charts import bar_chart, column_chart, data_table
+from docsage.infrastructure.svg_charts import bar_chart, column_chart, data_table, network_chart
 
 
 def _overview(**changes):
@@ -95,3 +95,45 @@ def test_bar_chart_and_table_accept_a_value_format():
     assert "<title>bm25: 1.23</title>" in svg
     assert ">0.50</text>" in svg
     assert "<td>1.23</td>" in table
+
+
+RELATIONS = (
+    DocumentRelation("docs/a.md", "docs/b.md", ("bm25", "ranking", "index")),
+    DocumentRelation("docs/a.md", "c.pdf", ("<install>",)),
+)
+
+
+def test_network_chart_draws_nodes_and_weighted_edges():
+    svg = network_chart(["a", "b", "c"], [(0, 1, 3, "a-b"), (0, 2, 1, "a-c")], "Graph")
+
+    assert svg.count('class="node"') == 3
+    assert svg.count('class="edge"') == 2
+    widths = [float(value) for value in re.findall(r'stroke-width="([\d.]+)"', svg)]
+    assert widths[0] > widths[1]
+    assert "<title>a-b</title>" in svg
+
+
+def test_network_chart_places_names_outside_the_circle():
+    svg = network_chart(["left", "right"], [(0, 1, 1, "x")], "Graph")
+
+    assert 'text-anchor="end" dominant-baseline="central">left<' in svg
+    assert 'text-anchor="start" dominant-baseline="central">right<' in svg
+
+
+def test_empty_network_chart_renders_nothing():
+    assert network_chart([], [], "x") == ""
+
+
+def test_dashboard_shows_related_documents_with_a_table_and_mermaid_source():
+    html = HtmlDashboardRenderer().render(_overview(relations=RELATIONS))
+
+    assert html.count('<svg class="chart"') == 4
+    assert "Related documents" in html
+    assert "<title>a.md ↔ b.md: bm25, ranking, index</title>" in html
+    assert "<td>a.md ↔ b.md (bm25, ranking, index)</td><td>3</td>" in html
+    assert "Mermaid source" in html and "graph LR" in html
+    assert "&lt;install&gt;" in html and "<install>" not in html
+
+
+def test_dashboard_without_relations_has_no_relations_section():
+    assert "Related documents" not in HtmlDashboardRenderer().render(_overview())

@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
+from itertools import combinations
 from pathlib import Path
 
 from docsage.domain.models import (
     Answer,
     Chunk,
     Document,
+    DocumentRelation,
     HistogramBin,
     IndexOverview,
     SearchResult,
@@ -30,6 +33,8 @@ from docsage.domain.ports import (
 )
 
 logger = logging.getLogger(__name__)
+
+MIN_RELATION_TERM_LENGTH = 3
 
 
 class UnsupportedFileError(ValueError):
@@ -254,15 +259,73 @@ class StatsService:
         )
 
 
+class RelationService:
+    """Links documents that share characteristic terms.
+
+    Each document is described by its ``terms_per_document`` most characteristic terms:
+    frequent in the document (tf) but not in every document (smoothed idf). Very short
+    terms and numbers say little about a topic and are left out. Two documents are
+    related when those term sets overlap.
+    """
+
+    def __init__(
+        self, retriever: Retriever, tokenizer: TextTokenizer, terms_per_document: int = 10
+    ) -> None:
+        self._retriever = retriever
+        self._tokenizer = tokenizer
+        self._terms_per_document = terms_per_document
+
+    def top_terms(self) -> dict[str, tuple[str, ...]]:
+        """Each document's characteristic terms, most characteristic first."""
+        frequencies: dict[str, Counter[str]] = {}
+        for chunk in self._retriever.chunks():
+            terms = [term for term in self._tokenizer(chunk.text) if _is_descriptive(term)]
+            frequencies.setdefault(chunk.source, Counter()).update(terms)
+        documents = Counter(term for counts in frequencies.values() for term in counts)
+        total = len(frequencies)
+        top: dict[str, tuple[str, ...]] = {}
+        for source, counts in frequencies.items():
+            weights = {
+                term: count * math.log((1 + total) / documents[term])
+                for term, count in counts.items()
+            }
+            # Ties are broken alphabetically so the output is stable.
+            ranked = sorted(weights.items(), key=lambda item: (-item[1], item[0]))
+            top[source] = tuple(term for term, _ in ranked[: self._terms_per_document])
+        return top
+
+    def relations(self, limit: int = 30) -> tuple[DocumentRelation, ...]:
+        """At most ``limit`` related pairs, the ones sharing most terms first."""
+        top = self.top_terms()
+        found = []
+        for first, second in combinations(sorted(top), 2):
+            ranks = {term: rank for rank, term in enumerate(top[first])}
+            shared = sorted(set(top[first]) & set(top[second]), key=lambda term: ranks[term])
+            if shared:
+                found.append(DocumentRelation(first, second, tuple(shared)))
+        found.sort(key=lambda relation: (-relation.strength, relation.first, relation.second))
+        return tuple(found[:limit])
+
+
+def _is_descriptive(term: str) -> bool:
+    return len(term) >= MIN_RELATION_TERM_LENGTH and not term.isdigit()
+
+
 class DashboardService:
     """Builds the index overview the dashboard shows and renders it."""
 
     def __init__(
-        self, stats: StatsService, retriever: Retriever, renderer: DashboardRenderer
+        self,
+        stats: StatsService,
+        retriever: Retriever,
+        renderer: DashboardRenderer,
+        relations: RelationService | None = None,
     ) -> None:
+        """Without ``relations`` the overview has no document relationships."""
         self._stats = stats
         self._retriever = retriever
         self._renderer = renderer
+        self._relations = relations
 
     def overview(self, top: int = 15, bins: int = 10) -> IndexOverview:
         stats = self._stats.stats(top)
@@ -277,6 +340,7 @@ class DashboardService:
             documents_by_type=tuple(sorted(types.items(), key=lambda item: (-item[1], item[0]))),
             chunk_lengths=histogram([len(chunk.text.split()) for chunk in chunks], bins),
             top_terms=stats.top_terms,
+            relations=self._relations.relations() if self._relations else (),
         )
 
     def render(self, top: int = 15, bins: int = 10) -> str:

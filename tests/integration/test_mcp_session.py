@@ -108,6 +108,7 @@ def test_a_client_session_indexes_reads_searches_asks_and_removes(corpus, servic
 
             dashboard = await client.call_tool("index_dashboard", {})
             assert dashboard.structured_content["documents"] == 3
+            assert isinstance(dashboard.structured_content["relations"], list)
             assert "<svg" in dashboard.meta["docsage/html"]
             view = await client.read_resource(tools["index_dashboard"].meta["ui"]["resourceUri"])
             assert "ui/initialize" in view.contents[0].text

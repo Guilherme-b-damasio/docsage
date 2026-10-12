@@ -114,7 +114,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
 | `index_stats`      | `documents`, `chunks`, `terms`, `vocabulary`, `top_terms[]`, `index_bytes` |
-| `index_dashboard`  | the `index_stats` fields plus `documents_by_type[]` and `chunk_lengths[]` (`low`, `high`, `chunks`) |
+| `index_dashboard`  | the `index_stats` fields plus `documents_by_type[]`, `chunk_lengths[]` (`low`, `high`, `chunks`) and `relations[]` (`first`, `second`, `shared_terms[]`) |
 
 Search results carry each chunk's full text in `structuredContent`; the text output
 shortens long passages to a preview. Each `highlights[]` entry gives the `start` and
