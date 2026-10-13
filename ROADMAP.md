@@ -49,7 +49,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Hybrid retriever that fuses BM25 and embedding scores (reciprocal rank fusion)
 - [x] Re-ranking step with Claude for the top-k candidates
 - [x] 2D map of chunk embeddings (UMAP/PCA) in the dashboard
-- [ ] Retrieval evaluation script (recall@k, MRR on a small labeled set) with a results chart
+- [x] Retrieval evaluation script (recall@k, MRR on a small labeled set) with a results chart
 - [ ] Sentence-boundary chunker
 
 ## Milestone 0.6: Generation and chat
