@@ -126,7 +126,7 @@ The server offers these tools:
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
 | `index_stats`      | documents, chunks, top terms and index size               |
-| `index_dashboard`  | charts of file types, chunk lengths, top terms and related documents |
+| `index_dashboard`  | charts of file types, chunk lengths, top terms, related documents and the chunk map |
 
 In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
 `ask_documents` shows the HTML answer report with highlighted citations and
@@ -198,6 +198,18 @@ A "Related documents" graph links documents that share characteristic terms (fre
 in the document, rare across the index), with thicker lines for more shared terms. Its
 Mermaid source is one click away, and `--format mermaid` prints just that diagram, ready
 to paste into a Markdown file or a GitHub issue.
+
+With the `embedding` or `hybrid` retriever, a "Chunk map" places every chunk on a 2D
+plane by the meaning of its text: the embeddings are reduced to their two principal
+components (PCA, computed in pure Python), so chunks that talk about similar things
+sit close together. Each document has its own color (documents past the eighth share
+an "Other" color), every dot names its chunk on hover, and the text format draws the
+same map as a grid of letters. The BM25 retriever needs no embedding model, so its
+dashboard has no map.
+
+```bash
+docsage --retriever hybrid dashboard -o dashboard.html
+```
 
 ```bash
 docsage dashboard -o dashboard.html     # then open it in a browser
