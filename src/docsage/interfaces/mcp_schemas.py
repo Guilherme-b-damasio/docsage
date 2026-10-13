@@ -101,6 +101,14 @@ class RelationOutput(TypedDict):
     """Characteristic terms both documents share, most characteristic first."""
 
 
+class ChunkPointOutput(TypedDict):
+    chunk_id: str
+    source: str
+    x: float
+    y: float
+    """Position on the 2D map of chunk embeddings, each axis scaled to -1..1."""
+
+
 class DashboardOutput(TypedDict):
     documents: int
     chunks: int
@@ -111,3 +119,5 @@ class DashboardOutput(TypedDict):
     chunk_lengths: list[LengthBinOutput]
     top_terms: list[TermCountOutput]
     relations: list[RelationOutput]
+    chunk_map: list[ChunkPointOutput]
+    """Empty unless the server runs with an embedding or hybrid retriever."""

@@ -483,6 +483,7 @@ def test_index_dashboard_returns_text_numbers_and_the_html_page_for_its_view():
     assert result.structured_content["relations"] == [
         {"first": "a.md", "second": "b.pdf", "shared_terms": ["capital"]}
     ]
+    assert result.structured_content["chunk_map"] == []
     assert result.meta[HTML_META_KEY].startswith("<!doctype html>")
     assert "<svg" in result.meta[HTML_META_KEY]
 
