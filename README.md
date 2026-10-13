@@ -53,7 +53,7 @@ index_path = ".docsage/index.json"   # relative paths are resolved from this fil
 chunk_size = 200                     # words per chunk
 chunk_overlap = 40                   # words shared between consecutive chunks
 model = "claude-opus-5-5"            # model used by `ask`
-retriever = "bm25"                   # or "embedding"
+retriever = "bm25"                   # or "embedding", "hybrid"
 embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 ```
 
@@ -73,6 +73,13 @@ Both retrievers read the same index, so you can switch at any time without
 re-indexing. Chunks are embedded on the first search and their vectors are cached
 next to the index (`index.embeddings.json`), so later runs only embed new or changed
 chunks. Embedding results have no per-term score breakdown.
+
+`--retriever hybrid` runs both and fuses their rankings with
+[reciprocal rank fusion](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf):
+each chunk scores `sum(1 / (60 + rank))` over the rankings it appears in, so passages
+that match both the words and the meaning of the question come first, and a passage
+only one retriever finds still makes the list. Scores are fused ranks, so hybrid
+results have no per-term breakdown either.
 
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
