@@ -50,7 +50,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Re-ranking step with Claude for the top-k candidates
 - [x] 2D map of chunk embeddings (UMAP/PCA) in the dashboard
 - [x] Retrieval evaluation script (recall@k, MRR on a small labeled set) with a results chart
-- [ ] Sentence-boundary chunker
+- [x] Sentence-boundary chunker
 
 ## Milestone 0.6: Generation and chat
 - [ ] Stream answers to the terminal as they are generated

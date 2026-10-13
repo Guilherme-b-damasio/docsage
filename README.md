@@ -52,11 +52,25 @@ to change the defaults. Every key is optional; command-line flags win over the f
 index_path = ".docsage/index.json"   # relative paths are resolved from this file's folder
 chunk_size = 200                     # words per chunk
 chunk_overlap = 40                   # words shared between consecutive chunks
+chunker = "window"                   # or "sentence": never cut a sentence in half
 model = "claude-opus-5-5"            # model used by `ask`
 retriever = "bm25"                   # or "embedding", "hybrid"
 embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 rerank = false                       # let Claude reorder the best candidates
 rerank_candidates = 20               # how many candidates Claude grades
+```
+
+### Chunking
+
+The default `window` chunker cuts text into windows of `chunk_size` words that share
+`chunk_overlap` words. The `sentence` chunker packs whole sentences into chunks of at most
+`chunk_size` words and repeats the previous chunk's last sentences (up to `chunk_overlap`
+words), so passages never stop mid-sentence. Markdown is first split on headings with
+either one. Blank lines end a sentence too, and common abbreviations such as "e.g." do
+not. Unchanged files keep their chunks, so re-index with `--force` after switching:
+
+```bash
+docsage index docs/ --chunker sentence --force
 ```
 
 ### Retrievers
@@ -243,6 +257,16 @@ docsage dashboard --format mermaid      # related documents as a Mermaid graph
 
 `python scripts/screenshots.py` regenerates both screenshots from this repository's own
 docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
+
+## What's new in 0.5
+
+- `embedding` and `hybrid` retrievers (`--retriever`, `docsage[embeddings]`): local
+  sentence-transformers vectors, fused with BM25 by reciprocal rank fusion.
+- `--rerank` lets Claude grade and reorder the best candidates of any retriever.
+- The dashboard maps chunk embeddings in 2D (PCA) when an embedding retriever is used.
+- `docsage evaluate` measures recall@k and MRR on a labeled query set, as text, JSON or
+  an HTML page with charts.
+- `index --chunker sentence` keeps every sentence whole inside its chunk.
 
 ## What's new in 0.4
 

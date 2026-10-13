@@ -62,3 +62,7 @@ def test_reads_rerank_keys(tmp_path):
 def test_rerank_must_be_a_boolean(tmp_path):
     with pytest.raises(ConfigError, match="rerank in"):
         read_config(_write(tmp_path, "rerank = 1\n"))
+
+
+def test_reads_the_chunker(tmp_path):
+    assert read_config(_write(tmp_path, "chunker = 'sentence'\n")) == {"chunker": "sentence"}
