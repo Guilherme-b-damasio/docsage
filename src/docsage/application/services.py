@@ -14,6 +14,7 @@ from pathlib import Path
 from docsage.domain.models import (
     Answer,
     Chunk,
+    ChunkPoint,
     Document,
     DocumentRelation,
     HistogramBin,
@@ -24,6 +25,7 @@ from docsage.domain.ports import (
     AnswerGenerator,
     AnswerRenderer,
     Chunker,
+    ChunkProjector,
     DashboardRenderer,
     DocumentLoader,
     Highlighter,
@@ -320,12 +322,15 @@ class DashboardService:
         retriever: Retriever,
         renderer: DashboardRenderer,
         relations: RelationService | None = None,
+        projector: ChunkProjector | None = None,
     ) -> None:
-        """Without ``relations`` the overview has no document relationships."""
+        """Without ``relations`` the overview has no document relationships, and without
+        ``projector`` it has no chunk map."""
         self._stats = stats
         self._retriever = retriever
         self._renderer = renderer
         self._relations = relations
+        self._projector = projector
 
     def overview(self, top: int = 15, bins: int = 10) -> IndexOverview:
         stats = self._stats.stats(top)
@@ -341,7 +346,15 @@ class DashboardService:
             chunk_lengths=histogram([len(chunk.text.split()) for chunk in chunks], bins),
             top_terms=stats.top_terms,
             relations=self._relations.relations() if self._relations else (),
+            chunk_map=self._chunk_map(chunks),
         )
+
+    def _chunk_map(self, chunks: Sequence[Chunk]) -> tuple[ChunkPoint, ...]:
+        if self._projector is None or not chunks:
+            return ()
+        points = tuple(self._projector.project(chunks))
+        logger.debug("projected chunks", extra={"points": len(points)})
+        return points
 
     def render(self, top: int = 15, bins: int = 10) -> str:
         return self.render_overview(self.overview(top, bins))

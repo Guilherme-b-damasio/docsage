@@ -204,3 +204,22 @@ def test_rerank_candidates_must_be_positive():
 
     with pytest.raises(ConfigError, match="rerank_candidates"):
         load_settings(rerank_candidates=0)
+
+
+def test_dashboard_maps_chunks_only_for_embedding_retrievers(tmp_path):
+    from docsage.container import Container
+
+    for name, text in [("pt.md", "Lisbon is in Portugal."), ("jp.md", "Tokyo is in Japan.")]:
+        (tmp_path / name).write_text(text, encoding="utf-8")
+    files = [tmp_path / "pt.md", tmp_path / "jp.md"]
+
+    hybrid = Settings(index_path=tmp_path / "index.json", retriever="hybrid")
+    container = Container(hybrid, embedder=_KeywordEmbedder())
+    container.indexing_service().index(files)
+    points = container.dashboard_service().overview().chunk_map
+
+    assert sorted(Path(point.source).name for point in points) == ["jp.md", "pt.md"]
+    bm25 = Settings(index_path=tmp_path / "index.json")
+    embedder = _KeywordEmbedder()
+    assert Container(bm25, embedder=embedder).dashboard_service().overview().chunk_map == ()
+    assert embedder.texts == []

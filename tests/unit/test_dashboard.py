@@ -176,3 +176,38 @@ def test_overview_includes_relations_when_a_relation_service_is_given():
 
     assert with_relations.overview().relations == (DocumentRelation("a.md", "b.md", ("alpha",)),)
     assert without.overview().relations == ()
+
+
+class DiagonalProjector:
+    def __init__(self):
+        self.calls = 0
+
+    def project(self, chunks):
+        from docsage.domain.models import ChunkPoint
+
+        self.calls += 1
+        return [ChunkPoint(c.id, c.source, n / 10, -n / 10) for n, c in enumerate(chunks)]
+
+
+def test_overview_maps_chunks_when_a_projector_is_given():
+    retriever = BM25Retriever(tokenizer=_split)
+    retriever.add([Chunk("a#0", "a.md", "alpha", 0), Chunk("b#0", "b.md", "beta", 0)])
+    stats = StatsService(retriever, _split, SizedRepository())
+    projector = DiagonalProjector()
+
+    service = DashboardService(stats, retriever, RecordingRenderer(), projector=projector)
+
+    points = service.overview().chunk_map
+    assert [(p.chunk_id, p.x, p.y) for p in points] == [("a#0", 0.0, 0.0), ("b#0", 0.1, -0.1)]
+    assert _service([Chunk("a#0", "a.md", "alpha", 0)]).overview().chunk_map == ()
+
+
+def test_empty_index_skips_the_projector():
+    projector = DiagonalProjector()
+    retriever = BM25Retriever(tokenizer=_split)
+    stats = StatsService(retriever, _split, SizedRepository())
+
+    service = DashboardService(stats, retriever, RecordingRenderer(), projector=projector)
+
+    assert service.overview().chunk_map == ()
+    assert projector.calls == 0
