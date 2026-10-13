@@ -78,7 +78,7 @@ def _parser() -> argparse.ArgumentParser:
         "--retriever",
         choices=RETRIEVERS,
         default=None,
-        help="ranking strategy (default: bm25; embedding needs docsage[embeddings])",
+        help="ranking strategy (default: bm25; embedding and hybrid need docsage[embeddings])",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="log debug events (key=value) to stderr"

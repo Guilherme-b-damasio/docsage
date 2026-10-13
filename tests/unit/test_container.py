@@ -132,3 +132,19 @@ def test_unknown_retriever_is_rejected():
 
     with pytest.raises(ConfigError, match="Unknown retriever"):
         load_settings(retriever="magic")
+
+
+def test_hybrid_retriever_finds_chunks_either_ranking_misses(tmp_path):
+    from docsage.container import Container
+
+    settings = Settings(index_path=tmp_path / "index.json", retriever="hybrid")
+    container = Container(settings, embedder=_KeywordEmbedder())
+    notes = tmp_path / "notes.md"
+    notes.write_text("# Lisbon\n\nCapital of Portugal.\n\n# Japan\n\nIts capital.\n", "utf-8")
+    container.indexing_service().index([notes])
+
+    results = container.search_service().search("lisbon capital", top_k=2)
+
+    assert len(results) == 2
+    assert results[0].chunk.section == "Lisbon"
+    assert results[0].contributions == ()
