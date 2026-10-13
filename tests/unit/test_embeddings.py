@@ -1,7 +1,11 @@
 import pytest
 
 from docsage.domain.models import Chunk
-from docsage.infrastructure.embeddings import EmbeddingRetriever
+from docsage.infrastructure.embeddings import (
+    CachedEmbedder,
+    EmbeddingRetriever,
+    SentenceTransformerEmbedder,
+)
 
 AXES = ("cat", "dog", "code")
 
@@ -84,3 +88,58 @@ def test_remove_drops_all_chunks_of_a_source():
 def test_empty_query_or_index_returns_nothing():
     assert _retriever().search("   ", top_k=3) == []
     assert EmbeddingRetriever(KeywordEmbedder()).search("cat", top_k=3) == []
+
+
+class FakeModel:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    def encode(self, texts, show_progress_bar):
+        self.calls.append(texts)
+        return [(len(text), 1) for text in texts]
+
+
+def test_sentence_transformer_embedder_returns_float_lists():
+    model = FakeModel()
+    embedder = SentenceTransformerEmbedder(model=model)
+
+    assert embedder.embed(["ab", "abc"]) == [[2.0, 1.0], [3.0, 1.0]]
+    assert embedder.embed([]) == []
+    assert model.calls == [["ab", "abc"]]
+
+
+def test_sentence_transformer_embedder_explains_the_missing_extra(monkeypatch):
+    def missing(name):
+        raise ImportError(name)
+
+    monkeypatch.setattr("importlib.import_module", missing)
+
+    with pytest.raises(RuntimeError, match=r"docsage\[embeddings\]"):
+        SentenceTransformerEmbedder().embed(["text"])
+
+
+def test_cached_embedder_only_embeds_unseen_texts_across_instances(tmp_path):
+    path = tmp_path / "embeddings.json"
+    first = KeywordEmbedder()
+    assert CachedEmbedder(first, path, "m").embed(["cat", "dog", "cat"]) == [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [1.0, 0.0, 0.0],
+    ]
+    assert first.calls == [["cat", "dog"]]
+
+    second = KeywordEmbedder()
+    vectors = CachedEmbedder(second, path, "m").embed(["dog", "code"])
+
+    assert vectors == [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    assert second.calls == [["code"]]
+
+
+def test_cached_embedder_resets_when_the_model_changes(tmp_path):
+    path = tmp_path / "embeddings.json"
+    CachedEmbedder(KeywordEmbedder(), path, "old").embed(["cat"])
+
+    embedder = KeywordEmbedder()
+    CachedEmbedder(embedder, path, "new").embed(["cat"])
+
+    assert embedder.calls == [["cat"]]
