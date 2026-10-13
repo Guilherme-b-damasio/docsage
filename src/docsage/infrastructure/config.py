@@ -15,6 +15,8 @@ _FIELD_TYPES: dict[str, type] = {
     "model": str,
     "retriever": str,
     "embedding_model": str,
+    "rerank": bool,
+    "rerank_candidates": int,
 }
 
 
@@ -44,7 +46,7 @@ def read_config(path: Path) -> dict[str, Any]:
     for key, value in raw.items():
         expected = _FIELD_TYPES[key]
         # bool is a subclass of int, but `chunk_size = true` is a mistake.
-        if not isinstance(value, expected) or isinstance(value, bool):
+        if not isinstance(value, expected) or (expected is int and isinstance(value, bool)):
             raise ConfigError(f"{key} in {path} must be a {expected.__name__}")
         values[key] = value
 

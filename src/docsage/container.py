@@ -23,6 +23,7 @@ from docsage.domain.ports import (
     Chunker,
     DashboardRenderer,
     Embedder,
+    Reranker,
     Retriever,
 )
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
@@ -40,6 +41,7 @@ from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
+from docsage.infrastructure.reranking import RerankingRetriever
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -69,6 +71,9 @@ class Settings:
     model: str | None = None
     retriever: str = "bm25"
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    rerank: bool = False
+    """Let Claude reorder the retriever's best candidates for ``search`` and ``ask``."""
+    rerank_candidates: int = 20
 
 
 def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
@@ -76,6 +81,8 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
     values = read_config(config_path) if config_path else {}
     values.update({key: value for key, value in overrides.items() if value is not None})
     settings = replace(Settings(), **values)
+    if settings.rerank_candidates < 1:
+        raise ConfigError("rerank_candidates must be at least 1")
     if settings.retriever not in RETRIEVERS:
         raise ConfigError(
             f"Unknown retriever: {settings.retriever} (choose from {', '.join(RETRIEVERS)})"
@@ -89,12 +96,14 @@ class Container:
         settings: Settings,
         generator: AnswerGenerator | None = None,
         embedder: Embedder | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
-        """``generator`` and ``embedder`` replace the Claude adapter and the local embedding
-        model, e.g. with offline fakes in tests."""
+        """``generator``, ``embedder`` and ``reranker`` replace the Claude adapters and the
+        local embedding model, e.g. with offline fakes in tests."""
         self._settings = settings
         self._generator = generator
         self._embedder = embedder
+        self._reranker = reranker
         self._tokenizer = multilingual_tokenizer()
         self._highlighter = TermHighlighter(self._tokenizer)
         self._repository = JsonIndexRepository(settings.index_path, self._new_retriever)
@@ -110,6 +119,25 @@ class Container:
                 ]
             )
         return BM25Retriever(tokenizer=self._tokenizer)
+
+    def _ranking_retriever(self) -> Retriever:
+        """The stored index, behind the reranker when ``rerank`` is on."""
+        retriever = self._repository.load()
+        if not self._settings.rerank:
+            return retriever
+        return RerankingRetriever(
+            retriever, self._claude_reranker(), self._settings.rerank_candidates
+        )
+
+    def _claude_reranker(self) -> Reranker:
+        if self._reranker is not None:
+            return self._reranker
+        # Imported lazily so commands that never call the API don't need credentials.
+        from docsage.infrastructure.claude_reranker import ClaudeReranker
+
+        if self._settings.model:
+            return ClaudeReranker(model=self._settings.model)
+        return ClaudeReranker()
 
     def _cached_embedder(self) -> Embedder:
         model = self._settings.embedding_model
@@ -149,7 +177,7 @@ class Container:
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(
-            self._repository.load(), self._answer_generator(), self._highlighter
+            self._ranking_retriever(), self._answer_generator(), self._highlighter
         )
 
     def answer_report_service(self, report_format: str = "html") -> AnswerReportService:
@@ -174,4 +202,4 @@ class Container:
         return CatalogService(self._repository.load())
 
     def search_service(self) -> SearchService:
-        return SearchService(self._repository.load(), self._highlighter)
+        return SearchService(self._ranking_retriever(), self._highlighter)

@@ -45,6 +45,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             index_path=args.index,
             model=getattr(args, "model", None),
             retriever=args.retriever,
+            rerank=args.rerank,
         )
     except ConfigError as error:
         print(f"docsage: {error}", file=sys.stderr)
@@ -79,6 +80,12 @@ def _parser() -> argparse.ArgumentParser:
         choices=RETRIEVERS,
         default=None,
         help="ranking strategy (default: bm25; embedding and hybrid need docsage[embeddings])",
+    )
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        default=None,
+        help="let Claude reorder the best candidates before search and ask return them",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="log debug events (key=value) to stderr"

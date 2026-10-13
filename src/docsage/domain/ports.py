@@ -56,6 +56,14 @@ class Embedder(Protocol):
     def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
+class Reranker(Protocol):
+    """Reorders a retriever's candidates by how well each one answers the query."""
+
+    def rerank(self, query: str, candidates: Sequence[SearchResult]) -> list[SearchResult]:
+        """Returns every candidate, most relevant first, scored on the reranker's scale."""
+        ...
+
+
 class TextTokenizer(Protocol):
     """Splits text into the normalized terms used for ranking."""
 

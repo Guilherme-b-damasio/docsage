@@ -55,6 +55,8 @@ chunk_overlap = 40                   # words shared between consecutive chunks
 model = "claude-opus-5-5"            # model used by `ask`
 retriever = "bm25"                   # or "embedding", "hybrid"
 embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+rerank = false                       # let Claude reorder the best candidates
+rerank_candidates = 20               # how many candidates Claude grades
 ```
 
 ### Retrievers
@@ -80,6 +82,18 @@ each chunk scores `sum(1 / (60 + rank))` over the rankings it appears in, so pas
 that match both the words and the meaning of the question come first, and a passage
 only one retriever finds still makes the list. Scores are fused ranks, so hybrid
 results have no per-term breakdown either.
+
+### Re-ranking with Claude
+
+`--rerank` (or `rerank = true`) adds a second stage to `search`, `ask`, `report` and
+the MCP tools: the retriever proposes its best `rerank_candidates` passages, Claude
+grades each one from 0 to 10 for how well it answers the query, and the passages are
+returned best grade first (ties keep the retriever's order). The score shown is the
+grade. It works on top of any retriever and needs Claude API credentials:
+
+```bash
+docsage --retriever hybrid --rerank search "how do I keep the index small?"
+```
 
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.

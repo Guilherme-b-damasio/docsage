@@ -363,3 +363,28 @@ def test_retriever_flag_accepts_only_known_strategies(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["--retriever", "magic", "search", "x"])
     assert "invalid choice" in capsys.readouterr().err
+
+
+def test_rerank_flag_lets_claude_reorder_the_results(tmp_path, capsys, monkeypatch):
+    from docsage.domain.models import SearchResult
+    from docsage.infrastructure import claude_reranker
+
+    class FakeReranker:
+        def __init__(self, **options):
+            pass
+
+        def rerank(self, query, candidates):
+            return [SearchResult(result.chunk, 7.0) for result in reversed(candidates)]
+
+    monkeypatch.setattr(claude_reranker, "ClaudeReranker", FakeReranker)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("lisbon lisbon lisbon", encoding="utf-8")
+    (tmp_path / "b.md").write_text("lisbon and porto", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "--rerank", "search", "lisbon", "--json"]) == 0
+
+    hits = json.loads(capsys.readouterr().out)["results"]
+    assert [Path(hit["chunk"]["source"]).name for hit in hits] == ["b.md", "a.md"]
+    assert {hit["score"] for hit in hits} == {7.0}
