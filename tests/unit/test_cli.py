@@ -450,3 +450,26 @@ def test_evaluate_rejects_a_zero_cut_off(tmp_path, capsys):
     labels = str(FIXTURES / "evaluation.json")
     assert main(["--index", str(tmp_path / "i.json"), "evaluate", labels, "-k", "0"]) == 2
     assert "--top-k" in capsys.readouterr().err
+
+
+def test_index_chunker_flag_selects_the_sentence_chunker(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    words = " ".join(f"w{i}" for i in range(190))
+    tail = "Zebra tail sentence " + " ".join(f"t{i}" for i in range(12)) + "."
+    (tmp_path / "a.txt").write_text(f"{words}. {tail}", encoding="utf-8")
+
+    assert main(["--index", str(index), "index", "--chunker", "sentence", str(tmp_path)]) == 0
+    capsys.readouterr()
+
+    # A 200-word window would cut the tail sentence; the sentence chunker keeps it whole.
+    assert main(["--index", str(index), "search", "zebra", "--json"]) == 0
+    texts = [item["chunk"]["text"] for item in json.loads(capsys.readouterr().out)["results"]]
+    assert texts == [tail]
+
+
+def test_unknown_chunker_flag_is_rejected(tmp_path, capsys):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        main(["--index", str(tmp_path / "i.json"), "index", "--chunker", "lines", str(tmp_path)])
+    assert "invalid choice" in capsys.readouterr().err

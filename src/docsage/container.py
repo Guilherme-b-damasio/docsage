@@ -29,7 +29,12 @@ from docsage.domain.ports import (
     Retriever,
 )
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
-from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
+from docsage.infrastructure.chunking import (
+    ChunkerByType,
+    MarkdownChunker,
+    SentenceChunker,
+    SlidingWindowChunker,
+)
 from docsage.infrastructure.config import ConfigError, read_config
 from docsage.infrastructure.embeddings import (
     DEFAULT_EMBEDDING_MODEL,
@@ -60,6 +65,12 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
     "text": TextAnswerRenderer,
 }
 
+CHUNKERS: dict[str, type[SlidingWindowChunker | SentenceChunker]] = {
+    "window": SlidingWindowChunker,
+    "sentence": SentenceChunker,
+}
+"""How plain text (and each Markdown section) is cut into chunks of ``chunk_size`` words."""
+
 RETRIEVERS = ("bm25", "embedding", "hybrid")
 """Ranking strategies; every one rebuilds from the same stored chunks."""
 
@@ -83,6 +94,7 @@ class Settings:
     index_path: Path = DEFAULT_INDEX_PATH
     chunk_size: int = 200
     chunk_overlap: int = 40
+    chunker: str = "window"
     model: str | None = None
     retriever: str = "bm25"
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
@@ -98,6 +110,10 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
     settings = replace(Settings(), **values)
     if settings.rerank_candidates < 1:
         raise ConfigError("rerank_candidates must be at least 1")
+    if settings.chunker not in CHUNKERS:
+        raise ConfigError(
+            f"Unknown chunker: {settings.chunker} (choose from {', '.join(CHUNKERS)})"
+        )
     if settings.retriever not in RETRIEVERS:
         raise ConfigError(
             f"Unknown retriever: {settings.retriever} (choose from {', '.join(RETRIEVERS)})"
@@ -170,8 +186,9 @@ class Container:
         )
 
     def _chunker(self) -> Chunker:
-        window = SlidingWindowChunker(self._settings.chunk_size, self._settings.chunk_overlap)
-        return ChunkerByType({"markdown": MarkdownChunker(window)}, default=window)
+        settings = self._settings
+        body = CHUNKERS[settings.chunker](settings.chunk_size, settings.chunk_overlap)
+        return ChunkerByType({"markdown": MarkdownChunker(body)}, default=body)
 
     def removal_service(self) -> RemovalService:
         return RemovalService(self._repository.load(), self._repository)

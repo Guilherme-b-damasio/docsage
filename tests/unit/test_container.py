@@ -245,3 +245,36 @@ def test_evaluation_service_scores_the_configured_retriever(tmp_path):
     assert "<svg" in service.render(report)
     with pytest.raises(ValueError, match="Unknown evaluation format"):
         container.evaluation_service("pdf")
+
+
+def test_unknown_chunker_is_rejected():
+    import pytest
+
+    from docsage.infrastructure.config import ConfigError
+
+    with pytest.raises(ConfigError, match="Unknown chunker: lines"):
+        load_settings(chunker="lines")
+
+
+def test_sentence_chunker_setting_keeps_sentences_whole(tmp_path):
+    from docsage.container import Container
+
+    notes = tmp_path / "notes.txt"
+    notes.write_text("One two three. Four five six. Seven eight nine.", encoding="utf-8")
+    guide = tmp_path / "guide.md"
+    guide.write_text("# Setup\n\nAlpha beta gamma. Delta epsilon zeta.", encoding="utf-8")
+    settings = Settings(
+        index_path=tmp_path / "index.json", chunk_size=5, chunk_overlap=0, chunker="sentence"
+    )
+    container = Container(settings)
+
+    container.indexing_service().index([notes, guide])
+
+    texts = {chunk.text for chunk in container.catalog_service().document_chunks(str(notes))}
+    assert texts == {"One two three.", "Four five six.", "Seven eight nine."}
+    sections = container.catalog_service().document_chunks(str(guide))
+    assert [chunk.text for chunk in sections] == [
+        "# Setup Alpha beta gamma.",
+        "Delta epsilon zeta.",
+    ]
+    assert {chunk.section for chunk in sections} == {"Setup"}

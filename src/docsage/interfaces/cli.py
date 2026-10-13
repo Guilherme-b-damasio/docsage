@@ -11,6 +11,7 @@ from pathlib import Path
 
 from docsage import __version__
 from docsage.container import (
+    CHUNKERS,
     DASHBOARD_FORMATS,
     EVALUATION_FORMATS,
     REPORT_FORMATS,
@@ -47,6 +48,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _config_path(args.config),
             index_path=args.index,
             model=getattr(args, "model", None),
+            chunker=getattr(args, "chunker", None),
             retriever=args.retriever,
             rerank=args.rerank,
         )
@@ -99,6 +101,12 @@ def _parser() -> argparse.ArgumentParser:
     index.add_argument("paths", nargs="+", type=Path)
     index.add_argument(
         "--force", action="store_true", help="re-index files even if they have not changed"
+    )
+    index.add_argument(
+        "--chunker",
+        choices=list(CHUNKERS),
+        default=None,
+        help="window: fixed word windows (default); sentence: whole sentences only",
     )
     index.set_defaults(handler=_index)
 

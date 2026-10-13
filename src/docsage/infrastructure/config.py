@@ -12,6 +12,7 @@ _FIELD_TYPES: dict[str, type] = {
     "index_path": str,
     "chunk_size": int,
     "chunk_overlap": int,
+    "chunker": str,
     "model": str,
     "retriever": str,
     "embedding_model": str,
