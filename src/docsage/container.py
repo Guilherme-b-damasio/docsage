@@ -41,6 +41,7 @@ from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
+from docsage.infrastructure.projection import PcaProjector
 from docsage.infrastructure.reranking import RerankingRetriever
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
@@ -55,6 +56,9 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
 
 RETRIEVERS = ("bm25", "embedding", "hybrid")
 """Ranking strategies; every one rebuilds from the same stored chunks."""
+
+EMBEDDING_RETRIEVERS = ("embedding", "hybrid")
+"""Strategies that embed chunks, so the dashboard can also map them."""
 
 DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
     "html": HtmlDashboardRenderer,
@@ -173,7 +177,10 @@ class Container:
         retriever = self._repository.load()
         stats = StatsService(retriever, self._tokenizer, self._repository)
         relations = RelationService(retriever, self._tokenizer)
-        return DashboardService(stats, retriever, renderer, relations)
+        projector = None
+        if self._settings.retriever in EMBEDDING_RETRIEVERS:
+            projector = PcaProjector(self._cached_embedder())
+        return DashboardService(stats, retriever, renderer, relations, projector)
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(

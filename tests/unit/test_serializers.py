@@ -4,6 +4,7 @@ from docsage.application.services import IndexingReport, RemovalReport
 from docsage.domain.models import (
     Answer,
     Chunk,
+    ChunkPoint,
     DocumentRelation,
     Highlight,
     HistogramBin,
@@ -148,6 +149,7 @@ def test_overview_names_every_count():
         chunk_lengths=(HistogramBin(1, 4, 2), HistogramBin(5, 8, 1)),
         top_terms=(("alpha", 4),),
         relations=(DocumentRelation("a.md", "b.md", ("alpha", "beta")),),
+        chunk_map=(ChunkPoint("a#0", "a.md", 0.5, -1.0),),
     )
 
     payload = overview_to_dict(overview)
@@ -162,3 +164,4 @@ def test_overview_names_every_count():
     assert payload["relations"] == [
         {"first": "a.md", "second": "b.md", "shared_terms": ["alpha", "beta"]}
     ]
+    assert payload["chunk_map"] == [{"chunk_id": "a#0", "source": "a.md", "x": 0.5, "y": -1.0}]

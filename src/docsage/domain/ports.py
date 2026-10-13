@@ -13,6 +13,7 @@ from typing import Protocol
 from docsage.domain.models import (
     Answer,
     Chunk,
+    ChunkPoint,
     Document,
     Highlight,
     IndexOverview,
@@ -62,6 +63,12 @@ class Reranker(Protocol):
     def rerank(self, query: str, candidates: Sequence[SearchResult]) -> list[SearchResult]:
         """Returns every candidate, most relevant first, scored on the reranker's scale."""
         ...
+
+
+class ChunkProjector(Protocol):
+    """Places chunks on a 2D map so that chunks with similar meaning end up close."""
+
+    def project(self, chunks: Sequence[Chunk]) -> list[ChunkPoint]: ...
 
 
 class TextTokenizer(Protocol):

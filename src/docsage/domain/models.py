@@ -120,6 +120,17 @@ class DocumentRelation:
 
 
 @dataclass(frozen=True)
+class ChunkPoint:
+    """A chunk placed on a 2D map where nearby points have similar meaning."""
+
+    chunk_id: str
+    source: str
+    x: float
+    y: float
+    """Coordinates scaled to ``-1..1`` on each axis."""
+
+
+@dataclass(frozen=True)
 class IndexOverview:
     """Everything the index dashboard shows, computed once from the stored chunks."""
 
@@ -135,3 +146,5 @@ class IndexOverview:
     top_terms: tuple[tuple[str, int], ...]
     relations: tuple[DocumentRelation, ...] = ()
     """Pairs of documents sharing top terms, strongest first."""
+    chunk_map: tuple[ChunkPoint, ...] = ()
+    """Every chunk on a 2D map of its embedding (empty without an embedding model)."""

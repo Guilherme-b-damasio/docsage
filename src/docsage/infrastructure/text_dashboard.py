@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from docsage.domain.models import IndexOverview
+from docsage.domain.models import ChunkPoint, IndexOverview
 from docsage.infrastructure.mermaid import document_labels
 from docsage.infrastructure.units import human_size
 
 BAR_WIDTH = 30
+MAP_WIDTH = 48
+MAP_HEIGHT = 14
 
 
 class TextDashboardRenderer:
@@ -34,6 +36,8 @@ class TextDashboardRenderer:
                 lines += ["", f"{title}:", *bars(rows)]
         if overview.relations:
             lines += ["", "Related documents (shared top terms):", *relation_lines(overview)]
+        if overview.chunk_map:
+            lines += ["", "Chunk map (PCA of embeddings):", *map_lines(overview.chunk_map)]
         return "\n".join(lines) + "\n"
 
 
@@ -56,6 +60,38 @@ def relation_lines(overview: IndexOverview) -> list[str]:
         f"  {labels[item.first]} <-> {labels[item.second]}: {', '.join(item.shared_terms)}"
         for item in relations
     ]
+
+
+MAP_SYMBOLS = "abcdefghijklmnopqrstuvwxyz"
+"""One letter per document; documents beyond the alphabet share ``+``."""
+
+
+def map_lines(
+    points: Sequence[ChunkPoint], width: int = MAP_WIDTH, height: int = MAP_HEIGHT
+) -> list[str]:
+    """Chunks as letters on a framed grid, followed by a letter-to-document key.
+
+    A cell where chunks of different documents meet shows ``*``.
+    """
+    sources = sorted({point.source for point in points})
+    labels = document_labels(sources)
+    symbols = {
+        source: MAP_SYMBOLS[index] if index < len(MAP_SYMBOLS) else "+"
+        for index, source in enumerate(sources)
+    }
+    grid = [[" "] * width for _ in range(height)]
+    for point in points:
+        column = min(width - 1, round((point.x + 1) / 2 * (width - 1)))
+        row = min(height - 1, round((1 - point.y) / 2 * (height - 1)))
+        cell = grid[row][column]
+        symbol = symbols[point.source]
+        grid[row][column] = symbol if cell in (" ", symbol) else "*"
+    border = "  +" + "-" * width + "+"
+    lines = [border, *(f"  |{''.join(row)}|" for row in grid), border]
+    lines += [f"  {symbols[source]} = {labels[source]}" for source in sources[: len(MAP_SYMBOLS)]]
+    if len(sources) > len(MAP_SYMBOLS):
+        lines.append(f"  + = {len(sources) - len(MAP_SYMBOLS)} other documents")
+    return lines
 
 
 def _range(low: int, high: int) -> str:

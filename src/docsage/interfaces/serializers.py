@@ -112,6 +112,10 @@ def overview_to_dict(overview: IndexOverview) -> dict[str, Any]:
             }
             for item in overview.relations
         ],
+        "chunk_map": [
+            {"chunk_id": point.chunk_id, "source": point.source, "x": point.x, "y": point.y}
+            for point in overview.chunk_map
+        ],
     }
 
 

@@ -124,6 +124,66 @@ def network_chart(
     return _svg(2 * centre_y, label, "".join(marks))
 
 
+SERIES = 8
+"""Categorical colors available; further groups share the neutral "other" color."""
+
+
+def scatter_chart(
+    points: Sequence[tuple[float, float, int, str]], label: str, height: int = 360
+) -> str:
+    """Dots ``(x, y, series, tooltip)`` with x and y in ``-1..1``.
+
+    ``series`` picks the categorical color ``0..SERIES-1``; anything else is drawn in
+    the neutral "other" color. Each dot has a surface ring so overlapping dots stay
+    distinct, and a larger transparent hit area for its tooltip.
+    """
+    if not points:
+        return ""
+    pad = 16
+    half_width, half_height = (WIDTH - 2 * pad) / 2, (height - 2 * pad) / 2
+    marks = [
+        f'<line class="grid" x1="{pad}" y1="{height / 2:g}" x2="{WIDTH - pad}" '
+        f'y2="{height / 2:g}"/>'
+        f'<line class="grid" x1="{WIDTH / 2:g}" y1="{pad}" x2="{WIDTH / 2:g}" '
+        f'y2="{height - pad}"/>'
+    ]
+    for x, y, series, tooltip in points:
+        cx = WIDTH / 2 + x * half_width
+        cy = height / 2 - y * half_height
+        colour = _series_class(series)
+        marks.append(
+            f'<g class="mark"><title>{escape(tooltip)}</title>'
+            f'<circle class="hit" cx="{cx:.1f}" cy="{cy:.1f}" r="9"/>'
+            f'<circle class="dot {colour}" cx="{cx:.1f}" cy="{cy:.1f}" r="5"/></g>'
+        )
+    return _svg(height, label, "".join(marks))
+
+
+def legend(names: Sequence[str]) -> str:
+    """Swatch-and-name list for ``scatter_chart`` series, in series order."""
+    items = "".join(
+        f'<li><span class="swatch {_series_class(index)}"></span>{escape(name)}</li>'
+        for index, name in enumerate(names)
+    )
+    return f'<ul class="legend">{items}</ul>'
+
+
+def _series_class(index: int) -> str:
+    return f"series-{index + 1}" if 0 <= index < SERIES else "series-other"
+
+
+def text_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
+    """A collapsible table of already formatted cells, for charts with several columns."""
+    head = "".join(f"<th>{escape(header)}</th>" for header in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{escape(cell)}</td>" for cell in row) + "</tr>" for row in rows
+    )
+    return (
+        "<details><summary>Show as table</summary>"
+        f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></details>"
+    )
+
+
 def data_table(
     headers: tuple[str, str],
     rows: Sequence[tuple[str, float]],
@@ -140,7 +200,32 @@ def data_table(
     )
 
 
-CHART_CSS = """
+LIGHT_SERIES = """
+--series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+--series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+--series-other: #8c959f;
+""".strip()
+
+DARK_SERIES = """
+--series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+--series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+--series-other: #6e7781;
+""".strip()
+
+SERIES_CSS = "\n".join(
+    [
+        f":root {{ {LIGHT_SERIES} }}",
+        "@media (prefers-color-scheme: dark) {",
+        f'  :root:not([data-theme="light"]) {{ {DARK_SERIES} }}',
+        "}",
+        f':root[data-theme="dark"] {{ {DARK_SERIES} }}',
+        *(f".series-{n} {{ --series: var(--series-{n}); }}" for n in range(1, SERIES + 1)),
+        ".series-other { --series: var(--series-other); }",
+    ]
+)
+"""Categorical palette validated for both themes (light and dark steps of the same hues)."""
+
+CHART_CSS = SERIES_CSS + """
 svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
 svg.chart text { font-size: 12px; font-family: inherit; }
 svg.chart .axis { fill: var(--muted); }
@@ -152,6 +237,13 @@ svg.chart .mark:hover .bar { opacity: 0.8; }
 svg.chart .edge { stroke: var(--bar); stroke-linecap: round; opacity: 0.45; }
 svg.chart .mark:hover .edge { opacity: 1; }
 svg.chart .node { fill: var(--surface); stroke: var(--bar); stroke-width: 2; }
+svg.chart .dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+svg.chart .mark:hover .dot { stroke: var(--text); }
+.legend { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; }
+.legend li { margin: 0 16px 4px 0; font-size: 0.9rem; display: flex; align-items: center; }
+.legend .swatch {
+  width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--series);
+}
 details { margin-top: 12px; font-size: 0.9rem; }
 summary { cursor: pointer; color: var(--muted); }
 table { border-collapse: collapse; margin-top: 8px; }
