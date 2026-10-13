@@ -95,3 +95,40 @@ def test_dashboard_service_rejects_unknown_formats(tmp_path):
     assert "The index is empty" in container.dashboard_service().render()
     with pytest.raises(ValueError, match="Unknown dashboard format"):
         container.dashboard_service("svg")
+
+
+class _KeywordEmbedder:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def embed(self, texts):
+        self.texts.extend(texts)
+        return [[float("lisbon" in text.lower()), float("tokyo" in text.lower())] for text in texts]
+
+
+def test_embedding_retriever_ranks_with_the_injected_embedder_and_caches_vectors(tmp_path):
+    from docsage.container import Container
+
+    settings = Settings(index_path=tmp_path / "index.json", retriever="embedding")
+    embedder = _KeywordEmbedder()
+    container = Container(settings, embedder=embedder)
+    for name, text in [("pt.md", "Lisbon is in Portugal."), ("jp.md", "Tokyo is in Japan.")]:
+        (tmp_path / name).write_text(text, encoding="utf-8")
+        container.indexing_service().index([tmp_path / name])
+
+    (result,) = container.search_service().search("lisbon", top_k=1)
+
+    assert result.chunk.source.endswith("pt.md")
+    assert (tmp_path / "index.embeddings.json").is_file()
+    embedder.texts.clear()
+    Container(settings, embedder=embedder).search_service().search("tokyo", top_k=1)
+    assert embedder.texts == ["tokyo"]
+
+
+def test_unknown_retriever_is_rejected():
+    import pytest
+
+    from docsage.infrastructure.config import ConfigError
+
+    with pytest.raises(ConfigError, match="Unknown retriever"):
+        load_settings(retriever="magic")

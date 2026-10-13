@@ -347,3 +347,19 @@ def test_dashboard_command_prints_a_mermaid_diagram_of_related_documents(tmp_pat
     assert out.startswith("graph LR\n")
     assert '["a.md"]' in out and '["b.md"]' in out
     assert "bm25" in out and "ranking" in out
+
+
+def test_unknown_retriever_in_config_is_reported(tmp_path, capsys):
+    config = tmp_path / "docsage.toml"
+    config.write_text("retriever = 'magic'\n", encoding="utf-8")
+
+    assert main(["--config", str(config), "search", "x"]) == 2
+    assert "Unknown retriever: magic" in capsys.readouterr().err
+
+
+def test_retriever_flag_accepts_only_known_strategies(tmp_path, capsys):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        main(["--retriever", "magic", "search", "x"])
+    assert "invalid choice" in capsys.readouterr().err
