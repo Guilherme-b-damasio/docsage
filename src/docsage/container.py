@@ -17,10 +17,23 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.ports import AnswerGenerator, AnswerRenderer, Chunker, DashboardRenderer
+from docsage.domain.ports import (
+    AnswerGenerator,
+    AnswerRenderer,
+    Chunker,
+    DashboardRenderer,
+    Embedder,
+    Retriever,
+)
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import ChunkerByType, MarkdownChunker, SlidingWindowChunker
-from docsage.infrastructure.config import read_config
+from docsage.infrastructure.config import ConfigError, read_config
+from docsage.infrastructure.embeddings import (
+    DEFAULT_EMBEDDING_MODEL,
+    CachedEmbedder,
+    EmbeddingRetriever,
+    SentenceTransformerEmbedder,
+)
 from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
@@ -37,6 +50,9 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
     "text": TextAnswerRenderer,
 }
 
+RETRIEVERS = ("bm25", "embedding")
+"""Ranking strategies; every one rebuilds from the same stored chunks."""
+
 DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
     "html": HtmlDashboardRenderer,
     "text": TextDashboardRenderer,
@@ -50,25 +66,49 @@ class Settings:
     chunk_size: int = 200
     chunk_overlap: int = 40
     model: str | None = None
+    retriever: str = "bm25"
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
 
 
 def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
     """Builds settings from defaults, then the config file, then non-None overrides."""
     values = read_config(config_path) if config_path else {}
     values.update({key: value for key, value in overrides.items() if value is not None})
-    return replace(Settings(), **values)
+    settings = replace(Settings(), **values)
+    if settings.retriever not in RETRIEVERS:
+        raise ConfigError(
+            f"Unknown retriever: {settings.retriever} (choose from {', '.join(RETRIEVERS)})"
+        )
+    return settings
 
 
 class Container:
-    def __init__(self, settings: Settings, generator: AnswerGenerator | None = None) -> None:
-        """``generator`` replaces the Claude adapter, e.g. with an offline fake in tests."""
+    def __init__(
+        self,
+        settings: Settings,
+        generator: AnswerGenerator | None = None,
+        embedder: Embedder | None = None,
+    ) -> None:
+        """``generator`` and ``embedder`` replace the Claude adapter and the local embedding
+        model, e.g. with offline fakes in tests."""
         self._settings = settings
         self._generator = generator
+        self._embedder = embedder
         self._tokenizer = multilingual_tokenizer()
         self._highlighter = TermHighlighter(self._tokenizer)
-        self._repository = JsonIndexRepository(
-            settings.index_path, lambda: BM25Retriever(tokenizer=self._tokenizer)
-        )
+        self._repository = JsonIndexRepository(settings.index_path, self._new_retriever)
+
+    def _new_retriever(self) -> Retriever:
+        if self._settings.retriever == "embedding":
+            return EmbeddingRetriever(self._cached_embedder())
+        return BM25Retriever(tokenizer=self._tokenizer)
+
+    def _cached_embedder(self) -> Embedder:
+        model = self._settings.embedding_model
+        inner = self._embedder or SentenceTransformerEmbedder(model)
+        index_path = self._settings.index_path
+        cache_path = index_path.with_name(f"{index_path.stem}.embeddings.json")
+        return CachedEmbedder(inner, cache_path, model)
 
     def indexing_service(self) -> IndexingService:
         return IndexingService(

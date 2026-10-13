@@ -102,7 +102,7 @@ class JsonIndexRepository:
     """Stores the chunk set as JSON; term statistics are rebuilt on load."""
 
     def __init__(
-        self, path: Path, retriever_factory: Callable[[], BM25Retriever] = BM25Retriever
+        self, path: Path, retriever_factory: Callable[[], Retriever] = BM25Retriever
     ) -> None:
         self._path = path
         self._retriever_factory = retriever_factory
@@ -117,7 +117,7 @@ class JsonIndexRepository:
     def size_bytes(self) -> int:
         return self._path.stat().st_size if self._path.exists() else 0
 
-    def load(self) -> BM25Retriever:
+    def load(self) -> Retriever:
         retriever = self._retriever_factory()
         if self._path.exists():
             payload = json.loads(self._path.read_text(encoding="utf-8"))

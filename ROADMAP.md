@@ -45,7 +45,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Screenshots / GIF of the visual output in the README
 
 ## Milestone 0.5: Better retrieval
-- [ ] Embedding-based retriever behind the `Retriever` port (local sentence-transformers model)
+- [x] Embedding-based retriever behind the `Retriever` port (local sentence-transformers model)
 - [ ] Hybrid retriever that fuses BM25 and embedding scores (reciprocal rank fusion)
 - [ ] Re-ranking step with Claude for the top-k candidates
 - [ ] 2D map of chunk embeddings (UMAP/PCA) in the dashboard

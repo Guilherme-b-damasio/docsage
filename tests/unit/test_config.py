@@ -45,3 +45,9 @@ def test_rejects_invalid_files(tmp_path, text, message):
 def test_missing_file(tmp_path):
     with pytest.raises(ConfigError, match="not found"):
         read_config(tmp_path / "nope.toml")
+
+
+def test_reads_retrieval_keys(tmp_path):
+    path = _write(tmp_path, 'retriever = "embedding"\nembedding_model = "tiny"\n')
+
+    assert read_config(path) == {"retriever": "embedding", "embedding_model": "tiny"}

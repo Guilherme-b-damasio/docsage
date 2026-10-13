@@ -50,6 +50,12 @@ class Retriever(Protocol):
     def __len__(self) -> int: ...
 
 
+class Embedder(Protocol):
+    """Turns texts into dense vectors whose cosine similarity reflects meaning."""
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+
+
 class TextTokenizer(Protocol):
     """Splits text into the normalized terms used for ranking."""
 

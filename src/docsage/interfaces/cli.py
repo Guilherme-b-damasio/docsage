@@ -10,7 +10,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from docsage import __version__
-from docsage.container import DASHBOARD_FORMATS, REPORT_FORMATS, Container, load_settings
+from docsage.container import (
+    DASHBOARD_FORMATS,
+    REPORT_FORMATS,
+    RETRIEVERS,
+    Container,
+    load_settings,
+)
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.logs import configure_logging
 from docsage.infrastructure.text_report import breakdown
@@ -35,7 +41,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(verbose=args.verbose)
     try:
         settings = load_settings(
-            _config_path(args.config), index_path=args.index, model=getattr(args, "model", None)
+            _config_path(args.config),
+            index_path=args.index,
+            model=getattr(args, "model", None),
+            retriever=args.retriever,
         )
     except ConfigError as error:
         print(f"docsage: {error}", file=sys.stderr)
@@ -64,6 +73,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=f"settings file (default: ./{CONFIG_FILENAME} if present)",
+    )
+    parser.add_argument(
+        "--retriever",
+        choices=RETRIEVERS,
+        default=None,
+        help="ranking strategy (default: bm25; embedding needs docsage[embeddings])",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="log debug events (key=value) to stderr"
