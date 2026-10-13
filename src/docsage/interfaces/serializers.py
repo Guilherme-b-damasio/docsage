@@ -18,7 +18,9 @@ from docsage.application.services import (
 )
 from docsage.domain.models import (
     Answer,
+    CaseOutcome,
     Chunk,
+    EvaluationReport,
     Highlight,
     IndexOverview,
     SearchResult,
@@ -144,3 +146,25 @@ def removal_report_to_dict(path: str, report: RemovalReport) -> dict[str, Any]:
 
 def dumps(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def case_outcome_to_dict(outcome: CaseOutcome) -> dict[str, Any]:
+    return {
+        "query": outcome.case.query,
+        "relevant": list(outcome.case.relevant),
+        "first_hit": outcome.first_hit,
+        "recall": round(outcome.recall, 4),
+        "reciprocal_rank": round(outcome.reciprocal_rank, 4),
+        "retrieved": list(outcome.ranked_sources),
+    }
+
+
+def evaluation_to_dict(report: EvaluationReport) -> dict[str, Any]:
+    return {
+        "k": report.k,
+        "queries": len(report.outcomes),
+        "recall": round(report.recall, 4),
+        "mrr": round(report.mrr, 4),
+        "recall_curve": [round(value, 4) for value in report.recall_curve],
+        "cases": [case_outcome_to_dict(outcome) for outcome in report.outcomes],
+    }

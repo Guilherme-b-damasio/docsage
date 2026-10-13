@@ -12,12 +12,14 @@ from pathlib import Path
 from docsage import __version__
 from docsage.container import (
     DASHBOARD_FORMATS,
+    EVALUATION_FORMATS,
     REPORT_FORMATS,
     RETRIEVERS,
     Container,
     load_settings,
 )
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
+from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
 from docsage.infrastructure.text_report import breakdown
 from docsage.infrastructure.units import human_size
@@ -25,6 +27,7 @@ from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
     dumps,
+    evaluation_to_dict,
     search_results_to_dict,
     stats_to_dict,
 )
@@ -131,6 +134,28 @@ def _parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--top", type=int, default=15, help="how many top terms to chart")
     dashboard.set_defaults(handler=_dashboard)
 
+    evaluate = commands.add_parser(
+        "evaluate", help="measure recall@k and MRR of the retriever on labeled queries"
+    )
+    evaluate.add_argument(
+        "labels", type=Path, help='JSON list of {"query": ..., "relevant": [sources]}'
+    )
+    evaluate.add_argument("-k", "--top-k", type=int, default=5, help="cut-off (default: 5)")
+    evaluate.add_argument(
+        "--format",
+        choices=sorted([*EVALUATION_FORMATS, "json"]),
+        default="text",
+        help="default: text",
+    )
+    evaluate.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="file to write (default: print to stdout)",
+    )
+    evaluate.set_defaults(handler=_evaluate)
+
     ask = commands.add_parser("ask", help="answer a question with Claude")
     ask.add_argument("question")
     ask.add_argument("-k", "--top-k", type=int, default=5)
@@ -235,6 +260,25 @@ def _stats(container: Container, args: argparse.Namespace) -> int:
 
 def _dashboard(container: Container, args: argparse.Namespace) -> int:
     content = container.dashboard_service(args.format).render(top=args.top)
+    _write_output(content, args.output)
+    return 0
+
+
+def _evaluate(container: Container, args: argparse.Namespace) -> int:
+    if args.top_k < 1:
+        print("docsage: --top-k must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        cases = read_evaluation_set(args.labels)
+    except EvaluationSetError as error:
+        print(f"docsage: {error}", file=sys.stderr)
+        return 2
+    service = container.evaluation_service("text" if args.format == "json" else args.format)
+    report = service.evaluate(cases, args.top_k)
+    if args.format == "json":
+        content = dumps(evaluation_to_dict(report)) + "\n"
+    else:
+        content = service.render(report)
     _write_output(content, args.output)
     return 0
 

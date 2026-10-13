@@ -388,3 +388,65 @@ def test_rerank_flag_lets_claude_reorder_the_results(tmp_path, capsys, monkeypat
     hits = json.loads(capsys.readouterr().out)["results"]
     assert [Path(hit["chunk"]["source"]).name for hit in hits] == ["b.md", "a.md"]
     assert {hit["score"] for hit in hits} == {7.0}
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _indexed_corpus(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    assert main(["--index", str(index), "index", str(FIXTURES / "corpus")]) == 0
+    capsys.readouterr()
+    return index
+
+
+def test_evaluate_prints_recall_and_mrr(tmp_path, capsys):
+    index = _indexed_corpus(tmp_path, capsys)
+
+    labels = str(FIXTURES / "evaluation.json")
+    assert main(["--index", str(index), "evaluate", labels, "-k", "3"]) == 0
+    out = capsys.readouterr().out
+    assert "Queries:              7" in out
+    assert "Recall@3:" in out
+    assert "Mean reciprocal rank:" in out
+
+
+def test_evaluate_json_output(tmp_path, capsys):
+    index = _indexed_corpus(tmp_path, capsys)
+    labels = tmp_path / "labels.json"
+    labels.write_text(
+        json.dumps([{"query": "where is the index stored", "relevant": ["faq.txt"]}]), "utf-8"
+    )
+
+    assert main(["--index", str(index), "evaluate", str(labels), "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["k"] == 5
+    assert payload["queries"] == 1
+    assert payload["cases"][0]["first_hit"] == 1
+    assert payload["recall"] == payload["mrr"] == 1.0
+    assert len(payload["recall_curve"]) == 5
+
+
+def test_evaluate_writes_an_html_report(tmp_path, capsys):
+    index = _indexed_corpus(tmp_path, capsys)
+    output = tmp_path / "eval.html"
+
+    labels = str(FIXTURES / "evaluation.json")
+    args = ["--index", str(index), "evaluate", labels, "--format", "html", "-o", str(output)]
+    assert main(args) == 0
+    assert f"Wrote {output}" in capsys.readouterr().out
+    assert "Recall by cut-off" in output.read_text("utf-8")
+
+
+def test_evaluate_reports_a_bad_label_file(tmp_path, capsys):
+    labels = tmp_path / "labels.json"
+    labels.write_text("[]", "utf-8")
+
+    assert main(["--index", str(tmp_path / "i.json"), "evaluate", str(labels)]) == 2
+    assert "non-empty list" in capsys.readouterr().err
+
+
+def test_evaluate_rejects_a_zero_cut_off(tmp_path, capsys):
+    labels = str(FIXTURES / "evaluation.json")
+    assert main(["--index", str(tmp_path / "i.json"), "evaluate", labels, "-k", "0"]) == 2
+    assert "--top-k" in capsys.readouterr().err
