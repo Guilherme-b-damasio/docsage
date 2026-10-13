@@ -53,7 +53,26 @@ index_path = ".docsage/index.json"   # relative paths are resolved from this fil
 chunk_size = 200                     # words per chunk
 chunk_overlap = 40                   # words shared between consecutive chunks
 model = "claude-opus-5-5"            # model used by `ask`
+retriever = "bm25"                   # or "embedding"
+embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 ```
+
+### Retrievers
+
+BM25 (the default) ranks by shared words and needs no extra packages. For matches on
+meaning rather than exact words, install the embeddings extra and pick the
+`embedding` retriever, which ranks chunks by the cosine similarity of their vectors
+from a local [sentence-transformers](https://www.sbert.net/) model:
+
+```bash
+pip install -e ".[embeddings]"
+docsage --retriever embedding search "how do I keep the index small?"
+```
+
+Both retrievers read the same index, so you can switch at any time without
+re-indexing. Chunks are embedded on the first search and their vectors are cached
+next to the index (`index.embeddings.json`), so later runs only embed new or changed
+chunks. Embedding results have no per-term score breakdown.
 
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
