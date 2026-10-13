@@ -34,6 +34,7 @@ from docsage.infrastructure.embeddings import (
     EmbeddingRetriever,
     SentenceTransformerEmbedder,
 )
+from docsage.infrastructure.fusion import ReciprocalRankFusionRetriever
 from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
@@ -50,7 +51,7 @@ REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
     "text": TextAnswerRenderer,
 }
 
-RETRIEVERS = ("bm25", "embedding")
+RETRIEVERS = ("bm25", "embedding", "hybrid")
 """Ranking strategies; every one rebuilds from the same stored chunks."""
 
 DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
@@ -101,6 +102,13 @@ class Container:
     def _new_retriever(self) -> Retriever:
         if self._settings.retriever == "embedding":
             return EmbeddingRetriever(self._cached_embedder())
+        if self._settings.retriever == "hybrid":
+            return ReciprocalRankFusionRetriever(
+                [
+                    BM25Retriever(tokenizer=self._tokenizer),
+                    EmbeddingRetriever(self._cached_embedder()),
+                ]
+            )
         return BM25Retriever(tokenizer=self._tokenizer)
 
     def _cached_embedder(self) -> Embedder:

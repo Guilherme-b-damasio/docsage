@@ -46,7 +46,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 
 ## Milestone 0.5: Better retrieval
 - [x] Embedding-based retriever behind the `Retriever` port (local sentence-transformers model)
-- [ ] Hybrid retriever that fuses BM25 and embedding scores (reciprocal rank fusion)
+- [x] Hybrid retriever that fuses BM25 and embedding scores (reciprocal rank fusion)
 - [ ] Re-ranking step with Claude for the top-k candidates
 - [ ] 2D map of chunk embeddings (UMAP/PCA) in the dashboard
 - [ ] Retrieval evaluation script (recall@k, MRR on a small labeled set) with a results chart
