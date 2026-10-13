@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from html import escape
 
-from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
+from docsage.domain.models import ChunkPoint, DocumentRelation, HistogramBin, IndexOverview
 from docsage.infrastructure.html_page import page
 from docsage.infrastructure.mermaid import document_labels, edge_label, relations_diagram
 from docsage.infrastructure.svg_charts import (
     CHART_CSS,
+    SERIES,
     bar_chart,
     column_chart,
     data_table,
+    legend,
     network_chart,
+    scatter_chart,
+    text_table,
 )
 from docsage.infrastructure.units import human_size
 
@@ -61,6 +65,8 @@ class HtmlDashboardRenderer:
             ]
             if overview.relations:
                 body.append(self._relations(overview.relations))
+            if overview.chunk_map:
+                body.append(self._chunk_map(overview.chunk_map))
         else:
             body.append('<p class="card">The index is empty. Run <code>docsage index</code>.</p>')
         return page("docsage index", "\n".join(body), CHART_CSS + DASHBOARD_CSS)
@@ -117,6 +123,43 @@ class HtmlDashboardRenderer:
             f"<pre><code>{escape(relations_diagram(relations))}</code></pre></details>\n"
             "</section>"
         )
+
+    @staticmethod
+    def _chunk_map(points: tuple[ChunkPoint, ...]) -> str:
+        groups = map_groups([point.source for point in points])
+        names = list(dict.fromkeys(name for name, _ in groups.values()))
+        dots = [
+            (point.x, point.y, groups[point.source][1], f"{point.chunk_id} ({point.source})")
+            for point in points
+        ]
+        rows = [
+            (point.chunk_id, groups[point.source][0], f"{point.x:.2f}", f"{point.y:.2f}")
+            for point in points
+        ]
+        return (
+            '<section class="card">\n<h2>Chunk map</h2>\n'
+            '<p class="muted">Every chunk placed by the meaning of its text (PCA of the '
+            "embeddings); chunks close together talk about similar things.</p>\n"
+            f"{legend(names)}\n{scatter_chart(dots, 'Map of chunk embeddings')}\n"
+            f"{text_table(('Chunk', 'Document', 'x', 'y'), rows)}\n</section>"
+        )
+
+
+def map_groups(sources: list[str]) -> dict[str, tuple[str, int]]:
+    """Each source's legend name and color slot, in alphabetical order of sources.
+
+    With more documents than colors, the last slot becomes a shared "Other" group so
+    colors never repeat.
+    """
+    ordered = sorted(set(sources))
+    labels = document_labels(ordered)
+    if len(ordered) <= SERIES:
+        return {source: (labels[source], index) for index, source in enumerate(ordered)}
+    named = SERIES - 1
+    return {
+        source: (labels[source], index) if index < named else ("Other", named)
+        for index, source in enumerate(ordered)
+    }
 
 
 def _bins(bins: tuple[HistogramBin, ...]) -> tuple[tuple[str, int], ...]:
