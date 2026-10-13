@@ -223,3 +223,25 @@ def test_dashboard_maps_chunks_only_for_embedding_retrievers(tmp_path):
     embedder = _KeywordEmbedder()
     assert Container(bm25, embedder=embedder).dashboard_service().overview().chunk_map == ()
     assert embedder.texts == []
+
+
+def test_evaluation_service_scores_the_configured_retriever(tmp_path):
+    import pytest
+
+    from docsage.container import Container
+    from docsage.domain.models import EvaluationCase
+
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+    for name, text in [("pt.md", "Lisbon is in Portugal."), ("jp.md", "Tokyo is in Japan.")]:
+        (tmp_path / name).write_text(text, encoding="utf-8")
+    container.indexing_service().index(sorted(tmp_path.glob("*.md")))
+    cases = [EvaluationCase("Tokyo", ("jp.md",)), EvaluationCase("Lisbon", ("jp.md",))]
+
+    service = container.evaluation_service("html")
+    report = service.evaluate(cases, k=2)
+
+    assert [outcome.first_hit for outcome in report.outcomes] == [1, None]
+    assert report.mrr == 0.5
+    assert "<svg" in service.render(report)
+    with pytest.raises(ValueError, match="Unknown evaluation format"):
+        container.evaluation_service("pdf")

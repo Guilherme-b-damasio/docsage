@@ -13,10 +13,13 @@ from pathlib import Path
 
 from docsage.domain.models import (
     Answer,
+    CaseOutcome,
     Chunk,
     ChunkPoint,
     Document,
     DocumentRelation,
+    EvaluationCase,
+    EvaluationReport,
     HistogramBin,
     IndexOverview,
     SearchResult,
@@ -28,6 +31,7 @@ from docsage.domain.ports import (
     ChunkProjector,
     DashboardRenderer,
     DocumentLoader,
+    EvaluationRenderer,
     Highlighter,
     IndexRepository,
     Retriever,
@@ -175,6 +179,50 @@ class SearchService:
         results = _highlighted(self._retriever.search(query, top_k), query, self._highlighter)
         logger.debug("searched index", extra={"top_k": top_k, "results": len(results)})
         return results
+
+
+class EvaluationService:
+    """Measures how well the retriever finds the labeled relevant documents of each query."""
+
+    def __init__(self, retriever: Retriever, renderer: EvaluationRenderer) -> None:
+        self._retriever = retriever
+        self._renderer = renderer
+
+    def evaluate(self, cases: Sequence[EvaluationCase], k: int = 5) -> EvaluationReport:
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        outcomes = tuple(self._outcome(case, k) for case in cases)
+        logger.debug("evaluated retrieval", extra={"queries": len(outcomes), "k": k})
+        return EvaluationReport(k, outcomes)
+
+    def render(self, report: EvaluationReport) -> str:
+        return self._renderer.render(report)
+
+    def _outcome(self, case: EvaluationCase, k: int) -> CaseOutcome:
+        sources = tuple(result.chunk.source for result in self._retriever.search(case.query, k))
+        relevant = set(case.relevant)
+        found: set[str] = set()
+        first_hit = None
+        curve = []
+        for cut in range(k):
+            if cut < len(sources):
+                hits = {label for label in relevant if source_matches(sources[cut], label)}
+                if hits and first_hit is None:
+                    first_hit = cut + 1
+                found |= hits
+            curve.append(len(found) / len(relevant) if relevant else 0.0)
+        return CaseOutcome(case, sources, first_hit, tuple(curve))
+
+
+def source_matches(source: str, label: str) -> bool:
+    """True when ``label`` is ``source`` itself or a trailing part of its path.
+
+    Separators are normalized, so ``docs/faq.md`` matches ``C:\\notes\\docs\\faq.md`` but
+    ``faq.md`` does not match ``myfaq.md``.
+    """
+    path = source.replace("\\", "/")
+    wanted = label.replace("\\", "/").strip("/")
+    return bool(wanted) and (path == wanted or path.endswith("/" + wanted))
 
 
 class QuestionAnsweringService:

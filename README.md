@@ -95,6 +95,28 @@ grade. It works on top of any retriever and needs Claude API credentials:
 docsage --retriever hybrid --rerank search "how do I keep the index small?"
 ```
 
+### Evaluating retrieval
+
+`docsage evaluate` measures how well the configured retriever finds the right documents.
+Give it a JSON file of labeled queries, each with the sources that answer it (full paths or
+path suffixes such as `docs/install.md`):
+
+```json
+[{"query": "where is the index stored", "relevant": ["faq.txt"]}]
+```
+
+It reports recall@k (the share of relevant documents found in the top k chunks), the
+mean reciprocal rank of the first relevant chunk and where each query's first hit landed.
+`--format html` draws recall at every cut-off and each query's reciprocal rank as charts;
+`--format json` returns the same numbers for scripts. Combine it with `--retriever` and
+`--rerank` to compare strategies on the same labels:
+
+```bash
+docsage index tests/fixtures/corpus
+docsage evaluate tests/fixtures/evaluation.json -k 3
+docsage --retriever hybrid evaluate tests/fixtures/evaluation.json --format html -o eval.html
+```
+
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
 before running it. `index` and `search` work offline.
 

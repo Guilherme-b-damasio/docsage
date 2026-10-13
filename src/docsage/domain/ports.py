@@ -15,6 +15,7 @@ from docsage.domain.models import (
     Chunk,
     ChunkPoint,
     Document,
+    EvaluationReport,
     Highlight,
     IndexOverview,
     SearchResult,
@@ -111,3 +112,9 @@ class DashboardRenderer(Protocol):
     """Turns an overview of the index into a dashboard (HTML, text...)."""
 
     def render(self, overview: IndexOverview) -> str: ...
+
+
+class EvaluationRenderer(Protocol):
+    """Turns a retrieval evaluation into a report (HTML, text...)."""
+
+    def render(self, report: EvaluationReport) -> str: ...

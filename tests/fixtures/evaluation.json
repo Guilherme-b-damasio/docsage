@@ -1,0 +1,11 @@
+{
+  "cases": [
+    {"query": "which Python version does docsage need", "relevant": ["corpus/install.md"]},
+    {"query": "how do I upgrade to the latest version", "relevant": ["corpus/install.md"]},
+    {"query": "where is the index stored", "relevant": ["corpus/faq.txt"]},
+    {"query": "are my documents sent to the Claude API", "relevant": ["corpus/faq.txt"]},
+    {"query": "how are chunks ranked", "relevant": ["corpus/retrieval.md"]},
+    {"query": "how are markdown files split into chunks", "relevant": ["corpus/retrieval.md"]},
+    {"query": "optional extras for pdf and mcp", "relevant": ["corpus/install.md"]}
+  ]
+}

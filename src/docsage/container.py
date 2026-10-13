@@ -10,6 +10,7 @@ from docsage.application.services import (
     AnswerReportService,
     CatalogService,
     DashboardService,
+    EvaluationService,
     IndexingService,
     QuestionAnsweringService,
     RelationService,
@@ -23,6 +24,7 @@ from docsage.domain.ports import (
     Chunker,
     DashboardRenderer,
     Embedder,
+    EvaluationRenderer,
     Reranker,
     Retriever,
 )
@@ -34,6 +36,10 @@ from docsage.infrastructure.embeddings import (
     CachedEmbedder,
     EmbeddingRetriever,
     SentenceTransformerEmbedder,
+)
+from docsage.infrastructure.evaluation_report import (
+    HtmlEvaluationRenderer,
+    TextEvaluationRenderer,
 )
 from docsage.infrastructure.fusion import ReciprocalRankFusionRetriever
 from docsage.infrastructure.highlighting import TermHighlighter
@@ -64,6 +70,11 @@ DASHBOARD_FORMATS: dict[str, type[DashboardRenderer]] = {
     "html": HtmlDashboardRenderer,
     "text": TextDashboardRenderer,
     "mermaid": MermaidDashboardRenderer,
+}
+
+EVALUATION_FORMATS: dict[str, type[EvaluationRenderer]] = {
+    "html": HtmlEvaluationRenderer,
+    "text": TextEvaluationRenderer,
 }
 
 
@@ -207,6 +218,17 @@ class Container:
 
     def catalog_service(self) -> CatalogService:
         return CatalogService(self._repository.load())
+
+    def evaluation_service(self, evaluation_format: str = "text") -> EvaluationService:
+        """Evaluates the configured retriever (and reranker, when on) as ``search`` uses it.
+
+        ``evaluation_format`` is a key of ``EVALUATION_FORMATS``.
+        """
+        try:
+            renderer = EVALUATION_FORMATS[evaluation_format]()
+        except KeyError:
+            raise ValueError(f"Unknown evaluation format: {evaluation_format}") from None
+        return EvaluationService(self._ranking_retriever(), renderer)
 
     def search_service(self) -> SearchService:
         return SearchService(self._ranking_retriever(), self._highlighter)

@@ -148,3 +148,64 @@ class IndexOverview:
     """Pairs of documents sharing top terms, strongest first."""
     chunk_map: tuple[ChunkPoint, ...] = ()
     """Every chunk on a 2D map of its embedding (empty without an embedding model)."""
+
+
+@dataclass(frozen=True)
+class EvaluationCase:
+    """A labeled query: the documents a good retriever should return for it."""
+
+    query: str
+    relevant: tuple[str, ...]
+    """Sources that answer the query, as full paths or path suffixes like ``docs/faq.md``."""
+
+
+@dataclass(frozen=True)
+class CaseOutcome:
+    """How the retriever did on one labeled query."""
+
+    case: EvaluationCase
+    ranked_sources: tuple[str, ...]
+    """Source of each retrieved chunk, best first (sources repeat across chunks)."""
+    first_hit: int | None
+    """1-based rank of the first chunk from a relevant source, None when none was retrieved."""
+    recall_curve: tuple[float, ...]
+    """Share of the relevant sources found within the top 1, 2, ... k chunks."""
+
+    @property
+    def recall(self) -> float:
+        """Recall at the evaluation's cut-off ``k``."""
+        return self.recall_curve[-1] if self.recall_curve else 0.0
+
+    @property
+    def reciprocal_rank(self) -> float:
+        return 1 / self.first_hit if self.first_hit else 0.0
+
+
+@dataclass(frozen=True)
+class EvaluationReport:
+    """Retrieval quality over a labeled query set: recall@k and mean reciprocal rank."""
+
+    k: int
+    outcomes: tuple[CaseOutcome, ...]
+
+    @property
+    def recall_curve(self) -> tuple[float, ...]:
+        """Mean recall@1, recall@2, ... recall@k over every query."""
+        if not self.outcomes:
+            return ()
+        return tuple(
+            sum(outcome.recall_curve[cut] for outcome in self.outcomes) / len(self.outcomes)
+            for cut in range(self.k)
+        )
+
+    @property
+    def recall(self) -> float:
+        """Mean recall@k."""
+        return self.recall_curve[-1] if self.outcomes else 0.0
+
+    @property
+    def mrr(self) -> float:
+        """Mean reciprocal rank of the first relevant chunk (0 for queries that miss)."""
+        if not self.outcomes:
+            return 0.0
+        return sum(outcome.reciprocal_rank for outcome in self.outcomes) / len(self.outcomes)

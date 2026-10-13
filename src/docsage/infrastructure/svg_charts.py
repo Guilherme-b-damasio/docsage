@@ -21,19 +21,28 @@ CHAR_WIDTH = 7.5
 ValueFormat = Callable[[float], str]
 thousands: ValueFormat = "{:,}".format
 """Default value label: ``1,234`` for counts."""
+percent: ValueFormat = "{:.0%}".format
+"""Value label for shares: ``0.5`` reads ``50%``."""
 
 
 def bar_chart(
-    rows: Sequence[tuple[str, float]], label: str, value_format: ValueFormat = thousands
+    rows: Sequence[tuple[str, float]],
+    label: str,
+    value_format: ValueFormat = thousands,
+    full_scale: float | None = None,
 ) -> str:
-    """Horizontal bars, one per ``(name, value)`` row, with the value at each bar's tip."""
+    """Horizontal bars, one per ``(name, value)`` row, with the value at each bar's tip.
+
+    Bars are scaled so ``full_scale`` (default: the largest value) fills the track, e.g.
+    ``1.0`` for shares so that 50% always reaches halfway.
+    """
     if not rows:
         return ""
     names_width = min(180, max(40, int(max(len(name) for name, _ in rows) * CHAR_WIDTH) + 20))
     widest = max(len(value_format(value)) for _, value in rows)
     values_width = int(widest * CHAR_WIDTH) + 12
     track = WIDTH - names_width - values_width
-    peak = max(value for _, value in rows) or 1
+    peak = full_scale or max(value for _, value in rows) or 1
     height = len(rows) * (BAR + GAP) - GAP
     marks = []
     for index, (name, value) in enumerate(rows):
