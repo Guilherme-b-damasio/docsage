@@ -148,3 +148,59 @@ def test_hybrid_retriever_finds_chunks_either_ranking_misses(tmp_path):
     assert len(results) == 2
     assert results[0].chunk.section == "Lisbon"
     assert results[0].contributions == ()
+
+
+class _ReversingReranker:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def rerank(self, query, candidates):
+        from docsage.domain.models import SearchResult
+
+        self.calls += 1
+        return [SearchResult(result.chunk, 1.0) for result in reversed(candidates)]
+
+
+def _two_notes(container, tmp_path):
+    first = tmp_path / "a.md"
+    first.write_text("lisbon lisbon lisbon", encoding="utf-8")
+    second = tmp_path / "b.md"
+    second.write_text("lisbon and porto", encoding="utf-8")
+    container.indexing_service().index([first, second])
+
+
+def test_rerank_setting_puts_the_reranker_in_front_of_search(tmp_path):
+    from docsage.container import Container
+
+    reranker = _ReversingReranker()
+    settings = Settings(index_path=tmp_path / "index.json", rerank=True)
+    container = Container(settings, reranker=reranker)
+    _two_notes(container, tmp_path)
+
+    results = container.search_service().search("lisbon", top_k=2)
+
+    assert [Path(result.chunk.source).name for result in results] == ["b.md", "a.md"]
+    assert results[0].highlights
+    assert reranker.calls == 1
+
+
+def test_search_skips_the_reranker_when_rerank_is_off(tmp_path):
+    from docsage.container import Container
+
+    reranker = _ReversingReranker()
+    container = Container(Settings(index_path=tmp_path / "index.json"), reranker=reranker)
+    _two_notes(container, tmp_path)
+
+    (best, _) = container.search_service().search("lisbon", top_k=2)
+
+    assert Path(best.chunk.source).name == "a.md"
+    assert reranker.calls == 0
+
+
+def test_rerank_candidates_must_be_positive():
+    import pytest
+
+    from docsage.infrastructure.config import ConfigError
+
+    with pytest.raises(ConfigError, match="rerank_candidates"):
+        load_settings(rerank_candidates=0)

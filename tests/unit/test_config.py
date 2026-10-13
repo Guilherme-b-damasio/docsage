@@ -51,3 +51,14 @@ def test_reads_retrieval_keys(tmp_path):
     path = _write(tmp_path, 'retriever = "embedding"\nembedding_model = "tiny"\n')
 
     assert read_config(path) == {"retriever": "embedding", "embedding_model": "tiny"}
+
+
+def test_reads_rerank_keys(tmp_path):
+    path = _write(tmp_path, "rerank = true\nrerank_candidates = 30\n")
+
+    assert read_config(path) == {"rerank": True, "rerank_candidates": 30}
+
+
+def test_rerank_must_be_a_boolean(tmp_path):
+    with pytest.raises(ConfigError, match="rerank in"):
+        read_config(_write(tmp_path, "rerank = 1\n"))
