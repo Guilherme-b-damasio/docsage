@@ -9,7 +9,7 @@ from typing import Any, Literal
 import anthropic
 from anthropic.types.beta import BetaMessage, BetaMessageParam, BetaTextBlockParam
 
-from docsage.domain.models import ChatTurn, SearchResult
+from docsage.domain.models import AnswerStyle, ChatTurn, SearchResult
 
 DEFAULT_MODEL = "claude-opus-5-5"
 
@@ -17,16 +17,43 @@ Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
+GROUNDING_PROMPT = (
     "You answer questions using only the numbered context passages provided. "
     "Cite passages inline as [1], [2], etc. If the context does not contain the "
-    "answer, say so plainly instead of guessing. Answer in the language of the question."
+    "answer, say so plainly instead of guessing."
 )
 
-CHAT_SYSTEM_PROMPT = (
-    f"{SYSTEM_PROMPT} Earlier turns of the conversation come first: use them to understand "
-    "follow-up questions, but ground every answer on the context passages of the latest turn."
+CHAT_PROMPT = (
+    "Earlier turns of the conversation come first: use them to understand follow-up "
+    "questions, but ground every answer on the context passages of the latest turn."
 )
+
+LENGTH_PROMPTS = {
+    "short": "Keep the answer short: two or three sentences at most.",
+    "medium": "",
+    "long": (
+        "Give a thorough answer that covers every relevant detail in the passages, "
+        "using lists or short sections where they help."
+    ),
+}
+
+
+def build_system_prompt(style: AnswerStyle | None = None, chat: bool = False) -> str:
+    """The instructions for one request: grounding, then language, length and chat rules."""
+    style = style or AnswerStyle()
+    language = (
+        f"Answer in {style.language}, whatever the language of the question."
+        if style.language
+        else "Answer in the language of the question."
+    )
+    parts = [GROUNDING_PROMPT, language, LENGTH_PROMPTS[style.length]]
+    if chat:
+        parts.append(CHAT_PROMPT)
+    return " ".join(part for part in parts if part)
+
+
+SYSTEM_PROMPT = build_system_prompt()
+"""The default instructions: answer in the question's language, at the model's own length."""
 
 
 class GenerationRefusedError(RuntimeError):
@@ -41,14 +68,17 @@ class ClaudeAnswerGenerator:
         effort: Effort = "medium",
         max_tokens: int = 16000,
         cache_context: bool = True,
+        style: AnswerStyle | None = None,
     ) -> None:
         """``cache_context`` marks the system prompt and the passages as a cacheable prefix, so
-        a follow-up on the same passages reads them from Claude's prompt cache."""
+        a follow-up on the same passages reads them from Claude's prompt cache. ``style`` sets
+        the language and length of every answer."""
         self._client = client or anthropic.Anthropic()
         self._model = model
         self._effort = effort
         self._max_tokens = max_tokens
         self._cache_context = cache_context
+        self._style = style or AnswerStyle()
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str:
         response = self._client.beta.messages.create(**self._request(question, context))
@@ -84,7 +114,7 @@ class ClaudeAnswerGenerator:
         return {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "system": SYSTEM_PROMPT if history is None else CHAT_SYSTEM_PROMPT,
+            "system": build_system_prompt(self._style, chat=history is not None),
             "output_config": {"effort": self._effort},
             "betas": ["server-side-fallback-2026-07-01"],
             "fallbacks": "default",

@@ -96,6 +96,26 @@ class Answer:
     sources: tuple[SearchResult, ...]
 
 
+ANSWER_LENGTHS = ("short", "medium", "long")
+"""How long generated answers should be; ``medium`` leaves it to the model."""
+
+
+@dataclass(frozen=True)
+class AnswerStyle:
+    """How generated answers should read, whatever the question."""
+
+    language: str = ""
+    """Language to answer in, e.g. ``Portuguese``; empty means the language of the question."""
+    length: str = "medium"
+    """One of ``ANSWER_LENGTHS``."""
+
+    def __post_init__(self) -> None:
+        if self.length not in ANSWER_LENGTHS:
+            raise ValueError(
+                f"Unknown answer length: {self.length} (choose from {', '.join(ANSWER_LENGTHS)})"
+            )
+
+
 @dataclass(frozen=True)
 class ChatTurn:
     """One finished exchange of a conversation: what was asked and what was answered."""
