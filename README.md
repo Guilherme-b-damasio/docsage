@@ -61,6 +61,8 @@ rerank = false                       # let Claude reorder the best candidates
 rerank_candidates = 20               # how many candidates Claude grades
 prompt_cache = true                  # cache the passages sent to Claude
 chat_history_turns = 10              # earlier turns `chat` sends with each question
+answer_language = ""                 # e.g. "Portuguese"; empty: the question's language
+answer_length = "medium"             # or "short", "long"
 ```
 
 ### Chunking
@@ -145,6 +147,17 @@ from the cache instead of paying for them in full. `--verbose` logs
 `cache_creation_input_tokens` and `cache_read_input_tokens` for each answer; set
 `prompt_cache = false` in `docsage.toml` to turn it off. Context shorter than the model's
 minimum cacheable prefix is simply not cached.
+
+By default Claude answers in the language of the question, at whatever length the passages
+call for. `--language` (any language name Claude understands, e.g. `Portuguese`) makes every
+answer use that language whatever the question's, and `--length short` keeps it to two or
+three sentences while `--length long` asks for every relevant detail. Both work with `ask`,
+`report` and `chat`, and `answer_language` / `answer_length` in `docsage.toml` set them for
+every command, the MCP server included:
+
+```bash
+docsage ask "how is the index stored?" --language Portuguese --length short
+```
 
 ### Chat
 
