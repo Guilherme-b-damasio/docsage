@@ -9,6 +9,7 @@ from typing import Any
 from docsage.application.services import (
     AnswerReportService,
     CatalogService,
+    ChatService,
     DashboardService,
     EvaluationService,
     IndexingService,
@@ -22,6 +23,7 @@ from docsage.domain.ports import (
     AnswerGenerator,
     AnswerRenderer,
     Chunker,
+    ConversationalAnswerGenerator,
     DashboardRenderer,
     Embedder,
     EvaluationRenderer,
@@ -103,6 +105,8 @@ class Settings:
     rerank_candidates: int = 20
     prompt_cache: bool = True
     """Cache the passages sent to Claude so follow-ups on the same context cost less."""
+    chat_history_turns: int = 10
+    """How many earlier turns ``chat`` sends with each question."""
 
 
 def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
@@ -112,6 +116,8 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
     settings = replace(Settings(), **values)
     if settings.rerank_candidates < 1:
         raise ConfigError("rerank_candidates must be at least 1")
+    if settings.chat_history_turns < 0:
+        raise ConfigError("chat_history_turns must not be negative")
     if settings.chunker not in CHUNKERS:
         raise ConfigError(
             f"Unknown chunker: {settings.chunker} (choose from {', '.join(CHUNKERS)})"
@@ -216,6 +222,21 @@ class Container:
         return QuestionAnsweringService(
             self._ranking_retriever(), self._answer_generator(), self._highlighter
         )
+
+    def chat_service(self) -> ChatService:
+        """A new conversation; it remembers its turns for as long as the service lives."""
+        return ChatService(
+            self._ranking_retriever(),
+            self._conversational_generator(),
+            self._highlighter,
+            self._settings.chat_history_turns,
+        )
+
+    def _conversational_generator(self) -> ConversationalAnswerGenerator:
+        generator = self._answer_generator()
+        if not isinstance(generator, ConversationalAnswerGenerator):
+            raise TypeError(f"{type(generator).__name__} cannot hold a conversation")
+        return generator
 
     def answer_report_service(self, report_format: str = "html") -> AnswerReportService:
         """``report_format`` is a key of ``REPORT_FORMATS``."""

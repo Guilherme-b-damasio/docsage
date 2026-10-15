@@ -106,6 +106,7 @@ class StreamingAnswerGenerator(AnswerGenerator, Protocol):
         ...
 
 
+@runtime_checkable
 class ConversationalAnswerGenerator(Protocol):
     """Answers a question in the light of the earlier turns of a conversation."""
 

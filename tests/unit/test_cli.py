@@ -510,3 +510,54 @@ def test_ask_no_stream_prints_the_complete_answer(tmp_path, capsys, monkeypatch)
     assert main(["--index", str(index), "ask", "alpha?", "--no-stream"]) == 0
 
     assert capsys.readouterr().out.startswith("Alpha is described in [1]. (1 passages)\n")
+
+
+class _FakeConversationalGenerator(_FakeGenerator):
+    def __init__(self):
+        self.histories = []
+
+    def converse(self, question, context, history):
+        self.histories.append([turn.question for turn in history])
+        yield f"Turn {len(history) + 1}: "
+        yield "see [1]."
+
+
+def _chat(tmp_path, monkeypatch, lines):
+    import io
+
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    generator = _FakeConversationalGenerator()
+    monkeypatch.setattr(cli, "Container", lambda settings: Container(settings, generator))
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    monkeypatch.setattr("sys.stdin", io.StringIO("".join(f"{line}\n" for line in lines)))
+    return generator, main(["--index", str(index), "chat"])
+
+
+def test_chat_answers_follow_ups_with_the_earlier_turns(tmp_path, capsys, monkeypatch):
+    generator, code = _chat(tmp_path, monkeypatch, ["alpha?", "", "and alpha notes?", "/exit"])
+
+    assert code == 0
+    assert generator.histories == [[], ["alpha?"]]
+    out = capsys.readouterr().out
+    assert "Turn 1: see [1]." in out
+    assert "Turn 2: see [1]." in out
+    assert out.count("Sources:") == 2
+
+
+def test_chat_reset_forgets_the_conversation(tmp_path, capsys, monkeypatch):
+    generator, _ = _chat(tmp_path, monkeypatch, ["alpha?", "/reset", "alpha?"])
+
+    assert generator.histories == [[], []]
+    assert "Started a new conversation." in capsys.readouterr().out
+
+
+def test_chat_ends_at_end_of_input(tmp_path, capsys, monkeypatch):
+    generator, code = _chat(tmp_path, monkeypatch, [])
+
+    assert code == 0
+    assert generator.histories == []
+    assert "/reset starts a new conversation" in capsys.readouterr().out
