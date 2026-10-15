@@ -19,7 +19,7 @@ from docsage.container import (
     Container,
     load_settings,
 )
-from docsage.domain.models import SearchResult
+from docsage.domain.models import ANSWER_LENGTHS, SearchResult
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
@@ -52,6 +52,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             chunker=getattr(args, "chunker", None),
             retriever=args.retriever,
             rerank=args.rerank,
+            answer_language=getattr(args, "language", None),
+            answer_length=getattr(args, "length", None),
         )
     except ConfigError as error:
         print(f"docsage: {error}", file=sys.stderr)
@@ -169,6 +171,7 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("question")
     ask.add_argument("-k", "--top-k", type=int, default=5)
     ask.add_argument("--model", default=None)
+    _add_style_arguments(ask)
     ask.add_argument("--json", action="store_true", help="print the answer as JSON")
     ask.add_argument(
         "--no-stream",
@@ -183,6 +186,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     chat.add_argument("-k", "--top-k", type=int, default=5)
     chat.add_argument("--model", default=None)
+    _add_style_arguments(chat)
     chat.set_defaults(handler=_chat)
 
     report = commands.add_parser(
@@ -191,6 +195,7 @@ def _parser() -> argparse.ArgumentParser:
     report.add_argument("question")
     report.add_argument("-k", "--top-k", type=int, default=5)
     report.add_argument("--model", default=None)
+    _add_style_arguments(report)
     report.add_argument(
         "-o",
         "--output",
@@ -225,6 +230,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     mcp.set_defaults(handler=_mcp)
     return parser
+
+
+def _add_style_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--language",
+        default=None,
+        help="language to answer in, e.g. Portuguese (default: the question's language)",
+    )
+    command.add_argument(
+        "--length",
+        choices=ANSWER_LENGTHS,
+        default=None,
+        help="short: a few sentences; long: every relevant detail (default: medium)",
+    )
 
 
 def _index(container: Container, args: argparse.Namespace) -> int:

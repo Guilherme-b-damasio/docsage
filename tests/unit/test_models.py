@@ -66,3 +66,13 @@ def test_search_result_has_no_highlights_by_default():
 
     assert result.highlights == ()
     assert result.matched_terms == ()
+
+
+def test_answer_style_defaults_and_rejects_unknown_lengths():
+    import pytest
+
+    from docsage.domain.models import AnswerStyle
+
+    assert AnswerStyle() == AnswerStyle(language="", length="medium")
+    with pytest.raises(ValueError, match="Unknown answer length"):
+        AnswerStyle(length="huge")

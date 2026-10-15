@@ -19,6 +19,7 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
+from docsage.domain.models import ANSWER_LENGTHS, AnswerStyle
 from docsage.domain.ports import (
     AnswerGenerator,
     AnswerRenderer,
@@ -107,6 +108,14 @@ class Settings:
     """Cache the passages sent to Claude so follow-ups on the same context cost less."""
     chat_history_turns: int = 10
     """How many earlier turns ``chat`` sends with each question."""
+    answer_language: str = ""
+    """Language Claude answers in; empty means the language of the question."""
+    answer_length: str = "medium"
+    """One of ``ANSWER_LENGTHS``: short, medium (the model decides) or long."""
+
+    @property
+    def answer_style(self) -> AnswerStyle:
+        return AnswerStyle(self.answer_language, self.answer_length)
 
 
 def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
@@ -118,6 +127,11 @@ def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings
         raise ConfigError("rerank_candidates must be at least 1")
     if settings.chat_history_turns < 0:
         raise ConfigError("chat_history_turns must not be negative")
+    if settings.answer_length not in ANSWER_LENGTHS:
+        raise ConfigError(
+            f"Unknown answer length: {settings.answer_length} "
+            f"(choose from {', '.join(ANSWER_LENGTHS)})"
+        )
     if settings.chunker not in CHUNKERS:
         raise ConfigError(
             f"Unknown chunker: {settings.chunker} (choose from {', '.join(CHUNKERS)})"
@@ -252,10 +266,13 @@ class Container:
         # Imported lazily so commands that never call the API don't need credentials.
         from docsage.infrastructure.claude_generator import ClaudeAnswerGenerator
 
-        cache_context = self._settings.prompt_cache
+        options: dict[str, Any] = {
+            "cache_context": self._settings.prompt_cache,
+            "style": self._settings.answer_style,
+        }
         if self._settings.model:
-            return ClaudeAnswerGenerator(model=self._settings.model, cache_context=cache_context)
-        return ClaudeAnswerGenerator(cache_context=cache_context)
+            options["model"] = self._settings.model
+        return ClaudeAnswerGenerator(**options)
 
     def catalog_service(self) -> CatalogService:
         return CatalogService(self._repository.load())

@@ -561,3 +561,35 @@ def test_chat_ends_at_end_of_input(tmp_path, capsys, monkeypatch):
     assert code == 0
     assert generator.histories == []
     assert "/reset starts a new conversation" in capsys.readouterr().out
+
+
+def test_language_and_length_flags_reach_the_settings(tmp_path, monkeypatch):
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    seen = []
+
+    def container(settings):
+        seen.append(settings.answer_style)
+        return Container(settings, _FakeGenerator())
+
+    monkeypatch.setattr(cli, "Container", container)
+    index = str(tmp_path / "index.json")
+
+    main(["--index", index, "ask", "alpha?", "--language", "Portuguese", "--length", "short"])
+    main(["--index", index, "report", "alpha?", "--length", "long", "-o", str(tmp_path / "r")])
+    main(["--index", index, "ask", "alpha?"])
+
+    assert [(style.language, style.length) for style in seen] == [
+        ("Portuguese", "short"),
+        ("", "long"),
+        ("", "medium"),
+    ]
+
+
+def test_unknown_length_flag_is_rejected(tmp_path, capsys):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        main(["--index", str(tmp_path / "i.json"), "ask", "alpha?", "--length", "huge"])
+    assert "invalid choice" in capsys.readouterr().err

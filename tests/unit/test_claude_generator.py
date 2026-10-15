@@ -206,3 +206,58 @@ def test_single_questions_keep_the_plain_system_prompt():
     ClaudeAnswerGenerator(client=client).generate("how?", _context())
 
     assert client.beta.messages.kwargs["system"] == SYSTEM_PROMPT
+
+
+def test_default_system_prompt_answers_in_the_language_of_the_question():
+    from docsage.infrastructure.claude_generator import SYSTEM_PROMPT, build_system_prompt
+
+    assert build_system_prompt() == SYSTEM_PROMPT
+    assert "Answer in the language of the question." in SYSTEM_PROMPT
+    assert "short" not in SYSTEM_PROMPT
+
+
+def test_style_fixes_the_answer_language_and_length():
+    from docsage.domain.models import AnswerStyle
+    from docsage.infrastructure.claude_generator import build_system_prompt
+
+    prompt = build_system_prompt(AnswerStyle(language="Portuguese", length="short"))
+
+    assert "Answer in Portuguese, whatever the language of the question." in prompt
+    assert "language of the question." not in prompt.replace("whatever the language", "")
+    assert "two or three sentences" in prompt
+
+
+def test_long_answers_ask_for_detail_and_chat_adds_its_rules():
+    from docsage.domain.models import AnswerStyle
+    from docsage.infrastructure.claude_generator import build_system_prompt
+
+    prompt = build_system_prompt(AnswerStyle(length="long"), chat=True)
+
+    assert "thorough answer" in prompt
+    assert prompt.endswith("context passages of the latest turn.")
+
+
+def test_generator_sends_its_style_in_every_request():
+    from docsage.domain.models import AnswerStyle
+
+    client = _FakeClient(_response("end_turn", "Curto [1]."))
+    style = AnswerStyle(language="Portuguese", length="short")
+
+    ClaudeAnswerGenerator(client=client, style=style).generate("how?", _context())
+
+    system = client.beta.messages.kwargs["system"]
+    assert "Answer in Portuguese" in system
+    assert "two or three sentences" in system
+
+
+def test_converse_keeps_the_style():
+    from docsage.domain.models import AnswerStyle
+
+    client = _FakeStreamingClient(["ok"], _response("end_turn"))
+    generator = ClaudeAnswerGenerator(client=client, style=AnswerStyle(language="English"))
+
+    list(generator.converse("e agora?", _context(), []))
+
+    system = client.beta.messages.kwargs["system"]
+    assert "Answer in English" in system
+    assert "Earlier turns" in system

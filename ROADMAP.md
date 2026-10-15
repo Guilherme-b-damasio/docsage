@@ -56,7 +56,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Stream answers to the terminal as they are generated
 - [x] Prompt caching for the context block
 - [x] Interactive chat mode with conversation history (`docsage chat`)
-- [ ] Configurable answer language and length
+- [x] Configurable answer language and length
 - [ ] Token and cost report per answer
 
 ## Milestone 0.7: More sources and deployment

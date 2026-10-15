@@ -20,6 +20,8 @@ _FIELD_TYPES: dict[str, type] = {
     "rerank_candidates": int,
     "prompt_cache": bool,
     "chat_history_turns": int,
+    "answer_language": str,
+    "answer_length": str,
 }
 
 
