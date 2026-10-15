@@ -66,3 +66,12 @@ def test_rerank_must_be_a_boolean(tmp_path):
 
 def test_reads_the_chunker(tmp_path):
     assert read_config(_write(tmp_path, "chunker = 'sentence'\n")) == {"chunker": "sentence"}
+
+
+def test_reads_prompt_cache(tmp_path):
+    assert read_config(_write(tmp_path, "prompt_cache = false\n")) == {"prompt_cache": False}
+
+
+def test_prompt_cache_must_be_a_boolean(tmp_path):
+    with pytest.raises(ConfigError, match="prompt_cache in"):
+        read_config(_write(tmp_path, "prompt_cache = 'no'\n"))

@@ -101,6 +101,8 @@ class Settings:
     rerank: bool = False
     """Let Claude reorder the retriever's best candidates for ``search`` and ``ask``."""
     rerank_candidates: int = 20
+    prompt_cache: bool = True
+    """Cache the passages sent to Claude so follow-ups on the same context cost less."""
 
 
 def load_settings(config_path: Path | None = None, **overrides: Any) -> Settings:
@@ -229,9 +231,10 @@ class Container:
         # Imported lazily so commands that never call the API don't need credentials.
         from docsage.infrastructure.claude_generator import ClaudeAnswerGenerator
 
+        cache_context = self._settings.prompt_cache
         if self._settings.model:
-            return ClaudeAnswerGenerator(model=self._settings.model)
-        return ClaudeAnswerGenerator()
+            return ClaudeAnswerGenerator(model=self._settings.model, cache_context=cache_context)
+        return ClaudeAnswerGenerator(cache_context=cache_context)
 
     def catalog_service(self) -> CatalogService:
         return CatalogService(self._repository.load())
