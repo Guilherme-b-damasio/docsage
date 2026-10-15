@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 from html import escape
 
-from docsage.domain.models import Answer, SearchResult
+from docsage.domain.models import Answer, SearchResult, TokenUsage
 from docsage.infrastructure.html_page import highlighted, page
 from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
+from docsage.infrastructure.units import usage_summary
 
 _CITATION = re.compile(r"\[(\d+)\]")
 
@@ -56,6 +57,8 @@ class HtmlAnswerRenderer:
                 self._source_html(rank, result)
                 for rank, result in enumerate(answer.sources, start=1)
             )
+        if answer.usage is not None:
+            body.append(usage_html(answer.usage, answer.cost_usd))
         return page(f"docsage: {answer.question}", "\n".join(body), REPORT_CSS + CHART_CSS)
 
     def _answer_html(self, answer: Answer) -> str:
@@ -100,6 +103,26 @@ def breakdown_html(rank: int, result: SearchResult) -> str:
         "<h3>Score breakdown</h3>"
         f"{bar_chart(rows, f'Score breakdown of source {rank}', _score_label)}"
         f"{data_table(('Term', 'Score'), rows, _score_label)}</section>"
+    )
+
+
+def usage_html(usage: TokenUsage, cost_usd: float | None) -> str:
+    """A bar per kind of token the answer consumed, with the estimated cost underneath."""
+    rows = [
+        (name, float(count))
+        for name, count in (
+            ("Input", usage.input_tokens),
+            ("Cache write", usage.cache_creation_input_tokens),
+            ("Cache read", usage.cache_read_input_tokens),
+            ("Output", usage.output_tokens),
+        )
+        if count
+    ]
+    return (
+        '<h2>Usage</h2>\n<section class="card usage" aria-label="Token usage">'
+        f'<p class="muted">{escape(usage_summary(usage, cost_usd))}</p>'
+        f"{bar_chart(rows, 'Tokens used by the answer')}"
+        f"{data_table(('Tokens', 'Count'), rows)}</section>"
     )
 
 
