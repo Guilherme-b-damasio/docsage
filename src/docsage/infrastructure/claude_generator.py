@@ -9,7 +9,7 @@ from typing import Any, Literal
 import anthropic
 from anthropic.types.beta import BetaMessage, BetaMessageParam, BetaTextBlockParam
 
-from docsage.domain.models import AnswerStyle, ChatTurn, SearchResult
+from docsage.domain.models import AnswerStyle, ChatTurn, SearchResult, TokenUsage
 
 DEFAULT_MODEL = "claude-opus-5-5"
 
@@ -79,6 +79,12 @@ class ClaudeAnswerGenerator:
         self._max_tokens = max_tokens
         self._cache_context = cache_context
         self._style = style or AnswerStyle()
+        self._last_usage: TokenUsage | None = None
+
+    @property
+    def last_usage(self) -> TokenUsage | None:
+        """Tokens of the most recent finished answer, refusals included."""
+        return self._last_usage
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str:
         response = self._client.beta.messages.create(**self._request(question, context))
@@ -122,20 +128,32 @@ class ClaudeAnswerGenerator:
         }
 
     def _check(self, response: BetaMessage) -> None:
+        usage = self._last_usage = usage_of(response)
         logger.debug(
             "claude response",
             extra={
-                "model": response.model,
+                "model": usage.model,
                 "stop_reason": response.stop_reason,
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
-                "cache_creation_input_tokens": response.usage.cache_creation_input_tokens or 0,
-                "cache_read_input_tokens": response.usage.cache_read_input_tokens or 0,
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+                "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+                "cache_read_input_tokens": usage.cache_read_input_tokens,
             },
         )
         if response.stop_reason == "refusal":
             logger.warning("claude refused to answer", extra={"model": response.model})
             raise GenerationRefusedError("The model declined to answer this question.")
+
+
+def usage_of(response: BetaMessage) -> TokenUsage:
+    """The token counts of a response; the cache fields are None when caching was not used."""
+    return TokenUsage(
+        model=response.model,
+        input_tokens=response.usage.input_tokens,
+        output_tokens=response.usage.output_tokens,
+        cache_creation_input_tokens=response.usage.cache_creation_input_tokens or 0,
+        cache_read_input_tokens=response.usage.cache_read_input_tokens or 0,
+    )
 
 
 def build_history(history: Sequence[ChatTurn]) -> list[BetaMessageParam]:

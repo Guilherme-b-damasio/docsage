@@ -35,7 +35,7 @@ from docsage.application.services import (
 )
 from docsage.domain.models import Answer, Chunk, SearchResult
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
-from docsage.infrastructure.units import human_size
+from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
     AnswerOutput,
     DashboardOutput,
@@ -312,7 +312,10 @@ def format_answer(answer: Answer) -> str:
         f"[{index}] {result.chunk.citation}"
         for index, result in enumerate(answer.sources, start=1)
     )
-    return f"{answer.text}\n\nSources:\n{sources}"
+    text = f"{answer.text}\n\nSources:\n{sources}"
+    if answer.usage is not None:
+        text += f"\n\nUsage: {usage_summary(answer.usage, answer.cost_usd)}"
+    return text
 
 
 def format_indexing_report(report: IndexingReport) -> str:

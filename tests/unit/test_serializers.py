@@ -11,6 +11,7 @@ from docsage.domain.models import (
     IndexOverview,
     SearchResult,
     TermScore,
+    TokenUsage,
 )
 from docsage.interfaces.serializers import (
     answer_to_dict,
@@ -165,3 +166,19 @@ def test_overview_names_every_count():
         {"first": "a.md", "second": "b.md", "shared_terms": ["alpha", "beta"]}
     ]
     assert payload["chunk_map"] == [{"chunk_id": "a#0", "source": "a.md", "x": 0.5, "y": -1.0}]
+
+
+def test_answer_usage_and_cost_are_serialized():
+    usage = TokenUsage(model="m", input_tokens=10, output_tokens=2, cache_read_input_tokens=5)
+    answer = Answer("why?", "because", (), usage=usage, cost_usd=0.00012345678)
+
+    payload = answer_to_dict(answer)
+
+    assert payload["usage"] == {
+        "model": "m",
+        "input_tokens": 10,
+        "output_tokens": 2,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 5,
+    }
+    assert payload["cost_usd"] == 0.000123

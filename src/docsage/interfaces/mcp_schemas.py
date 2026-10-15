@@ -49,10 +49,22 @@ class SearchOutput(TypedDict):
     results: list[RankedChunkOutput]
 
 
+class UsageOutput(TypedDict):
+    model: str
+    input_tokens: int
+    output_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+
+
 class AnswerOutput(TypedDict):
     question: str
     answer: str
     sources: list[RankedChunkOutput]
+    usage: UsageOutput | None
+    """Tokens Claude spent on the answer (null when no passages matched)."""
+    cost_usd: float | None
+    """Estimated price of ``usage`` in US dollars (null when the model's price is unknown)."""
 
 
 class IndexingOutput(TypedDict):

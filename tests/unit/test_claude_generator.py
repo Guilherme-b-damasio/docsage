@@ -3,7 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from docsage.domain.models import Chunk, SearchResult
+from docsage.domain.models import Chunk, SearchResult, TokenUsage
+from docsage.domain.ports import UsageReportingGenerator
 from docsage.infrastructure.claude_generator import (
     ClaudeAnswerGenerator,
     GenerationRefusedError,
@@ -261,3 +262,36 @@ def test_converse_keeps_the_style():
     system = client.beta.messages.kwargs["system"]
     assert "Answer in English" in system
     assert "Earlier turns" in system
+
+
+def test_generator_reports_the_usage_of_its_last_answer():
+    generator = ClaudeAnswerGenerator(client=_FakeClient(_response("end_turn", "It ranks [1].")))
+    assert generator.last_usage is None
+
+    generator.generate("how?", _context())
+
+    assert generator.last_usage == TokenUsage(
+        model="claude-opus-5-5",
+        input_tokens=120,
+        output_tokens=8,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=900,
+    )
+    assert generator.last_usage.total_input_tokens == 1020
+
+
+def test_streamed_answers_report_their_usage_once_finished():
+    generator = ClaudeAnswerGenerator(
+        client=_FakeStreamingClient(["It ", "ranks."], _response("end_turn"))
+    )
+
+    pieces = generator.stream("how?", _context())
+    assert generator.last_usage is None
+    "".join(pieces)
+
+    assert generator.last_usage is not None
+    assert generator.last_usage.output_tokens == 8
+
+
+def test_claude_generator_reports_usage():
+    assert isinstance(ClaudeAnswerGenerator(client=_FakeClient(None)), UsageReportingGenerator)

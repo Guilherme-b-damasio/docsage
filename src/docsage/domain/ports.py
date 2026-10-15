@@ -20,6 +20,7 @@ from docsage.domain.models import (
     Highlight,
     IndexOverview,
     SearchResult,
+    TokenUsage,
 )
 
 
@@ -114,6 +115,24 @@ class ConversationalAnswerGenerator(Protocol):
         self, question: str, context: Sequence[SearchResult], history: Sequence[ChatTurn]
     ) -> Iterator[str]:
         """Yields the answer's text in order, as it is written; ``history`` is oldest first."""
+        ...
+
+
+@runtime_checkable
+class UsageReportingGenerator(Protocol):
+    """A generator that can tell how many tokens its most recent answer consumed."""
+
+    @property
+    def last_usage(self) -> TokenUsage | None:
+        """Usage of the last finished answer (None before the first one)."""
+        ...
+
+
+class CostEstimator(Protocol):
+    """Prices the tokens an answer consumed."""
+
+    def estimate(self, usage: TokenUsage) -> float | None:
+        """Cost in US dollars, or None when the model's price is unknown."""
         ...
 
 

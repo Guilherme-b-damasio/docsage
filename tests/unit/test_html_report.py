@@ -1,4 +1,4 @@
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore, TokenUsage
 from docsage.infrastructure.html_page import highlighted, page
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 
@@ -86,3 +86,22 @@ def test_report_charts_each_sources_score_breakdown():
 
 def test_report_omits_the_breakdown_when_the_retriever_gave_none():
     assert "Score breakdown" not in HtmlAnswerRenderer().render(_answer())
+
+
+def test_report_charts_the_tokens_and_cost_of_the_answer():
+    usage = TokenUsage(
+        model="claude-opus-5-5", input_tokens=300, output_tokens=85, cache_read_input_tokens=900
+    )
+    answer = Answer("q?", "a", (), usage=usage, cost_usd=0.00353)
+
+    html = HtmlAnswerRenderer().render(answer)
+
+    assert "<h2>Usage</h2>" in html
+    assert "1,200 input tokens (900 cached), 85 output tokens, ~$0.0035" in html
+    assert 'aria-label="Tokens used by the answer"' in html
+    assert "Cache read" in html
+    assert "Cache write" not in html
+
+
+def test_report_without_usage_has_no_usage_section():
+    assert "<h2>Usage</h2>" not in HtmlAnswerRenderer().render(_answer())

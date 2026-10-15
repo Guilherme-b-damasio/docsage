@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from docsage.domain.models import Answer, Highlight, TermScore
+from docsage.infrastructure.units import usage_summary
 
 
 class TextAnswerRenderer:
@@ -22,6 +23,8 @@ class TextAnswerRenderer:
             ]
             if result.contributions:
                 lines.append(f"    score = {breakdown(result.contributions)}")
+        if answer.usage is not None:
+            lines += ["", f"Usage: {usage_summary(answer.usage, answer.cost_usd)}"]
         return "\n".join(lines) + "\n"
 
 

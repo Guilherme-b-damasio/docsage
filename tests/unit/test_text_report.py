@@ -1,4 +1,4 @@
-from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore
+from docsage.domain.models import Answer, Chunk, Highlight, SearchResult, TermScore, TokenUsage
 from docsage.infrastructure.text_report import TextAnswerRenderer, emphasized
 
 
@@ -30,3 +30,11 @@ def test_text_report_spells_out_the_score_breakdown():
     text = TextAnswerRenderer().render(Answer("Q?", "A.", (result,)))
 
     assert "    score = bm25 1.20 + ranks 0.30" in text
+
+
+def test_text_report_ends_with_the_usage_line():
+    usage = TokenUsage(model="m", input_tokens=10, output_tokens=2)
+
+    text = TextAnswerRenderer().render(Answer("q?", "a", (), usage=usage, cost_usd=0.5))
+
+    assert text.endswith("\nUsage: m: 10 input tokens, 2 output tokens, ~$0.5000\n")

@@ -1,7 +1,7 @@
 import pytest
 
 from docsage.application.services import NO_CONTEXT_ANSWER, ChatService
-from docsage.domain.models import ChatTurn, Chunk
+from docsage.domain.models import ChatTurn, Chunk, TokenUsage
 from docsage.infrastructure.bm25 import BM25Retriever
 
 
@@ -113,3 +113,30 @@ def test_question_without_context_is_answered_without_the_generator_and_not_reme
     assert pieces == [NO_CONTEXT_ANSWER]
     assert generator.calls == []
     assert chat.history == ()
+
+
+class UsageReportingConversationalGenerator(FakeConversationalGenerator):
+    def __init__(self):
+        super().__init__()
+        self.last_usage = None
+
+    def converse(self, question, context, history):
+        yield from super().converse(question, context, history)
+        self.last_usage = TokenUsage(model="m", input_tokens=len(self.calls), output_tokens=5)
+
+
+class PerTokenEstimator:
+    def estimate(self, usage):
+        return usage.total_input_tokens / 100
+
+
+def test_each_chat_turn_reports_its_own_usage_and_cost():
+    chat = ChatService(
+        _retriever(), UsageReportingConversationalGenerator(), cost_estimator=PerTokenEstimator()
+    )
+
+    first = chat.ask("alpha")
+    second = chat.ask("and beta?")
+
+    assert (first.usage.input_tokens, first.cost_usd) == (1, 0.01)
+    assert (second.usage.input_tokens, second.cost_usd) == (2, 0.02)

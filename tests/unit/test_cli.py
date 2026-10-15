@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from docsage.domain.models import TokenUsage
 from docsage.interfaces.cli import main
 
 
@@ -74,6 +75,8 @@ def test_ask_json_output(tmp_path, capsys, monkeypatch):
         "question": "anything?",
         "answer": "No relevant context found in the index.",
         "sources": [],
+        "usage": None,
+        "cost_usd": None,
     }
 
 
@@ -593,3 +596,55 @@ def test_unknown_length_flag_is_rejected(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["--index", str(tmp_path / "i.json"), "ask", "alpha?", "--length", "huge"])
     assert "invalid choice" in capsys.readouterr().err
+
+
+class _FakeUsageGenerator(_FakeGenerator):
+    last_usage = None
+
+    def generate(self, question, context):
+        self.last_usage = TokenUsage(
+            model="claude-opus-5-5",
+            input_tokens=200,
+            output_tokens=500,
+            cache_read_input_tokens=800,
+        )
+        return super().generate(question, context)
+
+
+def _ask_with_usage(tmp_path, monkeypatch, *flags):
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    monkeypatch.setattr(
+        cli, "Container", lambda settings: Container(settings, _FakeUsageGenerator())
+    )
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    return main(["--index", str(index), "ask", "alpha?", "--no-stream", *flags])
+
+
+def test_ask_usage_prints_tokens_and_cost_after_the_sources(tmp_path, capsys, monkeypatch):
+    assert _ask_with_usage(tmp_path, monkeypatch, "--usage") == 0
+
+    out = capsys.readouterr().out
+    usage_line = (
+        "Usage: claude-opus-5-5: 1,000 input tokens (800 cached), 500 output tokens, ~$0.0110"
+    )
+    assert usage_line in out
+    assert out.index("Sources:") < out.index("Usage:")
+
+
+def test_ask_hides_usage_unless_asked(tmp_path, capsys, monkeypatch):
+    _ask_with_usage(tmp_path, monkeypatch)
+
+    assert "Usage:" not in capsys.readouterr().out
+
+
+def test_ask_json_includes_usage_and_cost(tmp_path, capsys, monkeypatch):
+    _ask_with_usage(tmp_path, monkeypatch, "--json")
+
+    out = capsys.readouterr().out
+    payload = json.loads(out[out.index("{") :])
+    assert payload["usage"]["cache_read_input_tokens"] == 800
+    assert payload["cost_usd"] == 0.01096
