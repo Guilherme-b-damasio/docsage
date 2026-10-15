@@ -57,7 +57,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Prompt caching for the context block
 - [x] Interactive chat mode with conversation history (`docsage chat`)
 - [x] Configurable answer language and length
-- [ ] Token and cost report per answer
+- [x] Token and cost report per answer
 
 ## Milestone 0.7: More sources and deployment
 - [ ] HTML loader (strip tags, keep headings)

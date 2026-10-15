@@ -159,6 +159,23 @@ every command, the MCP server included:
 docsage ask "how is the index stored?" --language Portuguese --length short
 ```
 
+### Token usage and cost
+
+Every answer records the tokens Claude spent on it: uncached input, input written to and
+read from the prompt cache, and output, plus an estimate of the price in US dollars from
+the list prices of the model that actually answered (a fallback model, if the first one
+declined). `--usage` on `ask` and `chat` prints it after the sources:
+
+```bash
+docsage ask "how is the index stored?" --usage
+# Usage: claude-opus-5-5: 4,210 input tokens (3,900 cached), 312 output tokens, ~$0.0083
+```
+
+`ask --json` and the MCP `ask_documents` tool always include `usage` and `cost_usd`
+(`null` when no passage matched or the model's price is unknown), and `docsage report`
+charts the token breakdown under the sources. Prices are estimates from a fixed table;
+your bill is the source of truth.
+
 ### Chat
 
 `docsage chat` opens an interactive session for questions that build on each other
@@ -292,6 +309,16 @@ docsage dashboard --format mermaid      # related documents as a Mermaid graph
 
 `python scripts/screenshots.py` regenerates both screenshots from this repository's own
 docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
+
+## What's new in 0.6
+
+- `ask` streams the answer as Claude writes it (`--no-stream` to wait for the whole text).
+- The passages sent to Claude are cached, so follow-ups on the same context cost less
+  (`prompt_cache = false` to turn it off).
+- `docsage chat` keeps the conversation, so follow-up questions make sense.
+- `--language` and `--length` (or `answer_language` / `answer_length`) fix how answers read.
+- Every answer reports its token usage and estimated cost (`--usage`, JSON, MCP and the
+  HTML report).
 
 ## What's new in 0.5
 
