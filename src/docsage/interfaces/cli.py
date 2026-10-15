@@ -19,6 +19,7 @@ from docsage.container import (
     Container,
     load_settings,
 )
+from docsage.domain.models import SearchResult
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
@@ -176,6 +177,13 @@ def _parser() -> argparse.ArgumentParser:
         help="print the answer only once it is complete instead of as it is written",
     )
     ask.set_defaults(handler=_ask)
+
+    chat = commands.add_parser(
+        "chat", help="talk with Claude about your documents, follow-up questions included"
+    )
+    chat.add_argument("-k", "--top-k", type=int, default=5)
+    chat.add_argument("--model", default=None)
+    chat.set_defaults(handler=_chat)
 
     report = commands.add_parser(
         "report", help="answer a question with Claude and write an HTML report"
@@ -343,11 +351,40 @@ def _ask(container: Container, args: argparse.Namespace) -> int:
     else:
         answer = service.ask(args.question, args.top_k)
         print(answer.text)
-    if answer.sources:
-        print("\nSources:")
-        for index, result in enumerate(answer.sources, start=1):
-            print(f"  [{index}] {result.chunk.citation}")
+    _print_sources(answer.sources)
     return 0
+
+
+CHAT_HELP = "Ask a question. /reset starts a new conversation, /exit (or Ctrl-D) quits."
+
+
+def _chat(container: Container, args: argparse.Namespace) -> int:
+    service = container.chat_service()
+    print(CHAT_HELP)
+    while True:
+        try:
+            question = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not question:
+            continue
+        if question in ("/exit", "/quit"):
+            return 0
+        if question == "/reset":
+            service.reset()
+            print("Started a new conversation.")
+            continue
+        answer = service.ask(question, args.top_k, on_text=_write_piece)
+        print()
+        _print_sources(answer.sources)
+
+
+def _print_sources(sources: Sequence[SearchResult]) -> None:
+    if sources:
+        print("\nSources:")
+        for index, result in enumerate(sources, start=1):
+            print(f"  [{index}] {result.chunk.citation}")
 
 
 def _write_piece(text: str) -> None:

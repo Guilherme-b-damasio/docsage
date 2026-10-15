@@ -97,6 +97,14 @@ class Answer:
 
 
 @dataclass(frozen=True)
+class ChatTurn:
+    """One finished exchange of a conversation: what was asked and what was answered."""
+
+    question: str
+    answer: str
+
+
+@dataclass(frozen=True)
 class HistogramBin:
     """Values ``low <= value <= high`` and how many fell in that range."""
 

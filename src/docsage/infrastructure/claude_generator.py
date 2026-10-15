@@ -9,7 +9,7 @@ from typing import Any, Literal
 import anthropic
 from anthropic.types.beta import BetaMessage, BetaMessageParam, BetaTextBlockParam
 
-from docsage.domain.models import SearchResult
+from docsage.domain.models import ChatTurn, SearchResult
 
 DEFAULT_MODEL = "claude-opus-5-5"
 
@@ -21,6 +21,11 @@ SYSTEM_PROMPT = (
     "You answer questions using only the numbered context passages provided. "
     "Cite passages inline as [1], [2], etc. If the context does not contain the "
     "answer, say so plainly instead of guessing. Answer in the language of the question."
+)
+
+CHAT_SYSTEM_PROMPT = (
+    f"{SYSTEM_PROMPT} Earlier turns of the conversation come first: use them to understand "
+    "follow-up questions, but ground every answer on the context passages of the latest turn."
 )
 
 
@@ -52,12 +57,26 @@ class ClaudeAnswerGenerator:
 
     def stream(self, question: str, context: Sequence[SearchResult]) -> Iterator[str]:
         """Yields the answer's text as Claude writes it; raises on refusal once it ends."""
-        with self._client.beta.messages.stream(**self._request(question, context)) as stream:
+        return self._stream(self._request(question, context))
+
+    def converse(
+        self, question: str, context: Sequence[SearchResult], history: Sequence[ChatTurn]
+    ) -> Iterator[str]:
+        """Like ``stream``, with the earlier turns sent before the question as plain text."""
+        return self._stream(self._request(question, context, history))
+
+    def _stream(self, request: dict[str, Any]) -> Iterator[str]:
+        with self._client.beta.messages.stream(**request) as stream:
             yield from stream.text_stream
             response = stream.get_final_message()
         self._check(response)
 
-    def _request(self, question: str, context: Sequence[SearchResult]) -> dict[str, Any]:
+    def _request(
+        self,
+        question: str,
+        context: Sequence[SearchResult],
+        history: Sequence[ChatTurn] | None = None,
+    ) -> dict[str, Any]:
         message: BetaMessageParam = {
             "role": "user",
             "content": build_content(question, context, self._cache_context),
@@ -65,11 +84,11 @@ class ClaudeAnswerGenerator:
         return {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "system": SYSTEM_PROMPT,
+            "system": SYSTEM_PROMPT if history is None else CHAT_SYSTEM_PROMPT,
             "output_config": {"effort": self._effort},
             "betas": ["server-side-fallback-2026-07-01"],
             "fallbacks": "default",
-            "messages": [message],
+            "messages": [*build_history(history or ()), message],
         }
 
     def _check(self, response: BetaMessage) -> None:
@@ -87,6 +106,16 @@ class ClaudeAnswerGenerator:
         if response.stop_reason == "refusal":
             logger.warning("claude refused to answer", extra={"model": response.model})
             raise GenerationRefusedError("The model declined to answer this question.")
+
+
+def build_history(history: Sequence[ChatTurn]) -> list[BetaMessageParam]:
+    """Earlier turns as alternating user and assistant messages. Only the questions and the
+    answers are kept: the passages of old turns are left out to keep the request small."""
+    messages: list[BetaMessageParam] = []
+    for turn in history:
+        messages.append({"role": "user", "content": f"Question: {turn.question}"})
+        messages.append({"role": "assistant", "content": turn.answer})
+    return messages
 
 
 def build_context(context: Sequence[SearchResult]) -> str:

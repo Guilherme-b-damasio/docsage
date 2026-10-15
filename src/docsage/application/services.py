@@ -14,6 +14,7 @@ from pathlib import Path
 from docsage.domain.models import (
     Answer,
     CaseOutcome,
+    ChatTurn,
     Chunk,
     ChunkPoint,
     Document,
@@ -29,6 +30,7 @@ from docsage.domain.ports import (
     AnswerRenderer,
     Chunker,
     ChunkProjector,
+    ConversationalAnswerGenerator,
     DashboardRenderer,
     DocumentLoader,
     EvaluationRenderer,
@@ -252,10 +254,9 @@ class QuestionAnsweringService:
         )
         logger.debug("retrieved context", extra={"top_k": top_k, "results": len(results)})
         if not results:
-            text = "No relevant context found in the index."
             if on_text:
-                on_text(text)
-            return Answer(question, text, ())
+                on_text(NO_CONTEXT_ANSWER)
+            return Answer(question, NO_CONTEXT_ANSWER, ())
         text = self._generate(question, results, on_text)
         logger.debug("generated answer", extra={"characters": len(text)})
         return Answer(question, text, tuple(results))
@@ -277,6 +278,70 @@ class QuestionAnsweringService:
             pieces.append(piece)
             on_text(piece)
         return "".join(pieces)
+
+
+NO_CONTEXT_ANSWER = "No relevant context found in the index."
+
+
+class ChatService:
+    """A conversation about the index: every question gets fresh passages, and the generator
+    also sees the earlier turns so follow-ups like "and in version 2?" make sense.
+
+    Only the last ``max_turns`` turns are sent along, so a long chat stays within budget.
+    """
+
+    def __init__(
+        self,
+        retriever: Retriever,
+        generator: ConversationalAnswerGenerator,
+        highlighter: Highlighter | None = None,
+        max_turns: int = 10,
+    ) -> None:
+        if max_turns < 0:
+            raise ValueError("max_turns must not be negative")
+        self._retriever = retriever
+        self._generator = generator
+        self._highlighter = highlighter
+        self._max_turns = max_turns
+        self._history: list[ChatTurn] = []
+
+    @property
+    def history(self) -> tuple[ChatTurn, ...]:
+        """Every turn so far, oldest first."""
+        return tuple(self._history)
+
+    def reset(self) -> None:
+        """Forgets the conversation so the next question starts a new one."""
+        self._history.clear()
+
+    def ask(
+        self,
+        question: str,
+        top_k: int = 5,
+        on_text: Callable[[str], None] | None = None,
+    ) -> Answer:
+        """Answers ``question`` and remembers the turn; ``on_text`` receives the text as it is
+        written. A question with no matching passages is answered without the generator and
+        is not remembered."""
+        results = _highlighted(
+            self._retriever.search(question, top_k), question, self._highlighter
+        )
+        if not results:
+            if on_text:
+                on_text(NO_CONTEXT_ANSWER)
+            return Answer(question, NO_CONTEXT_ANSWER, ())
+        recent = self._history[-self._max_turns :] if self._max_turns else []
+        pieces = []
+        for piece in self._generator.converse(question, results, recent):
+            pieces.append(piece)
+            if on_text:
+                on_text(piece)
+        text = "".join(pieces)
+        self._history.append(ChatTurn(question, text))
+        logger.debug(
+            "chat turn", extra={"turn": len(self._history), "context_turns": len(recent)}
+        )
+        return Answer(question, text, tuple(results))
 
 
 @dataclass(frozen=True)

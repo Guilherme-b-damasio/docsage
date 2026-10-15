@@ -297,3 +297,50 @@ def test_prompt_cache_setting_reaches_the_claude_generator(tmp_path, monkeypatch
     Container(Settings(index_path=tmp_path / "index.json")).question_answering_service()
 
     assert built == [{"model": "m", "cache_context": False}, {"cache_context": True}]
+
+
+def test_chat_service_uses_a_conversational_generator(tmp_path):
+    from docsage.container import Container
+
+    class FakeConversationalGenerator:
+        def generate(self, question, context):
+            return "single"
+
+        def converse(self, question, context, history):
+            yield "chat"
+
+    settings = Settings(index_path=tmp_path / "index.json", chat_history_turns=3)
+    container = Container(settings, FakeConversationalGenerator())
+    (tmp_path / "a.md").write_text("alpha", encoding="utf-8")
+    container.indexing_service().index([tmp_path / "a.md"])
+
+    assert container.chat_service().ask("alpha").text == "chat"
+
+
+def test_chat_service_rejects_a_generator_that_cannot_converse(tmp_path):
+    import pytest
+
+    from docsage.container import Container
+
+    class SingleShotGenerator:
+        def generate(self, question, context):
+            return "single"
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), SingleShotGenerator())
+
+    with pytest.raises(TypeError, match="cannot hold a conversation"):
+        container.chat_service()
+
+
+def test_chat_history_turns_comes_from_the_config_file(tmp_path):
+    import pytest
+
+    from docsage.infrastructure.config import ConfigError
+
+    config = tmp_path / "docsage.toml"
+    config.write_text("chat_history_turns = 4\n", encoding="utf-8")
+    assert load_settings(config).chat_history_turns == 4
+
+    config.write_text("chat_history_turns = -1\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_settings(config)
