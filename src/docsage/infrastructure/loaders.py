@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from docsage.domain.models import Document
+from docsage.domain.ports import DocumentLoader
+from docsage.infrastructure.html_loader import HtmlLoader
 
 
 class PlainTextLoader:
@@ -54,5 +56,5 @@ def page_offsets(pages: list[str]) -> tuple[int, ...]:
     return tuple(offsets)
 
 
-def default_loaders() -> list[PlainTextLoader | PdfLoader]:
-    return [PlainTextLoader(), PdfLoader()]
+def default_loaders() -> list[DocumentLoader]:
+    return [PlainTextLoader(), PdfLoader(), HtmlLoader()]
