@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Literal
+from collections.abc import Iterator, Sequence
+from typing import Any, Literal
 
 import anthropic
-from anthropic.types.beta import BetaMessageParam
+from anthropic.types.beta import BetaMessage, BetaMessageParam
 
 from docsage.domain.models import SearchResult
 
@@ -42,16 +42,30 @@ class ClaudeAnswerGenerator:
         self._max_tokens = max_tokens
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str:
+        response = self._client.beta.messages.create(**self._request(question, context))
+        self._check(response)
+        return "".join(block.text for block in response.content if block.type == "text")
+
+    def stream(self, question: str, context: Sequence[SearchResult]) -> Iterator[str]:
+        """Yields the answer's text as Claude writes it; raises on refusal once it ends."""
+        with self._client.beta.messages.stream(**self._request(question, context)) as stream:
+            yield from stream.text_stream
+            response = stream.get_final_message()
+        self._check(response)
+
+    def _request(self, question: str, context: Sequence[SearchResult]) -> dict[str, Any]:
         message: BetaMessageParam = {"role": "user", "content": build_prompt(question, context)}
-        response = self._client.beta.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=SYSTEM_PROMPT,
-            output_config={"effort": self._effort},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            messages=[message],
-        )
+        return {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "system": SYSTEM_PROMPT,
+            "output_config": {"effort": self._effort},
+            "betas": ["server-side-fallback-2026-07-01"],
+            "fallbacks": "default",
+            "messages": [message],
+        }
+
+    def _check(self, response: BetaMessage) -> None:
         logger.debug(
             "claude response",
             extra={
@@ -64,7 +78,6 @@ class ClaudeAnswerGenerator:
         if response.stop_reason == "refusal":
             logger.warning("claude refused to answer", extra={"model": response.model})
             raise GenerationRefusedError("The model declined to answer this question.")
-        return "".join(block.text for block in response.content if block.type == "text")
 
 
 def build_prompt(question: str, context: Sequence[SearchResult]) -> str:
