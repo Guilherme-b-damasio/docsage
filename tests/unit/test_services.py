@@ -285,3 +285,44 @@ def test_answer_report_service_renders_the_answer():
     assert report.content == "<answer from 1 passages>"
     assert rendered == [report.answer]
     assert report.answer.sources[0].chunk.source == "a.md"
+
+
+class FakeStreamingGenerator(FakeGenerator):
+    def stream(self, question, context):
+        self.calls.append((question, list(context)))
+        yield "answer "
+        yield "in pieces"
+
+
+def test_question_answering_streams_pieces_to_the_callback():
+    retriever = BM25Retriever()
+    retriever.add([Chunk(id="c", source="a.md", text="alpha beta", position=0)])
+    pieces = []
+
+    answer = QuestionAnsweringService(retriever, FakeStreamingGenerator()).ask(
+        "alpha", on_text=pieces.append
+    )
+
+    assert pieces == ["answer ", "in pieces"]
+    assert answer.text == "answer in pieces"
+
+
+def test_question_answering_sends_a_whole_answer_when_the_generator_cannot_stream():
+    retriever = BM25Retriever()
+    retriever.add([Chunk(id="c", source="a.md", text="alpha beta", position=0)])
+    pieces: list[str] = []
+    service = QuestionAnsweringService(retriever, FakeGenerator())
+
+    answer = service.ask("alpha", on_text=pieces.append)
+
+    assert pieces == [answer.text] == ["answer from 1 passages"]
+
+
+def test_question_answering_without_context_still_reports_text():
+    pieces = []
+
+    QuestionAnsweringService(BM25Retriever(), FakeStreamingGenerator()).ask(
+        "anything", on_text=pieces.append
+    )
+
+    assert pieces == ["No relevant context found in the index."]

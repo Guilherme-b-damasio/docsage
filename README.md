@@ -132,7 +132,9 @@ docsage --retriever hybrid evaluate tests/fixtures/evaluation.json --format html
 ```
 
 `ask` uses the Claude API. Set `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
-before running it. `index` and `search` work offline.
+before running it. `index` and `search` work offline. The answer is streamed to the
+terminal as Claude writes it, followed by the list of sources; pass `--no-stream` to
+print it only once it is complete (`--json` output is never streamed).
 
 ### MCP server
 

@@ -53,7 +53,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Sentence-boundary chunker
 
 ## Milestone 0.6: Generation and chat
-- [ ] Stream answers to the terminal as they are generated
+- [x] Stream answers to the terminal as they are generated
 - [ ] Prompt caching for the context block
 - [ ] Interactive chat mode with conversation history (`docsage chat`)
 - [ ] Configurable answer language and length

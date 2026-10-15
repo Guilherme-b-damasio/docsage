@@ -64,3 +64,58 @@ def test_generate_raises_and_warns_on_refusal(caplog):
         generator.generate("how?", _context())
 
     assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+class _FakeStream:
+    def __init__(self, pieces, response):
+        self.text_stream = iter(pieces)
+        self._response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self._response
+
+
+class _FakeStreamingMessages:
+    def __init__(self, pieces, response):
+        self._pieces = pieces
+        self._response = response
+        self.kwargs = None
+
+    def stream(self, **kwargs):
+        self.kwargs = kwargs
+        return _FakeStream(self._pieces, self._response)
+
+
+class _FakeStreamingClient:
+    def __init__(self, pieces, response):
+        self.beta = SimpleNamespace(messages=_FakeStreamingMessages(pieces, response))
+
+
+def test_stream_yields_text_as_it_arrives():
+    client = _FakeStreamingClient(["It ", "ranks ", "[1]."], _response("end_turn"))
+    generator = ClaudeAnswerGenerator(client=client)
+
+    assert list(generator.stream("how?", _context())) == ["It ", "ranks ", "[1]."]
+    assert client.beta.messages.kwargs["output_config"] == {"effort": "medium"}
+    assert client.beta.messages.kwargs["model"] == "claude-opus-5-5"
+
+
+def test_stream_raises_on_refusal_after_the_text():
+    generator = ClaudeAnswerGenerator(client=_FakeStreamingClient(["I "], _response("refusal")))
+
+    with pytest.raises(GenerationRefusedError):
+        list(generator.stream("how?", _context()))
+
+
+def test_claude_generator_is_a_streaming_generator():
+    from docsage.domain.ports import StreamingAnswerGenerator
+
+    generator = ClaudeAnswerGenerator(client=_FakeClient(_response("end_turn")))
+
+    assert isinstance(generator, StreamingAnswerGenerator)

@@ -6,7 +6,7 @@ import hashlib
 import logging
 import math
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from itertools import combinations
 from pathlib import Path
@@ -35,6 +35,7 @@ from docsage.domain.ports import (
     Highlighter,
     IndexRepository,
     Retriever,
+    StreamingAnswerGenerator,
     TextTokenizer,
 )
 
@@ -238,16 +239,44 @@ class QuestionAnsweringService:
         self._generator = generator
         self._highlighter = highlighter
 
-    def ask(self, question: str, top_k: int = 5) -> Answer:
+    def ask(
+        self,
+        question: str,
+        top_k: int = 5,
+        on_text: Callable[[str], None] | None = None,
+    ) -> Answer:
+        """``on_text`` receives the answer's text as it is generated: piece by piece when the
+        generator can stream, otherwise all at once when it is ready."""
         results = _highlighted(
             self._retriever.search(question, top_k), question, self._highlighter
         )
         logger.debug("retrieved context", extra={"top_k": top_k, "results": len(results)})
         if not results:
-            return Answer(question, "No relevant context found in the index.", ())
-        text = self._generator.generate(question, results)
+            text = "No relevant context found in the index."
+            if on_text:
+                on_text(text)
+            return Answer(question, text, ())
+        text = self._generate(question, results, on_text)
         logger.debug("generated answer", extra={"characters": len(text)})
         return Answer(question, text, tuple(results))
+
+    def _generate(
+        self,
+        question: str,
+        results: Sequence[SearchResult],
+        on_text: Callable[[str], None] | None,
+    ) -> str:
+        if on_text is None:
+            return self._generator.generate(question, results)
+        if not isinstance(self._generator, StreamingAnswerGenerator):
+            text = self._generator.generate(question, results)
+            on_text(text)
+            return text
+        pieces = []
+        for piece in self._generator.stream(question, results):
+            pieces.append(piece)
+            on_text(piece)
+        return "".join(pieces)
 
 
 @dataclass(frozen=True)

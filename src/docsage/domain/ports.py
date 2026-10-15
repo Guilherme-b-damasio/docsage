@@ -6,9 +6,9 @@ Concrete adapters live in ``docsage.infrastructure`` and are wired together in
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from docsage.domain.models import (
     Answer,
@@ -94,6 +94,15 @@ class AnswerGenerator(Protocol):
     """Produces a natural-language answer grounded on retrieved context."""
 
     def generate(self, question: str, context: Sequence[SearchResult]) -> str: ...
+
+
+@runtime_checkable
+class StreamingAnswerGenerator(AnswerGenerator, Protocol):
+    """An answer generator that can also hand out the answer piece by piece as it is written."""
+
+    def stream(self, question: str, context: Sequence[SearchResult]) -> Iterator[str]:
+        """Yields the answer's text in order; joined, the pieces are the whole answer."""
+        ...
 
 
 class Highlighter(Protocol):
