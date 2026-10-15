@@ -163,3 +163,46 @@ def test_generate_logs_cache_usage(caplog):
 
     record = next(r for r in caplog.records if r.getMessage() == "claude response")
     assert (record.cache_creation_input_tokens, record.cache_read_input_tokens) == (0, 900)
+
+
+def test_converse_sends_earlier_turns_before_the_question():
+    from docsage.domain.models import ChatTurn
+
+    client = _FakeStreamingClient(["In v2 ", "too [1]."], _response("end_turn"))
+    history = [ChatTurn("what ranks?", "BM25 [1].")]
+
+    pieces = list(ClaudeAnswerGenerator(client=client).converse("and in v2?", _context(), history))
+
+    assert pieces == ["In v2 ", "too [1]."]
+    messages = client.beta.messages.kwargs["messages"]
+    assert messages[0] == {"role": "user", "content": "Question: what ranks?"}
+    assert messages[1] == {"role": "assistant", "content": "BM25 [1]."}
+    assert messages[2]["role"] == "user"
+    assert messages[2]["content"][-1] == {"type": "text", "text": "Question: and in v2?"}
+    assert "Earlier turns" in client.beta.messages.kwargs["system"]
+    assert client.beta.messages.kwargs["output_config"] == {"effort": "medium"}
+
+
+def test_converse_without_history_sends_one_message():
+    client = _FakeStreamingClient(["ok"], _response("end_turn"))
+
+    list(ClaudeAnswerGenerator(client=client).converse("how?", _context(), []))
+
+    assert len(client.beta.messages.kwargs["messages"]) == 1
+
+
+def test_converse_raises_on_refusal():
+    generator = ClaudeAnswerGenerator(client=_FakeStreamingClient(["I "], _response("refusal")))
+
+    with pytest.raises(GenerationRefusedError):
+        list(generator.converse("how?", _context(), []))
+
+
+def test_single_questions_keep_the_plain_system_prompt():
+    from docsage.infrastructure.claude_generator import SYSTEM_PROMPT
+
+    client = _FakeClient(_response("end_turn", "It ranks [1]."))
+
+    ClaudeAnswerGenerator(client=client).generate("how?", _context())
+
+    assert client.beta.messages.kwargs["system"] == SYSTEM_PROMPT
