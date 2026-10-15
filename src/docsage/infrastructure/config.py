@@ -18,6 +18,7 @@ _FIELD_TYPES: dict[str, type] = {
     "embedding_model": str,
     "rerank": bool,
     "rerank_candidates": int,
+    "prompt_cache": bool,
 }
 
 

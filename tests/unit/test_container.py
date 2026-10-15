@@ -278,3 +278,22 @@ def test_sentence_chunker_setting_keeps_sentences_whole(tmp_path):
         "Delta epsilon zeta.",
     ]
     assert {chunk.section for chunk in sections} == {"Setup"}
+
+
+def test_prompt_cache_setting_reaches_the_claude_generator(tmp_path, monkeypatch):
+    from docsage.container import Container
+    from docsage.infrastructure import claude_generator
+
+    built = []
+
+    class FakeClaudeGenerator:
+        def __init__(self, **kwargs):
+            built.append(kwargs)
+
+    monkeypatch.setattr(claude_generator, "ClaudeAnswerGenerator", FakeClaudeGenerator)
+    settings = Settings(index_path=tmp_path / "index.json", model="m", prompt_cache=False)
+
+    Container(settings).question_answering_service()
+    Container(Settings(index_path=tmp_path / "index.json")).question_answering_service()
+
+    assert built == [{"model": "m", "cache_context": False}, {"cache_context": True}]

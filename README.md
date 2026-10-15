@@ -58,6 +58,7 @@ retriever = "bm25"                   # or "embedding", "hybrid"
 embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 rerank = false                       # let Claude reorder the best candidates
 rerank_candidates = 20               # how many candidates Claude grades
+prompt_cache = true                  # cache the passages sent to Claude
 ```
 
 ### Chunking
@@ -135,6 +136,13 @@ docsage --retriever hybrid evaluate tests/fixtures/evaluation.json --format html
 before running it. `index` and `search` work offline. The answer is streamed to the
 terminal as Claude writes it, followed by the list of sources; pass `--no-stream` to
 print it only once it is complete (`--json` output is never streamed).
+The passages are sent to Claude as their own block, marked for
+[prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching), with the
+question after them, so asking again over the same passages within a few minutes reads them
+from the cache instead of paying for them in full. `--verbose` logs
+`cache_creation_input_tokens` and `cache_read_input_tokens` for each answer; set
+`prompt_cache = false` in `docsage.toml` to turn it off. Context shorter than the model's
+minimum cacheable prefix is simply not cached.
 
 ### MCP server
 
