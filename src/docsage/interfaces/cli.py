@@ -169,6 +169,12 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("-k", "--top-k", type=int, default=5)
     ask.add_argument("--model", default=None)
     ask.add_argument("--json", action="store_true", help="print the answer as JSON")
+    ask.add_argument(
+        "--no-stream",
+        dest="stream",
+        action="store_false",
+        help="print the answer only once it is complete instead of as it is written",
+    )
     ask.set_defaults(handler=_ask)
 
     report = commands.add_parser(
@@ -327,16 +333,26 @@ def _write_stdout(content: str) -> None:
 
 
 def _ask(container: Container, args: argparse.Namespace) -> int:
-    answer = container.question_answering_service().ask(args.question, args.top_k)
+    service = container.question_answering_service()
     if args.json:
-        print(dumps(answer_to_dict(answer)))
+        print(dumps(answer_to_dict(service.ask(args.question, args.top_k))))
         return 0
-    print(answer.text)
+    if args.stream:
+        answer = service.ask(args.question, args.top_k, on_text=_write_piece)
+        print()
+    else:
+        answer = service.ask(args.question, args.top_k)
+        print(answer.text)
     if answer.sources:
         print("\nSources:")
         for index, result in enumerate(answer.sources, start=1):
             print(f"  [{index}] {result.chunk.citation}")
     return 0
+
+
+def _write_piece(text: str) -> None:
+    _write_stdout(text)
+    sys.stdout.flush()
 
 
 def _mcp(container: Container, args: argparse.Namespace) -> int:

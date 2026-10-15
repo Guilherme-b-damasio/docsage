@@ -473,3 +473,40 @@ def test_unknown_chunker_flag_is_rejected(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["--index", str(tmp_path / "i.json"), "index", "--chunker", "lines", str(tmp_path)])
     assert "invalid choice" in capsys.readouterr().err
+
+
+class _FakeStreamingGenerator(_FakeGenerator):
+    def stream(self, question, context):
+        yield "Alpha is "
+        yield "described in [1]."
+
+
+def test_ask_streams_the_answer_then_lists_sources(tmp_path, capsys, monkeypatch):
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    monkeypatch.setattr(
+        cli, "Container", lambda settings: Container(settings, _FakeStreamingGenerator())
+    )
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "ask", "alpha?"]) == 0
+
+    out = capsys.readouterr().out
+    assert out.startswith("Alpha is described in [1].\n")
+    assert "Sources:" in out
+
+
+def test_ask_no_stream_prints_the_complete_answer(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "ask", "alpha?", "--no-stream"]) == 0
+
+    assert capsys.readouterr().out.startswith("Alpha is described in [1]. (1 passages)\n")
