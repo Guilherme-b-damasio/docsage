@@ -19,12 +19,12 @@ from docsage.container import (
     Container,
     load_settings,
 )
-from docsage.domain.models import ANSWER_LENGTHS, SearchResult
+from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
 from docsage.infrastructure.text_report import breakdown
-from docsage.infrastructure.units import human_size
+from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
@@ -179,6 +179,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_false",
         help="print the answer only once it is complete instead of as it is written",
     )
+    _add_usage_argument(ask)
     ask.set_defaults(handler=_ask)
 
     chat = commands.add_parser(
@@ -187,6 +188,7 @@ def _parser() -> argparse.ArgumentParser:
     chat.add_argument("-k", "--top-k", type=int, default=5)
     chat.add_argument("--model", default=None)
     _add_style_arguments(chat)
+    _add_usage_argument(chat)
     chat.set_defaults(handler=_chat)
 
     report = commands.add_parser(
@@ -243,6 +245,14 @@ def _add_style_arguments(command: argparse.ArgumentParser) -> None:
         choices=ANSWER_LENGTHS,
         default=None,
         help="short: a few sentences; long: every relevant detail (default: medium)",
+    )
+
+
+def _add_usage_argument(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--usage",
+        action="store_true",
+        help="after each answer, print the tokens it used and its estimated cost",
     )
 
 
@@ -371,6 +381,8 @@ def _ask(container: Container, args: argparse.Namespace) -> int:
         answer = service.ask(args.question, args.top_k)
         print(answer.text)
     _print_sources(answer.sources)
+    if args.usage:
+        _print_usage(answer)
     return 0
 
 
@@ -397,6 +409,8 @@ def _chat(container: Container, args: argparse.Namespace) -> int:
         answer = service.ask(question, args.top_k, on_text=_write_piece)
         print()
         _print_sources(answer.sources)
+        if args.usage:
+            _print_usage(answer)
 
 
 def _print_sources(sources: Sequence[SearchResult]) -> None:
@@ -404,6 +418,11 @@ def _print_sources(sources: Sequence[SearchResult]) -> None:
         print("\nSources:")
         for index, result in enumerate(sources, start=1):
             print(f"  [{index}] {result.chunk.citation}")
+
+
+def _print_usage(answer: Answer) -> None:
+    if answer.usage is not None:
+        print(f"\nUsage: {usage_summary(answer.usage, answer.cost_usd)}")
 
 
 def _write_piece(text: str) -> None:
