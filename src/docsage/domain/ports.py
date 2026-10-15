@@ -12,6 +12,7 @@ from typing import Protocol, runtime_checkable
 
 from docsage.domain.models import (
     Answer,
+    ChatTurn,
     Chunk,
     ChunkPoint,
     Document,
@@ -102,6 +103,16 @@ class StreamingAnswerGenerator(AnswerGenerator, Protocol):
 
     def stream(self, question: str, context: Sequence[SearchResult]) -> Iterator[str]:
         """Yields the answer's text in order; joined, the pieces are the whole answer."""
+        ...
+
+
+class ConversationalAnswerGenerator(Protocol):
+    """Answers a question in the light of the earlier turns of a conversation."""
+
+    def converse(
+        self, question: str, context: Sequence[SearchResult], history: Sequence[ChatTurn]
+    ) -> Iterator[str]:
+        """Yields the answer's text in order, as it is written; ``history`` is oldest first."""
         ...
 
 
