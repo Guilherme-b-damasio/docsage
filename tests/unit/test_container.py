@@ -296,7 +296,10 @@ def test_prompt_cache_setting_reaches_the_claude_generator(tmp_path, monkeypatch
     Container(settings).question_answering_service()
     Container(Settings(index_path=tmp_path / "index.json")).question_answering_service()
 
-    assert built == [{"model": "m", "cache_context": False}, {"cache_context": True}]
+    assert [(kwargs.get("model"), kwargs["cache_context"]) for kwargs in built] == [
+        ("m", False),
+        (None, True),
+    ]
 
 
 def test_chat_service_uses_a_conversational_generator(tmp_path):
@@ -343,4 +346,42 @@ def test_chat_history_turns_comes_from_the_config_file(tmp_path):
 
     config.write_text("chat_history_turns = -1\n", encoding="utf-8")
     with pytest.raises(ConfigError):
+        load_settings(config)
+
+
+def test_answer_style_settings_reach_the_claude_generator(tmp_path, monkeypatch):
+    from docsage.container import Container
+    from docsage.domain.models import AnswerStyle
+    from docsage.infrastructure import claude_generator
+
+    built = []
+
+    class FakeClaudeGenerator:
+        def __init__(self, **kwargs):
+            built.append(kwargs)
+
+    monkeypatch.setattr(claude_generator, "ClaudeAnswerGenerator", FakeClaudeGenerator)
+    settings = Settings(
+        index_path=tmp_path / "index.json", answer_language="Portuguese", answer_length="long"
+    )
+
+    Container(settings).question_answering_service()
+
+    assert built[0]["style"] == AnswerStyle("Portuguese", "long")
+
+
+def test_answer_style_comes_from_the_config_file(tmp_path):
+    import pytest
+
+    from docsage.infrastructure.config import ConfigError
+
+    config = tmp_path / "docsage.toml"
+    config.write_text('answer_language = "Spanish"\nanswer_length = "short"\n', encoding="utf-8")
+    settings = load_settings(config)
+    assert (settings.answer_language, settings.answer_length) == ("Spanish", "short")
+
+    assert load_settings(config, answer_length="long").answer_length == "long"
+
+    config.write_text('answer_length = "huge"\n', encoding="utf-8")
+    with pytest.raises(ConfigError, match="Unknown answer length"):
         load_settings(config)
