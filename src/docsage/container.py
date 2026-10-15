@@ -55,6 +55,7 @@ from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
+from docsage.infrastructure.pricing import PriceTable
 from docsage.infrastructure.projection import PcaProjector
 from docsage.infrastructure.reranking import RerankingRetriever
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
@@ -234,7 +235,10 @@ class Container:
 
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(
-            self._ranking_retriever(), self._answer_generator(), self._highlighter
+            self._ranking_retriever(),
+            self._answer_generator(),
+            self._highlighter,
+            PriceTable(),
         )
 
     def chat_service(self) -> ChatService:
@@ -244,6 +248,7 @@ class Container:
             self._conversational_generator(),
             self._highlighter,
             self._settings.chat_history_turns,
+            PriceTable(),
         )
 
     def _conversational_generator(self) -> ConversationalAnswerGenerator:

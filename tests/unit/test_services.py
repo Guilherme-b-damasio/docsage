@@ -9,7 +9,7 @@ from docsage.application.services import (
     SearchService,
     content_hash,
 )
-from docsage.domain.models import Chunk, Document, Highlight
+from docsage.domain.models import Chunk, Document, Highlight, TokenUsage
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.chunking import SlidingWindowChunker
 from docsage.infrastructure.loaders import PlainTextLoader
@@ -326,3 +326,72 @@ def test_question_answering_without_context_still_reports_text():
     )
 
     assert pieces == ["No relevant context found in the index."]
+
+
+class UsageReportingFakeGenerator(FakeGenerator):
+    def __init__(self, usage):
+        super().__init__()
+        self.last_usage = None
+        self._usage = usage
+
+    def generate(self, question, context):
+        text = super().generate(question, context)
+        self.last_usage = self._usage
+        return text
+
+
+class FixedCostEstimator:
+    def __init__(self):
+        self.priced = []
+
+    def estimate(self, usage):
+        self.priced.append(usage)
+        return 0.25
+
+
+def _capital_retriever() -> BM25Retriever:
+    retriever = BM25Retriever()
+    document = Document(source="doc.txt", text="Paris is the capital of France.")
+    retriever.add(SlidingWindowChunker().split(document))
+    return retriever
+
+
+def test_answers_carry_the_token_usage_and_its_cost():
+    usage = TokenUsage(model="m", input_tokens=100, output_tokens=20)
+    estimator = FixedCostEstimator()
+    service = QuestionAnsweringService(
+        _capital_retriever(), UsageReportingFakeGenerator(usage), cost_estimator=estimator
+    )
+
+    answer = service.ask("capital of France?")
+
+    assert (answer.usage, answer.cost_usd) == (usage, 0.25)
+    assert estimator.priced == [usage]
+
+
+def test_usage_without_an_estimator_has_no_cost():
+    usage = TokenUsage(model="m", input_tokens=100, output_tokens=20)
+    service = QuestionAnsweringService(_capital_retriever(), UsageReportingFakeGenerator(usage))
+
+    answer = service.ask("capital of France?")
+
+    assert (answer.usage, answer.cost_usd) == (usage, None)
+
+
+def test_generators_that_do_not_report_usage_leave_it_empty():
+    answer = QuestionAnsweringService(
+        _capital_retriever(), FakeGenerator(), cost_estimator=FixedCostEstimator()
+    ).ask("capital of France?")
+
+    assert (answer.usage, answer.cost_usd) == (None, None)
+
+
+def test_answers_without_context_cost_nothing():
+    estimator = FixedCostEstimator()
+    usage = TokenUsage(model="m", input_tokens=1, output_tokens=1)
+    answer = QuestionAnsweringService(
+        BM25Retriever(), UsageReportingFakeGenerator(usage), cost_estimator=estimator
+    ).ask("anything")
+
+    assert answer.usage is None
+    assert estimator.priced == []

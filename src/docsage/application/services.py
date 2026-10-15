@@ -31,6 +31,7 @@ from docsage.domain.ports import (
     Chunker,
     ChunkProjector,
     ConversationalAnswerGenerator,
+    CostEstimator,
     DashboardRenderer,
     DocumentLoader,
     EvaluationRenderer,
@@ -39,6 +40,7 @@ from docsage.domain.ports import (
     Retriever,
     StreamingAnswerGenerator,
     TextTokenizer,
+    UsageReportingGenerator,
 )
 
 logger = logging.getLogger(__name__)
@@ -236,10 +238,14 @@ class QuestionAnsweringService:
         retriever: Retriever,
         generator: AnswerGenerator,
         highlighter: Highlighter | None = None,
+        cost_estimator: CostEstimator | None = None,
     ) -> None:
+        """``cost_estimator`` prices the tokens of each answer when the generator reports
+        them; without one, answers still carry their token usage but no cost."""
         self._retriever = retriever
         self._generator = generator
         self._highlighter = highlighter
+        self._cost_estimator = cost_estimator
 
     def ask(
         self,
@@ -259,7 +265,9 @@ class QuestionAnsweringService:
             return Answer(question, NO_CONTEXT_ANSWER, ())
         text = self._generate(question, results, on_text)
         logger.debug("generated answer", extra={"characters": len(text)})
-        return Answer(question, text, tuple(results))
+        return _with_usage(
+            Answer(question, text, tuple(results)), self._generator, self._cost_estimator
+        )
 
     def _generate(
         self,
@@ -283,6 +291,26 @@ class QuestionAnsweringService:
 NO_CONTEXT_ANSWER = "No relevant context found in the index."
 
 
+def _with_usage(
+    answer: Answer, generator: object, cost_estimator: CostEstimator | None
+) -> Answer:
+    """``answer`` with the tokens the generator just spent on it and their estimated cost."""
+    if not isinstance(generator, UsageReportingGenerator) or generator.last_usage is None:
+        return answer
+    usage = generator.last_usage
+    cost = cost_estimator.estimate(usage) if cost_estimator else None
+    logger.debug(
+        "answer usage",
+        extra={
+            "model": usage.model,
+            "input_tokens": usage.total_input_tokens,
+            "output_tokens": usage.output_tokens,
+            "cost_usd": cost,
+        },
+    )
+    return replace(answer, usage=usage, cost_usd=cost)
+
+
 class ChatService:
     """A conversation about the index: every question gets fresh passages, and the generator
     also sees the earlier turns so follow-ups like "and in version 2?" make sense.
@@ -296,6 +324,7 @@ class ChatService:
         generator: ConversationalAnswerGenerator,
         highlighter: Highlighter | None = None,
         max_turns: int = 10,
+        cost_estimator: CostEstimator | None = None,
     ) -> None:
         if max_turns < 0:
             raise ValueError("max_turns must not be negative")
@@ -303,6 +332,7 @@ class ChatService:
         self._generator = generator
         self._highlighter = highlighter
         self._max_turns = max_turns
+        self._cost_estimator = cost_estimator
         self._history: list[ChatTurn] = []
 
     @property
@@ -341,7 +371,9 @@ class ChatService:
         logger.debug(
             "chat turn", extra={"turn": len(self._history), "context_turns": len(recent)}
         )
-        return Answer(question, text, tuple(results))
+        return _with_usage(
+            Answer(question, text, tuple(results)), self._generator, self._cost_estimator
+        )
 
 
 @dataclass(frozen=True)

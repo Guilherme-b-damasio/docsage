@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from docsage.container import DEFAULT_INDEX_PATH, Settings, load_settings
+import pytest
+
+from docsage.container import DEFAULT_INDEX_PATH, Container, Settings, load_settings
+from docsage.domain.models import TokenUsage
 
 
 def test_defaults_without_config():
@@ -385,3 +388,22 @@ def test_answer_style_comes_from_the_config_file(tmp_path):
     config.write_text('answer_length = "huge"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="Unknown answer length"):
         load_settings(config)
+
+
+def test_answers_from_the_container_are_priced(tmp_path):
+    class Generator:
+        last_usage = None
+
+        def generate(self, question, context):
+            self.last_usage = TokenUsage(
+                model="claude-opus-5-5", input_tokens=1000, output_tokens=500
+            )
+            return "an answer"
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), generator=Generator())
+    (tmp_path / "doc.md").write_text("Paris is the capital of France.", encoding="utf-8")
+    container.indexing_service().index([tmp_path / "doc.md"])
+
+    answer = container.question_answering_service().ask("capital of France?")
+
+    assert answer.cost_usd == pytest.approx(0.014)
