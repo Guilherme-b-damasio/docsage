@@ -88,12 +88,35 @@ class SearchResult:
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    """Tokens one generated answer consumed, as the model provider counted them."""
+
+    model: str
+    """Model that actually wrote the answer (a fallback model when the first one declined)."""
+    input_tokens: int
+    """Uncached input tokens, billed at the full input price."""
+    output_tokens: int
+    cache_creation_input_tokens: int = 0
+    """Input tokens written to the prompt cache, billed slightly above the input price."""
+    cache_read_input_tokens: int = 0
+    """Input tokens served from the prompt cache, billed at a fraction of the input price."""
+
+    @property
+    def total_input_tokens(self) -> int:
+        return self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
+
+
+@dataclass(frozen=True)
 class Answer:
     """A generated answer and the chunks it was grounded on."""
 
     question: str
     text: str
     sources: tuple[SearchResult, ...]
+    usage: TokenUsage | None = None
+    """Tokens spent on the answer (None when no model was called or it did not report them)."""
+    cost_usd: float | None = None
+    """Estimated price of ``usage`` in US dollars (None when the model's price is unknown)."""
 
 
 ANSWER_LENGTHS = ("short", "medium", "long")
