@@ -10,6 +10,7 @@ pip install -e ".[pdf]"
 docsage index ./docs
 docsage search "how is the index persisted?"
 docsage ask "what chunking strategy does the project use?"
+docsage chat                         # follow-up questions keep the conversation
 docsage remove ./docs/old-notes.md   # or a whole folder
 docsage stats                        # documents, chunks, top terms, index size
 ```
@@ -59,6 +60,7 @@ embedding_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 rerank = false                       # let Claude reorder the best candidates
 rerank_candidates = 20               # how many candidates Claude grades
 prompt_cache = true                  # cache the passages sent to Claude
+chat_history_turns = 10              # earlier turns `chat` sends with each question
 ```
 
 ### Chunking
@@ -143,6 +145,16 @@ from the cache instead of paying for them in full. `--verbose` logs
 `cache_creation_input_tokens` and `cache_read_input_tokens` for each answer; set
 `prompt_cache = false` in `docsage.toml` to turn it off. Context shorter than the model's
 minimum cacheable prefix is simply not cached.
+
+### Chat
+
+`docsage chat` opens an interactive session for questions that build on each other
+("which retriever is the default?", then "and how do I switch it?"). Every question
+retrieves its own passages, and Claude also gets the earlier questions and answers so
+follow-ups make sense. Only the text of old turns is sent, not their passages, and only
+the last `chat_history_turns` turns (default 10), so long sessions stay cheap. Answers are
+streamed with their sources listed after them. Type `/reset` to start a new conversation
+and `/exit` (or Ctrl-D) to leave; `-k` and `--model` work as in `ask`.
 
 ### MCP server
 
