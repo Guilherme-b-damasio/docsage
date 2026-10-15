@@ -60,7 +60,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Token and cost report per answer
 
 ## Milestone 0.7: More sources and deployment
-- [ ] HTML loader (strip tags, keep headings)
+- [x] HTML loader (strip tags, keep headings)
 - [ ] DOCX loader
 - [ ] Web page loader (fetch URL, extract main content)
 - [ ] Watch mode: re-index a folder on file changes

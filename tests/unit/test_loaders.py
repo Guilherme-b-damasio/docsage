@@ -22,7 +22,7 @@ def test_pdf_loader_records_page_count_and_offsets(tmp_path):
 def test_default_loaders_route_by_extension(tmp_path):
     supported = [
         name
-        for name in ("a.md", "b.PDF", "c.rst", "d.png")
+        for name in ("a.md", "b.PDF", "c.rst", "d.png", "e.html", "f.htm")
         if any(loader.supports(tmp_path / name) for loader in default_loaders())
     ]
-    assert supported == ["a.md", "b.PDF", "c.rst"]
+    assert supported == ["a.md", "b.PDF", "c.rst", "e.html", "f.htm"]

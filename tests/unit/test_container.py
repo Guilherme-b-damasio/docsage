@@ -407,3 +407,19 @@ def test_answers_from_the_container_are_priced(tmp_path):
     answer = container.question_answering_service().ask("capital of France?")
 
     assert answer.cost_usd == pytest.approx(0.014)
+
+
+def test_html_pages_are_indexed_by_section(tmp_path):
+    page = tmp_path / "guide.html"
+    page.write_text(
+        "<html><body><h1>Setup</h1><p>Install the package.</p>"
+        "<h2>Upgrade</h2><p>Run the upgrade command.</p></body></html>",
+        encoding="utf-8",
+    )
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+
+    report = container.indexing_service().index([page])
+    results = container.search_service().search("upgrade command", top_k=1)
+
+    assert (report.documents, report.skipped) == (1, ())
+    assert results[0].chunk.citation == f"{page}, Setup > Upgrade"

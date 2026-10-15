@@ -1,6 +1,6 @@
 # docsage
 
-Ask questions about your own documents. `docsage` indexes Markdown, text and PDF
+Ask questions about your own documents. `docsage` indexes Markdown, text, HTML and PDF
 files, retrieves the most relevant passages with BM25, and asks Claude for an
 answer that cites its sources. Common English and Portuguese stopwords are ignored
 when ranking, so questions phrased in either language match on their content words.
@@ -16,8 +16,11 @@ docsage stats                        # documents, chunks, top terms, index size
 ```
 
 Markdown files are split on their headings, so a chunk never mixes two sections,
-and long sections are windowed like any other text. Citations point to where a
-passage came from: the heading path for Markdown (`guide.md, Setup > Install`) and
+and long sections are windowed like any other text. HTML pages (`.html`, `.htm`) get
+the same treatment: tags, scripts and styles are stripped, `<h1>`-`<h6>` become the
+section headings and `<pre>` blocks keep their lines; it uses only the standard library.
+Citations point to where a passage came from: the heading path for Markdown and HTML
+(`guide.md, Setup > Install`) and
 the page for PDFs (`guide.pdf, p. 4` or `guide.pdf, pp. 4-5`), both in the terminal
 output and in the passages sent to Claude.
 
