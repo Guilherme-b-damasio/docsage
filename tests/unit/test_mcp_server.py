@@ -18,7 +18,7 @@ from docsage.application.services import (  # noqa: E402
     StatsService,
 )
 from docsage.container import Container, Settings  # noqa: E402
-from docsage.domain.models import Chunk  # noqa: E402
+from docsage.domain.models import Chunk, TokenUsage  # noqa: E402
 from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
 from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer  # noqa: E402
@@ -546,3 +546,17 @@ def test_ask_documents_links_the_answer_report_view():
 
     assert tool.meta == {"ui": {"resourceUri": "ui://docsage/answer-report"}}
     assert view.contents[0].mime_type == APP_MIME_TYPE
+
+
+def test_ask_documents_reports_usage_in_text_and_structured_output():
+    services = FakeServices(CHUNKS)
+    usage = TokenUsage(model="claude-opus-5-5", input_tokens=1000, output_tokens=500)
+    services.generator.last_usage = usage
+
+    result = call(services, "ask_documents", {"question": "capital of France?", "top_k": 1})
+
+    assert text_of(result).endswith(
+        "Usage: claude-opus-5-5: 1,000 input tokens, 500 output tokens"
+    )
+    assert result.structured_content["usage"]["input_tokens"] == 1000
+    assert result.structured_content["cost_usd"] is None

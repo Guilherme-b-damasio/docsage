@@ -25,6 +25,7 @@ from docsage.domain.models import (
     IndexOverview,
     SearchResult,
     TermScore,
+    TokenUsage,
 )
 
 
@@ -69,6 +70,16 @@ def search_results_to_dict(query: str, results: Sequence[SearchResult]) -> dict[
     }
 
 
+def usage_to_dict(usage: TokenUsage) -> dict[str, Any]:
+    return {
+        "model": usage.model,
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+        "cache_read_input_tokens": usage.cache_read_input_tokens,
+    }
+
+
 def answer_to_dict(answer: Answer) -> dict[str, Any]:
     return {
         "question": answer.question,
@@ -77,6 +88,8 @@ def answer_to_dict(answer: Answer) -> dict[str, Any]:
             search_result_to_dict(result, rank)
             for rank, result in enumerate(answer.sources, start=1)
         ],
+        "usage": usage_to_dict(answer.usage) if answer.usage else None,
+        "cost_usd": round(answer.cost_usd, 6) if answer.cost_usd is not None else None,
     }
 
 
