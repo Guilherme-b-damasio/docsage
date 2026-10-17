@@ -67,11 +67,17 @@ class AnswerOutput(TypedDict):
     """Estimated price of ``usage`` in US dollars (null when the model's price is unknown)."""
 
 
+class FailedSource(TypedDict):
+    url: str
+    reason: str
+
+
 class IndexingOutput(TypedDict):
     documents: int
     chunks: int
     unchanged: int
     skipped: list[str]
+    failed: list[FailedSource]
 
 
 class RemovalOutput(TypedDict):

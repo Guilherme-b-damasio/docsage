@@ -89,7 +89,16 @@ def test_indexing_report_lists_skipped_files():
         "chunks": 5,
         "unchanged": 1,
         "skipped": ["a.png"],
+        "failed": [],
     }
+
+
+def test_indexing_report_lists_failed_pages_with_their_reason():
+    report = IndexingReport(0, 0, (), failed=(("https://x.io", "timed out"),))
+
+    assert indexing_report_to_dict(report)["failed"] == [
+        {"url": "https://x.io", "reason": "timed out"}
+    ]
 
 
 def test_removal_report_keeps_the_requested_path():

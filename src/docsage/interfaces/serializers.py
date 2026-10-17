@@ -150,6 +150,7 @@ def indexing_report_to_dict(report: IndexingReport) -> dict[str, Any]:
         "chunks": report.chunks,
         "unchanged": report.unchanged,
         "skipped": list(report.skipped),
+        "failed": [{"url": url, "reason": reason} for url, reason in report.failed],
     }
 
 

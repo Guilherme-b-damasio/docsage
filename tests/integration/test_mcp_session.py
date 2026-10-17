@@ -64,6 +64,8 @@ def test_a_client_session_indexes_reads_searches_asks_and_removes(corpus, servic
                 "ask_documents",
                 "index_path",
                 "remove_path",
+                "index_url",
+                "remove_url",
                 "index_stats",
                 "index_dashboard",
             }
