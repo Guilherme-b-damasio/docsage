@@ -1,5 +1,5 @@
 from docsage.infrastructure.chunking import MarkdownChunker
-from docsage.infrastructure.html_loader import HtmlLoader, html_to_text
+from docsage.infrastructure.html_loader import HtmlLoader, html_to_text, main_content_to_text
 
 PAGE = """<!doctype html>
 <html>
@@ -96,3 +96,48 @@ def test_markdown_chunker_cites_html_sections(tmp_path):
 
     assert [chunk.section for chunk in chunks] == ["Setup", "Setup > Install v2"]
     assert chunks[1].citation == f"{path}, Setup > Install v2"
+
+
+WEB_PAGE = """<html><head><title>Release notes</title></head><body>
+<header><a href="/">Home</a> <a href="/blog">Blog</a></header>
+<nav><ul><li>Docs</li><li>Pricing</li></ul></nav>
+<main>
+  <h1>Version 2</h1>
+  <p>Adds a <b>watch</b> mode.</p>
+  <form><label>Subscribe</label></form>
+</main>
+<aside>Related posts</aside>
+<footer>Copyright</footer>
+</body></html>"""
+
+
+def test_main_content_keeps_only_the_main_element():
+    text, title = main_content_to_text(WEB_PAGE)
+
+    assert text == "# Version 2\n\nAdds a watch mode."
+    assert title == "Release notes"
+
+
+def test_main_content_uses_articles_when_there_is_no_main_element():
+    page = (
+        "<body><div>Menu</div><article><h2>First</h2><p>One</p></article>"
+        "<p>Ad</p><article><p>Two</p></article></body>"
+    )
+
+    assert main_content_to_text(page)[0] == "## First\n\nOne\n\nTwo"
+
+
+def test_main_content_without_main_or_article_drops_only_the_boilerplate():
+    page = "<body><nav>Menu</nav><h1>Hello</h1><p>World</p><footer>Bye</footer></body>"
+
+    assert main_content_to_text(page)[0] == "# Hello\n\nWorld"
+
+
+def test_main_content_falls_back_to_the_page_when_main_holds_only_boilerplate():
+    page = "<body><main><nav>Menu</nav></main><p>Real text</p></body>"
+
+    assert main_content_to_text(page)[0] == "Real text"
+
+
+def test_plain_html_to_text_still_keeps_navigation():
+    assert "Pricing" in html_to_text(WEB_PAGE)[0]
