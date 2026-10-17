@@ -61,7 +61,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 
 ## Milestone 0.7: More sources and deployment
 - [x] HTML loader (strip tags, keep headings)
-- [ ] DOCX loader
+- [x] DOCX loader
 - [ ] Web page loader (fetch URL, extract main content)
 - [ ] Watch mode: re-index a folder on file changes
 - [ ] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
