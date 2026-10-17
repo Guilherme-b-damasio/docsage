@@ -211,9 +211,12 @@ class Container:
     def _chunker(self) -> Chunker:
         settings = self._settings
         body = CHUNKERS[settings.chunker](settings.chunk_size, settings.chunk_overlap)
-        # HTML pages are loaded with their headings as Markdown lines, so both split alike.
+        # HTML pages and Word documents are loaded with their headings as Markdown lines,
+        # so all three split alike.
         by_headings = MarkdownChunker(body)
-        return ChunkerByType({"markdown": by_headings, "html": by_headings}, default=body)
+        return ChunkerByType(
+            {kind: by_headings for kind in ("markdown", "html", "docx")}, default=body
+        )
 
     def removal_service(self) -> RemovalService:
         return RemovalService(self._repository.load(), self._repository)

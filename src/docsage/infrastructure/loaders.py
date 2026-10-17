@@ -6,6 +6,7 @@ from pathlib import Path
 
 from docsage.domain.models import Document
 from docsage.domain.ports import DocumentLoader
+from docsage.infrastructure.docx_loader import DocxLoader
 from docsage.infrastructure.html_loader import HtmlLoader
 
 
@@ -57,4 +58,4 @@ def page_offsets(pages: list[str]) -> tuple[int, ...]:
 
 
 def default_loaders() -> list[DocumentLoader]:
-    return [PlainTextLoader(), PdfLoader(), HtmlLoader()]
+    return [PlainTextLoader(), PdfLoader(), HtmlLoader(), DocxLoader()]
