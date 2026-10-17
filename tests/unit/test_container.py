@@ -1,3 +1,4 @@
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -423,3 +424,28 @@ def test_html_pages_are_indexed_by_section(tmp_path):
 
     assert (report.documents, report.skipped) == (1, ())
     assert results[0].chunk.citation == f"{page}, Setup > Upgrade"
+
+
+def test_word_documents_are_indexed_by_section(tmp_path):
+    def heading(text, level):
+        style = f'<w:pPr><w:pStyle w:val="Heading{level}"/></w:pPr>'
+        return f"<w:p>{style}<w:r><w:t>{text}</w:t></w:r></w:p>"
+
+    def body(text):
+        return f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
+
+    document = tmp_path / "guide.docx"
+    with zipfile.ZipFile(document, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            f"<w:body>{heading('Setup', 1)}{body('Install the package.')}"
+            f"{heading('Upgrade', 2)}{body('Run the upgrade command.')}</w:body></w:document>",
+        )
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+
+    report = container.indexing_service().index([document])
+    results = container.search_service().search("upgrade command", top_k=1)
+
+    assert (report.documents, report.skipped) == (1, ())
+    assert results[0].chunk.citation == f"{document}, Setup > Upgrade"
