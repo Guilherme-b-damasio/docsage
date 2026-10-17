@@ -11,6 +11,7 @@ docsage index ./docs
 docsage search "how is the index persisted?"
 docsage ask "what chunking strategy does the project use?"
 docsage chat                         # follow-up questions keep the conversation
+docsage index https://example.com/guide   # web pages too: main content only
 docsage remove ./docs/old-notes.md   # or a whole folder
 docsage stats                        # documents, chunks, top terms, index size
 ```
@@ -29,6 +30,15 @@ output and in the passages sent to Claude.
 
 Re-running `index` only processes files whose content changed since the last run;
 pass `--force` to rebuild every document.
+
+`index` also takes `http://` and `https://` URLs, mixed with paths. The page is fetched
+with the standard library (up to 5 MB, 15 s timeout), and for HTML only the main content
+is kept: the `<main>` element, or the `<article>` elements without one, with navigation,
+headers, footers, sidebars and forms dropped. It then splits on its headings like a local
+page and is cited by URL (`https://example.com/guide, Setup > Install`). Markdown and
+plain-text URLs are kept as they are. Pages that cannot be fetched are listed as failed
+(and `index` exits with 1) while the rest is still indexed; `docsage remove <url>` drops
+a page and every indexed page below that URL. The dashboard counts them as `web`.
 
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
@@ -219,6 +229,8 @@ The server offers these tools:
 | `ask_documents`    | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
+| `index_url`        | fetch a web page and index its main content               |
+| `remove_url`       | drop a web page, and the pages below that URL             |
 | `index_stats`      | documents, chunks, top terms and index size               |
 | `index_dashboard`  | charts of file types, chunk lengths, top terms, related documents and the chunk map |
 
