@@ -30,6 +30,7 @@ from docsage.domain.ports import (
     EvaluationRenderer,
     Reranker,
     Retriever,
+    UrlLoader,
 )
 from docsage.infrastructure.bm25 import BM25Retriever, JsonIndexRepository
 from docsage.infrastructure.chunking import (
@@ -61,6 +62,7 @@ from docsage.infrastructure.reranking import RerankingRetriever
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
+from docsage.infrastructure.web_loader import WebPageLoader
 
 DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
 
@@ -151,13 +153,16 @@ class Container:
         generator: AnswerGenerator | None = None,
         embedder: Embedder | None = None,
         reranker: Reranker | None = None,
+        url_loader: UrlLoader | None = None,
     ) -> None:
-        """``generator``, ``embedder`` and ``reranker`` replace the Claude adapters and the
-        local embedding model, e.g. with offline fakes in tests."""
+        """``generator``, ``embedder``, ``reranker`` and ``url_loader`` replace the Claude
+        adapters, the local embedding model and the web fetcher, e.g. with offline fakes
+        in tests."""
         self._settings = settings
         self._generator = generator
         self._embedder = embedder
         self._reranker = reranker
+        self._url_loader = url_loader
         self._tokenizer = multilingual_tokenizer()
         self._highlighter = TermHighlighter(self._tokenizer)
         self._repository = JsonIndexRepository(settings.index_path, self._new_retriever)
@@ -206,6 +211,7 @@ class Container:
             chunker=self._chunker(),
             retriever=self._repository.load(),
             repository=self._repository,
+            url_loader=self._url_loader or WebPageLoader(),
         )
 
     def _chunker(self) -> Chunker:
