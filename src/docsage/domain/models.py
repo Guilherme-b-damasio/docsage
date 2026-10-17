@@ -5,10 +5,17 @@ from __future__ import annotations
 from bisect import bisect_right
 from dataclasses import dataclass, field
 
+WEB_SCHEMES = ("http://", "https://")
+
+
+def is_url(source: str) -> bool:
+    """True for a web page address, which is indexed by URL instead of by path."""
+    return source.lower().startswith(WEB_SCHEMES)
+
 
 @dataclass(frozen=True)
 class Document:
-    """A source document loaded from disk."""
+    """A source document loaded from disk or fetched from the web."""
 
     source: str
     text: str
