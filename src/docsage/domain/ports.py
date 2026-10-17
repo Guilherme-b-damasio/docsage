@@ -32,6 +32,15 @@ class DocumentLoader(Protocol):
     def load(self, path: Path) -> Document: ...
 
 
+class UrlLoader(Protocol):
+    """Fetches one web page into a ``Document`` whose source is the page's URL."""
+
+    def load(self, url: str) -> Document:
+        """Raises ``OSError`` when the page cannot be fetched and ``ValueError`` when
+        its content cannot be indexed."""
+        ...
+
+
 class Chunker(Protocol):
     """Splits a document into retrievable chunks."""
 

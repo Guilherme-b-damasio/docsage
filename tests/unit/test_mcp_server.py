@@ -26,6 +26,7 @@ from docsage.infrastructure.html_report import HtmlAnswerRenderer  # noqa: E402
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY  # noqa: E402
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
+from docsage.infrastructure.web_loader import FetchedPage, WebPageLoader  # noqa: E402
 from docsage.interfaces.mcp_server import (  # noqa: E402
     PREVIEW_CHARACTERS,
     build_server,
@@ -560,3 +561,57 @@ def test_ask_documents_reports_usage_in_text_and_structured_output():
     )
     assert result.structured_content["usage"]["input_tokens"] == 1000
     assert result.structured_content["cost_usd"] is None
+
+
+def _web_container(tmp_path, pages):
+    def fetch(url):
+        if url not in pages:
+            raise OSError("connection refused")
+        return FetchedPage(url, "text/html", "utf-8", pages[url].encode())
+
+    return Container(
+        Settings(index_path=tmp_path / "index.json"), url_loader=WebPageLoader(fetch)
+    )
+
+
+def test_index_url_and_remove_url_against_a_real_container(tmp_path):
+    services = _web_container(
+        tmp_path, {"https://x.io/docs/a": "<nav>Menu</nav><main><p>gamma rays</p></main>"}
+    )
+
+    indexed = call(services, "index_url", {"url": "https://x.io/docs/a"})
+    assert text_of(indexed).startswith("Indexed 1 documents into 1 chunks.")
+    assert indexed.structured_content["failed"] == []
+    assert "https://x.io/docs/a" in text_of(
+        call(services, "search_documents", {"query": "gamma"})
+    )
+
+    removed = text_of(call(services, "remove_url", {"url": "https://x.io/docs"}))
+    assert removed.startswith("Removed 1 documents (1 chunks):")
+
+
+def test_index_url_reports_unreachable_pages_as_errors(tmp_path):
+    result = call(_web_container(tmp_path, {}), "index_url", {"url": "https://x.io/down"})
+
+    assert result.is_error
+    assert "connection refused" in text_of(result)
+
+
+def test_url_tools_reject_addresses_that_are_not_http(tmp_path):
+    services = _web_container(tmp_path, {})
+
+    for tool in ("index_url", "remove_url"):
+        result = call(services, tool, {"url": "file:///etc/passwd"})
+        assert result.is_error
+        assert "not an http(s) URL" in text_of(result)
+
+
+def test_index_url_is_marked_open_world():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            return await client.list_tools()
+
+    tools = {tool.name: tool for tool in asyncio.run(run()).tools}
+
+    assert tools["index_url"].annotations.open_world_hint is True
+    assert tools["remove_url"].annotations.destructive_hint is True

@@ -94,11 +94,15 @@ The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only 
 | `ask_documents`    | `question`, `top_k`        | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
+| `index_url`        | `url`, `force`             | fetch a web page and index its main content               |
+| `remove_url`       | `url`                      | drop a web page, and the pages below that URL             |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
 | `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms and related documents |
 
 Relative `path` arguments are resolved from the server's working directory, which the
-client chooses, so prefer absolute paths.
+client chooses, so prefer absolute paths. `index_url` fetches any http(s) address the
+client passes, from the machine the server runs on; keep that in mind before exposing
+the HTTP transport beyond your own machine.
 
 ### Structured output
 
@@ -111,8 +115,10 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 | ------------------ | ----------------------------------------------------------------------- |
 | `search_documents` | `query`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
 | `ask_documents`    | `question`, `answer`, `sources[]` ranked like search results            |
-| `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`                         |
+| `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`, `failed[]`             |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
+| `index_url`        | same as `index_path`                                                    |
+| `remove_url`       | same as `remove_path`                                                   |
 | `index_stats`      | `documents`, `chunks`, `terms`, `vocabulary`, `top_terms[]`, `index_bytes` |
 | `index_dashboard`  | the `index_stats` fields plus `documents_by_type[]`, `chunk_lengths[]` (`low`, `high`, `chunks`) and `relations[]` (`first`, `second`, `shared_terms[]`) |
 

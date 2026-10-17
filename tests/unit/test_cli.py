@@ -648,3 +648,51 @@ def test_ask_json_includes_usage_and_cost(tmp_path, capsys, monkeypatch):
     payload = json.loads(out[out.index("{") :])
     assert payload["usage"]["cache_read_input_tokens"] == 800
     assert payload["cost_usd"] == 0.01096
+
+
+def _fake_web(monkeypatch, pages):
+    from docsage.container import Container
+    from docsage.infrastructure.web_loader import FetchedPage, WebPageLoader
+    from docsage.interfaces import cli
+
+    def fetch(url):
+        if url not in pages:
+            raise OSError("connection refused")
+        return FetchedPage(url, "text/html", "utf-8", pages[url].encode())
+
+    loader = WebPageLoader(fetch)
+    monkeypatch.setattr(cli, "Container", lambda settings: Container(settings, url_loader=loader))
+
+
+def test_index_command_takes_urls_alongside_paths(tmp_path, capsys, monkeypatch):
+    _fake_web(monkeypatch, {"https://x.io/guide": "<main><p>gamma rays</p></main>"})
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+
+    code = main(["--index", str(index), "index", str(tmp_path / "a.md"), "https://x.io/guide"])
+
+    assert code == 0
+    assert "Indexed 2 documents into 2 chunks." in capsys.readouterr().out
+    assert main(["--index", str(index), "search", "gamma"]) == 0
+    assert "https://x.io/guide" in capsys.readouterr().out
+
+
+def test_index_command_reports_unreachable_urls_and_fails(tmp_path, capsys, monkeypatch):
+    _fake_web(monkeypatch, {})
+
+    code = main(["--index", str(tmp_path / "index.json"), "index", "https://x.io/down"])
+
+    assert code == 1
+    assert "failed: https://x.io/down: connection refused" in capsys.readouterr().err
+
+
+def test_remove_command_drops_web_pages_by_url(tmp_path, capsys, monkeypatch):
+    _fake_web(
+        monkeypatch,
+        {"https://x.io/docs/a": "<p>alpha</p>", "https://x.io/docs/b": "<p>beta</p>"},
+    )
+    index = tmp_path / "index.json"
+    main(["--index", str(index), "index", "https://x.io/docs/a", "https://x.io/docs/b"])
+
+    assert main(["--index", str(index), "remove", "https://x.io/docs"]) == 0
+    assert "Removed 2 documents (2 chunks)." in capsys.readouterr().out

@@ -7,7 +7,7 @@ import logging
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 from pathlib import Path
 
@@ -24,6 +24,7 @@ from docsage.domain.models import (
     HistogramBin,
     IndexOverview,
     SearchResult,
+    is_url,
 )
 from docsage.domain.ports import (
     AnswerGenerator,
@@ -40,6 +41,7 @@ from docsage.domain.ports import (
     Retriever,
     StreamingAnswerGenerator,
     TextTokenizer,
+    UrlLoader,
     UsageReportingGenerator,
 )
 
@@ -58,10 +60,22 @@ class IndexingReport:
     chunks: int
     skipped: tuple[str, ...]
     unchanged: int = 0
+    failed: tuple[tuple[str, str], ...] = ()
+    """Web pages that could not be indexed, as ``(url, reason)`` pairs."""
+
+    def combined_with(self, other: IndexingReport) -> IndexingReport:
+        """The totals of two indexing runs, e.g. of local files and of web pages."""
+        return IndexingReport(
+            self.documents + other.documents,
+            self.chunks + other.chunks,
+            self.skipped + other.skipped,
+            self.unchanged + other.unchanged,
+            self.failed + other.failed,
+        )
 
 
 class IndexingService:
-    """Loads files, splits them into chunks and stores them in the index."""
+    """Loads files or web pages, splits them into chunks and stores them in the index."""
 
     def __init__(
         self,
@@ -69,53 +83,78 @@ class IndexingService:
         chunker: Chunker,
         retriever: Retriever,
         repository: IndexRepository,
+        url_loader: UrlLoader | None = None,
     ) -> None:
+        """Without a ``url_loader``, ``index_urls`` reports every URL as failed."""
         self._loaders = loaders
         self._chunker = chunker
         self._retriever = retriever
         self._repository = repository
+        self._url_loader = url_loader
 
     def index(self, paths: Iterable[Path], force: bool = False) -> IndexingReport:
         """Indexes ``paths``; files whose content is already indexed are skipped
         unless ``force`` is set."""
-        known = {} if force else self._known_hashes()
-        documents = chunks = unchanged = 0
-        skipped: list[str] = []
+        run = _IndexingRun({} if force else self._known_hashes())
         for path in paths:
             try:
                 document = self._load(path)
             except UnsupportedFileError:
                 logger.debug("skipped unsupported file", extra={"path": str(path)})
-                skipped.append(str(path))
+                run.skipped.append(str(path))
                 continue
-            digest = content_hash(document)
-            if known.get(document.source) == digest:
-                logger.debug("skipped unchanged document", extra={"source": document.source})
-                unchanged += 1
+            self._store(document, run)
+        return self._finish(run)
+
+    def index_urls(self, urls: Iterable[str], force: bool = False) -> IndexingReport:
+        """Fetches and indexes web pages; pages whose content is already indexed are
+        skipped unless ``force`` is set. A page that cannot be fetched or read is
+        reported in ``failed`` and the others are still indexed."""
+        run = _IndexingRun({} if force else self._known_hashes())
+        for url in urls:
+            try:
+                document = self._fetch(url)
+            except (OSError, ValueError) as error:
+                logger.warning("could not index page", extra={"url": url, "error": str(error)})
+                run.failed.append((url, str(error) or type(error).__name__))
                 continue
-            new_chunks = [
-                replace(chunk, content_hash=digest) for chunk in self._chunker.split(document)
-            ]
-            self._retriever.remove(document.source)
-            self._retriever.add(new_chunks)
-            logger.debug(
-                "indexed document",
-                extra={"source": document.source, "chunks": len(new_chunks)},
-            )
-            documents += 1
-            chunks += len(new_chunks)
-        if documents:
+            self._store(document, run)
+        return self._finish(run)
+
+    def _store(self, document: Document, run: _IndexingRun) -> None:
+        digest = content_hash(document)
+        if run.known.get(document.source) == digest:
+            logger.debug("skipped unchanged document", extra={"source": document.source})
+            run.unchanged += 1
+            return
+        new_chunks = [
+            replace(chunk, content_hash=digest) for chunk in self._chunker.split(document)
+        ]
+        self._retriever.remove(document.source)
+        self._retriever.add(new_chunks)
+        logger.debug(
+            "indexed document",
+            extra={"source": document.source, "chunks": len(new_chunks)},
+        )
+        run.documents += 1
+        run.chunks += len(new_chunks)
+
+    def _finish(self, run: _IndexingRun) -> IndexingReport:
+        if run.documents:
             self._repository.save(self._retriever)
         logger.info(
             "indexing finished",
             extra={
-                "documents": documents,
-                "chunks": chunks,
-                "unchanged": unchanged,
-                "skipped": len(skipped),
+                "documents": run.documents,
+                "chunks": run.chunks,
+                "unchanged": run.unchanged,
+                "skipped": len(run.skipped),
+                "failed": len(run.failed),
             },
         )
-        return IndexingReport(documents, chunks, tuple(skipped), unchanged)
+        return IndexingReport(
+            run.documents, run.chunks, tuple(run.skipped), run.unchanged, tuple(run.failed)
+        )
 
     def _known_hashes(self) -> dict[str, str]:
         return {chunk.source: chunk.content_hash for chunk in self._retriever.chunks()}
@@ -126,6 +165,23 @@ class IndexingService:
                 return loader.load(path)
         raise UnsupportedFileError(f"No loader for {path.suffix or path.name}")
 
+    def _fetch(self, url: str) -> Document:
+        if self._url_loader is None:
+            raise ValueError("Indexing web pages is not configured")
+        return self._url_loader.load(url)
+
+
+@dataclass
+class _IndexingRun:
+    """Counts what one ``index`` or ``index_urls`` call did."""
+
+    known: dict[str, str]
+    documents: int = 0
+    chunks: int = 0
+    unchanged: int = 0
+    skipped: list[str] = field(default_factory=list)
+    failed: list[tuple[str, str]] = field(default_factory=list)
+
 
 @dataclass(frozen=True)
 class RemovalReport:
@@ -134,19 +190,39 @@ class RemovalReport:
 
 
 class RemovalService:
-    """Drops a file, or every file under a folder, from the index."""
+    """Drops a file, every file under a folder, or web pages from the index."""
 
     def __init__(self, retriever: Retriever, repository: IndexRepository) -> None:
         self._retriever = retriever
         self._repository = repository
 
     def remove(self, path: Path) -> RemovalReport:
-        sources = sorted({chunk.source for chunk in self._retriever.chunks()})
-        matched = tuple(source for source in sources if _is_within(Path(source), path))
+        matched = tuple(
+            source
+            for source in self._sources()
+            if not is_url(source) and _is_within(Path(source), path)
+        )
+        return self._drop(str(path), matched)
+
+    def remove_url(self, url: str) -> RemovalReport:
+        """Drops the page at ``url`` and every indexed page below it
+        (``https://example.com/docs`` also drops ``https://example.com/docs/setup``)."""
+        prefix = url.rstrip("/") + "/"
+        matched = tuple(
+            source
+            for source in self._sources()
+            if is_url(source) and (source == url or source.startswith(prefix))
+        )
+        return self._drop(url, matched)
+
+    def _sources(self) -> list[str]:
+        return sorted({chunk.source for chunk in self._retriever.chunks()})
+
+    def _drop(self, target: str, matched: tuple[str, ...]) -> RemovalReport:
         chunks = sum(self._retriever.remove(source) for source in matched)
         logger.info(
             "removal finished",
-            extra={"path": str(path), "documents": len(matched), "chunks": chunks},
+            extra={"path": target, "documents": len(matched), "chunks": chunks},
         )
         if matched:
             self._repository.save(self._retriever)
@@ -539,7 +615,10 @@ class DashboardService:
 
 
 def file_type(source: str) -> str:
-    """Lower-case extension without the dot, e.g. ``md``; ``other`` when there is none."""
+    """Lower-case extension without the dot, e.g. ``md``; ``other`` when there is none
+    and ``web`` for pages indexed by URL."""
+    if is_url(source):
+        return "web"
     return Path(source).suffix.lower().lstrip(".") or "other"
 
 

@@ -395,3 +395,103 @@ def test_answers_without_context_cost_nothing():
 
     assert answer.usage is None
     assert estimator.priced == []
+
+
+class FakeUrlLoader:
+    def __init__(self, pages):
+        self.pages = pages
+        self.calls = []
+
+    def load(self, url):
+        self.calls.append(url)
+        page = self.pages[url]
+        if isinstance(page, Exception):
+            raise page
+        return Document(source=url, text=page, metadata={"type": "html"})
+
+
+def _url_service(pages, retriever=None, repository=None):
+    loader = FakeUrlLoader(pages)
+    service = IndexingService(
+        [PlainTextLoader()],
+        SlidingWindowChunker(),
+        BM25Retriever() if retriever is None else retriever,
+        repository or InMemoryRepository(),
+        url_loader=loader,
+    )
+    return service, loader
+
+
+def test_index_urls_stores_each_fetched_page_under_its_url():
+    retriever = BM25Retriever()
+    service, _ = _url_service({"https://x.io/a": "alpha page"}, retriever)
+
+    report = service.index_urls(["https://x.io/a"])
+
+    assert (report.documents, report.chunks, report.failed) == (1, 1, ())
+    assert [chunk.source for chunk in retriever.chunks()] == ["https://x.io/a"]
+
+
+def test_index_urls_reports_pages_that_fail_and_indexes_the_rest():
+    repository = InMemoryRepository()
+    service, _ = _url_service(
+        {
+            "https://x.io/down": OSError("connection refused"),
+            "https://x.io/img": ValueError("Cannot index image/png content"),
+            "https://x.io/ok": "fine",
+        },
+        repository=repository,
+    )
+
+    report = service.index_urls(["https://x.io/down", "https://x.io/img", "https://x.io/ok"])
+
+    assert report.documents == 1
+    assert report.failed == (
+        ("https://x.io/down", "connection refused"),
+        ("https://x.io/img", "Cannot index image/png content"),
+    )
+    assert repository.saved is not None
+
+
+def test_index_urls_skips_unchanged_pages_unless_forced():
+    service, _ = _url_service({"https://x.io/a": "alpha"})
+    service.index_urls(["https://x.io/a"])
+
+    assert service.index_urls(["https://x.io/a"]).unchanged == 1
+    assert service.index_urls(["https://x.io/a"], force=True).documents == 1
+
+
+def test_index_urls_without_a_url_loader_fails_every_url():
+    service = IndexingService(
+        [PlainTextLoader()], SlidingWindowChunker(), BM25Retriever(), InMemoryRepository()
+    )
+
+    report = service.index_urls(["https://x.io/a"])
+
+    assert report.documents == 0
+    assert report.failed == (("https://x.io/a", "Indexing web pages is not configured"),)
+
+
+def test_remove_url_drops_the_page_and_the_pages_below_it():
+    retriever = _indexed(
+        "https://x.io/docs", "https://x.io/docs/setup", "https://x.io/docs-old", "docs/a.md"
+    )
+
+    report = RemovalService(retriever, InMemoryRepository()).remove_url("https://x.io/docs/")
+
+    assert report.documents == ("https://x.io/docs/setup",)
+    report = RemovalService(retriever, InMemoryRepository()).remove_url("https://x.io/docs")
+    assert report.documents == ("https://x.io/docs",)
+    assert sorted(chunk.source for chunk in retriever.chunks()) == [
+        "docs/a.md",
+        "https://x.io/docs-old",
+    ]
+
+
+def test_removing_a_path_never_drops_web_pages():
+    retriever = _indexed("https://x.io/a")
+
+    report = RemovalService(retriever, InMemoryRepository()).remove(Path("https:"))
+
+    assert report.documents == ()
+    assert len(retriever) == 1

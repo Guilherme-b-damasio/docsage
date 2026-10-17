@@ -33,7 +33,7 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.models import Answer, Chunk, SearchResult
+from docsage.domain.models import Answer, Chunk, SearchResult, is_url
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
@@ -65,7 +65,8 @@ ANSWER_VIEW_URI = "ui://docsage/answer-report"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
-    "index_path adds files or folders, remove_path drops them, index_stats summarizes "
+    "index_path adds files or folders, remove_path drops them, index_url and remove_url "
+    "do the same for web pages, index_stats summarizes "
     "and index_dashboard charts the index. "
     f"Read {DOCUMENTS_URI} to list indexed documents and their chunk ids, and "
     f"{CHUNK_URI_TEMPLATE} for the full text of one chunk. The summarize_document and "
@@ -164,6 +165,35 @@ def build_server(services: ServiceProvider) -> MCPServer:
         target = _existing_path(path)
         report = services.indexing_service().index(expand_paths([target]), force=force)
         return _result(format_indexing_report(report), indexing_report_to_dict(report))
+
+    @server.tool(
+        title="Index URL",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True
+        ),
+    )
+    def index_url(url: str, force: bool = False) -> Annotated[CallToolResult, IndexingOutput]:
+        """Fetch a web page (http or https) and index its main content.
+
+        Navigation, headers and footers are dropped and the page is split on its
+        headings; the URL becomes the citation. A page whose content has not changed
+        since the last run is skipped unless force is true.
+        """
+        report = services.indexing_service().index_urls([_web_address(url)], force=force)
+        if report.failed:
+            raise ToolError(f"Could not index {url}: {report.failed[0][1]}")
+        return _result(format_indexing_report(report), indexing_report_to_dict(report))
+
+    @server.tool(
+        title="Remove URL",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=True, idempotent_hint=True
+        ),
+    )
+    def remove_url(url: str) -> Annotated[CallToolResult, RemovalOutput]:
+        """Drop an indexed web page, and every indexed page below that URL, from the index."""
+        report = services.removal_service().remove_url(_web_address(url))
+        return _result(format_removal_report(url, report), removal_report_to_dict(url, report))
 
     @server.tool(
         title="Remove path",
@@ -325,6 +355,9 @@ def format_indexing_report(report: IndexingReport) -> str:
     if report.skipped:
         lines.append(f"Skipped {len(report.skipped)} unsupported files:")
         lines.extend(f"  {path}" for path in report.skipped)
+    if report.failed:
+        lines.append(f"Could not index {len(report.failed)} pages:")
+        lines.extend(f"  {url}: {reason}" for url, reason in report.failed)
     return "\n".join(lines)
 
 
@@ -382,6 +415,12 @@ def _existing_path(path: str) -> Path:
     if not target.exists():
         raise ToolError(f"{path} does not exist")
     return target
+
+
+def _web_address(url: str) -> str:
+    if not is_url(_require(url, "url")):
+        raise ToolError(f"{url} is not an http(s) URL")
+    return url
 
 
 def _preview(text: str) -> str:

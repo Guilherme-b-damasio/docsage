@@ -5,6 +5,7 @@ import pytest
 
 from docsage.container import DEFAULT_INDEX_PATH, Container, Settings, load_settings
 from docsage.domain.models import TokenUsage
+from docsage.infrastructure.web_loader import FetchedPage, WebPageLoader
 
 
 def test_defaults_without_config():
@@ -449,3 +450,19 @@ def test_word_documents_are_indexed_by_section(tmp_path):
 
     assert (report.documents, report.skipped) == (1, ())
     assert results[0].chunk.citation == f"{document}, Setup > Upgrade"
+
+
+def test_web_pages_are_indexed_by_section_under_their_url(tmp_path):
+    page = (
+        "<html><body><nav>Home Pricing</nav><main><h1>Setup</h1><p>Install it.</p>"
+        "<h2>Upgrade</h2><p>Run the upgrade command.</p></main></body></html>"
+    )
+    loader = WebPageLoader(lambda url: FetchedPage(url, "text/html", "utf-8", page.encode()))
+    container = Container(Settings(index_path=tmp_path / "index.json"), url_loader=loader)
+
+    report = container.indexing_service().index_urls(["https://x.io/guide"])
+    results = container.search_service().search("upgrade command", top_k=1)
+
+    assert (report.documents, report.failed) == (1, ())
+    assert results[0].chunk.citation == "https://x.io/guide, Setup > Upgrade"
+    assert container.search_service().search("pricing", top_k=1) == []

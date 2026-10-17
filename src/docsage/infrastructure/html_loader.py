@@ -30,6 +30,12 @@ BLOCKS = frozenset(
 
 CELLS = frozenset({"td", "th"})
 
+BOILERPLATE = frozenset({"nav", "header", "footer", "aside", "form", "dialog"})
+"""Page chrome around a web page's main content: menus, banners, sidebars, forms."""
+
+MAIN_SCOPES = ("main", "article")
+"""Elements that hold a web page's main content, most specific last."""
+
 _SPACES = re.compile(r"\s+")
 _LOOKS_LIKE_HEADING = re.compile(r"^#{1,6}[ \t]")
 
@@ -53,15 +59,55 @@ class HtmlLoader:
 
 def html_to_text(html: str) -> tuple[str, str]:
     """Returns the visible text of ``html`` as Markdown-like text, and the page title."""
-    parser = _TextExtractor()
+    return _extract(html, _TextExtractor())
+
+
+def main_content_to_text(html: str) -> tuple[str, str]:
+    """Like ``html_to_text`` but keeps only a web page's main content.
+
+    Text inside ``<main>`` (or, without one, inside ``<article>`` elements) is kept;
+    navigation, headers, footers, sidebars and forms are dropped either way. A page
+    with neither element keeps all of its non-boilerplate text.
+    """
+    scope = next((tag for tag in MAIN_SCOPES if _has_element(html, tag)), None)
+    text, title = _extract(html, _TextExtractor(SKIPPED | BOILERPLATE, scope))
+    if not text and scope is not None:
+        # The main element held only boilerplate: fall back to the rest of the page.
+        text, title = _extract(html, _TextExtractor(SKIPPED | BOILERPLATE))
+    return text, title
+
+
+def _extract(html: str, parser: _TextExtractor) -> tuple[str, str]:
     parser.feed(html)
     parser.close()
     return parser.text(), parser.title
 
 
-class _TextExtractor(HTMLParser):
-    def __init__(self) -> None:
+def _has_element(html: str, tag: str) -> bool:
+    finder = _ElementFinder(tag)
+    finder.feed(html)
+    finder.close()
+    return finder.found
+
+
+class _ElementFinder(HTMLParser):
+    def __init__(self, tag: str) -> None:
         super().__init__(convert_charrefs=True)
+        self._tag = tag
+        self.found = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.found = self.found or tag == self._tag
+
+
+class _TextExtractor(HTMLParser):
+    def __init__(self, skipped: frozenset[str] = SKIPPED, scope: str | None = None) -> None:
+        """Drops the content of ``skipped`` elements; with a ``scope`` tag, text outside
+        every ``scope`` element is dropped as well (the page title is always read)."""
+        super().__init__(convert_charrefs=True)
+        self._skipped = skipped
+        self._scope = scope
+        self._scope_depth = 0
         self.title = ""
         self._blocks: list[str] = []
         self._line: list[str] = []
@@ -71,7 +117,10 @@ class _TextExtractor(HTMLParser):
         self._in_pre = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in SKIPPED:
+        if tag == self._scope:
+            self._flush()
+            self._scope_depth += 1
+        elif tag in self._skipped:
             self._skipping += 1
         elif tag == "title":
             self._in_title = True
@@ -91,7 +140,10 @@ class _TextExtractor(HTMLParser):
             self._flush()
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in SKIPPED:
+        if tag == self._scope:
+            self._flush()
+            self._scope_depth = max(0, self._scope_depth - 1)
+        elif tag in self._skipped:
             self._skipping = max(0, self._skipping - 1)
         elif tag == "title":
             self._in_title = False
@@ -114,7 +166,7 @@ class _TextExtractor(HTMLParser):
             return
         if self._in_title:
             self.title = _collapse(self.title + " " + data)
-        else:
+        elif self._scope is None or self._scope_depth:
             self._line.append(data)
 
     def text(self) -> str:
