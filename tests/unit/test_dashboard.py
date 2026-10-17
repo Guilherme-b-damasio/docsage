@@ -48,6 +48,10 @@ def test_file_type_uses_the_lowercase_extension():
     assert file_type("Makefile") == "other"
 
 
+def test_file_type_of_a_web_page_is_web():
+    assert file_type("https://example.com/guide.html") == "web"
+
+
 def test_histogram_keeps_empty_ranges_and_covers_every_value():
     bins = histogram([1, 2, 3, 10], 3)
 
