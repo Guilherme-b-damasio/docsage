@@ -19,7 +19,7 @@ from docsage.container import (
     Container,
     load_settings,
 )
-from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult
+from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult, is_url
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
@@ -100,8 +100,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(required=True)
 
-    index = commands.add_parser("index", help="index files or folders")
-    index.add_argument("paths", nargs="+", type=Path)
+    index = commands.add_parser("index", help="index files, folders or web pages")
+    index.add_argument(
+        "paths", nargs="+", metavar="path_or_url", help="a file, a folder or an http(s) URL"
+    )
     index.add_argument(
         "--force", action="store_true", help="re-index files even if they have not changed"
     )
@@ -113,8 +115,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     index.set_defaults(handler=_index)
 
-    remove = commands.add_parser("remove", help="drop a file or folder from the index")
-    remove.add_argument("path", type=Path)
+    remove = commands.add_parser("remove", help="drop a file, folder or web page from the index")
+    remove.add_argument(
+        "path", metavar="path_or_url", help="a file, a folder, or a URL (also drops pages below it)"
+    )
     remove.set_defaults(handler=_remove)
 
     search = commands.add_parser("search", help="show the best matching chunks")
@@ -257,17 +261,25 @@ def _add_usage_argument(command: argparse.ArgumentParser) -> None:
 
 
 def _index(container: Container, args: argparse.Namespace) -> int:
-    report = container.indexing_service().index(expand_paths(args.paths), force=args.force)
+    service = container.indexing_service()
+    urls = [target for target in args.paths if is_url(target)]
+    paths = [Path(target) for target in args.paths if not is_url(target)]
+    report = service.index(expand_paths(paths), force=args.force)
+    if urls:
+        report = report.combined_with(service.index_urls(urls, force=args.force))
     print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
     if report.unchanged:
         print(f"Skipped {report.unchanged} unchanged documents (use --force to re-index).")
     for path in report.skipped:
         print(f"  skipped (unsupported): {path}", file=sys.stderr)
-    return 0
+    for url, reason in report.failed:
+        print(f"  failed: {url}: {reason}", file=sys.stderr)
+    return 1 if report.failed else 0
 
 
 def _remove(container: Container, args: argparse.Namespace) -> int:
-    report = container.removal_service().remove(args.path)
+    service = container.removal_service()
+    report = service.remove_url(args.path) if is_url(args.path) else service.remove(Path(args.path))
     if not report.documents:
         print(f"Nothing indexed under {args.path}.", file=sys.stderr)
         return 1

@@ -63,6 +63,16 @@ class IndexingReport:
     failed: tuple[tuple[str, str], ...] = ()
     """Web pages that could not be indexed, as ``(url, reason)`` pairs."""
 
+    def combined_with(self, other: IndexingReport) -> IndexingReport:
+        """The totals of two indexing runs, e.g. of local files and of web pages."""
+        return IndexingReport(
+            self.documents + other.documents,
+            self.chunks + other.chunks,
+            self.skipped + other.skipped,
+            self.unchanged + other.unchanged,
+            self.failed + other.failed,
+        )
+
 
 class IndexingService:
     """Loads files or web pages, splits them into chunks and stores them in the index."""
