@@ -301,6 +301,18 @@ curl "localhost:8000/search?q=chunk%20size&top_k=3"
 Only one indexing request writes at a time. `/ask` needs `ANTHROPIC_API_KEY` in the
 server's environment.
 
+#### Web UI
+
+The same server has a minimal web UI: open `http://127.0.0.1:8000/` in a browser. It is
+built from the visual renderers below, so every page is a self-contained HTML document
+that follows the system's light or dark mode:
+
+| Page | Shows |
+| --- | --- |
+| `/ui?q=...` | a search form and the ranked passages with highlights and score breakdowns |
+| `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
+| `/ui/dashboard` | the index dashboard |
+
 ### Visual reports
 
 An answer can be rendered as a single, self-contained HTML page: the question, the
