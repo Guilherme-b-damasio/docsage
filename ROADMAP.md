@@ -64,7 +64,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] DOCX loader
 - [x] Web page loader (fetch URL, extract main content)
 - [x] Watch mode: re-index a folder on file changes
-- [ ] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
+- [x] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
 - [ ] Minimal web UI reusing the HTML renderers
 - [ ] Dockerfile and docker-compose example
 - [ ] Publish to PyPI via GitHub Actions on release tags

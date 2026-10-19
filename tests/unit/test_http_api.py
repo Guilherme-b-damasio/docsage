@@ -1,0 +1,119 @@
+import pytest
+
+pytest.importorskip("fastapi")
+from fastapi.testclient import TestClient  # noqa: E402
+
+from docsage import __version__  # noqa: E402
+from docsage.container import Container, Settings  # noqa: E402
+from docsage.domain.models import TokenUsage  # noqa: E402
+from docsage.interfaces.http_api import build_app  # noqa: E402
+
+
+class FakeGenerator:
+    last_usage = TokenUsage("claude-opus-5-5", 100, 20)
+
+    def generate(self, question, context):
+        return f"Alpha is described in [1]. ({len(context)} passages)"
+
+
+class FakeUrlLoader:
+    def load(self, url):
+        raise OSError("offline")
+
+
+@pytest.fixture
+def docs(tmp_path):
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    (folder / "a.md").write_text("# Alpha\n\nalpha notes about retrieval", encoding="utf-8")
+    (folder / "b.md").write_text("beta notes", encoding="utf-8")
+    return folder
+
+
+@pytest.fixture
+def client(tmp_path):
+    settings = Settings(index_path=tmp_path / "index.json")
+    container = Container(settings, FakeGenerator(), url_loader=FakeUrlLoader())
+    return TestClient(build_app(container))
+
+
+def test_health(client):
+    assert client.get("/health").json() == {"status": "ok", "version": __version__}
+
+
+def test_index_then_search(client, docs):
+    response = client.post("/index", json={"targets": [str(docs)]})
+
+    assert response.status_code == 200
+    assert response.json()["documents"] == 2
+
+    results = client.get("/search", params={"q": "alpha", "top_k": 1}).json()
+    assert results["query"] == "alpha"
+    assert [item["chunk"]["source"] for item in results["results"]] == [str(docs / "a.md")]
+    assert results["results"][0]["matched_terms"] == ["alpha"]
+
+
+def test_index_skips_unchanged_documents_unless_forced(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    assert client.post("/index", json={"targets": [str(docs)]}).json()["unchanged"] == 2
+    forced = client.post("/index", json={"targets": [str(docs)], "force": True}).json()
+    assert forced["documents"] == 2
+
+
+def test_index_reports_pages_that_fail_and_still_indexes_files(client, docs):
+    payload = client.post(
+        "/index", json={"targets": [str(docs / "a.md"), "https://example.com/guide"]}
+    ).json()
+
+    assert payload["documents"] == 1
+    assert payload["failed"] == [{"url": "https://example.com/guide", "reason": "offline"}]
+
+
+def test_index_rejects_missing_paths_and_empty_requests(client, tmp_path):
+    missing = client.post("/index", json={"targets": [str(tmp_path / "nope")]})
+    assert missing.status_code == 404
+    assert "No such file or folder" in missing.json()["detail"]
+
+    assert client.post("/index", json={"targets": []}).status_code == 422
+
+
+def test_search_validates_its_parameters(client):
+    assert client.get("/search").status_code == 422
+    assert client.get("/search", params={"q": "alpha", "top_k": 0}).status_code == 422
+    assert client.get("/search", params={"q": "alpha", "top_k": 51}).status_code == 422
+
+
+def test_search_on_an_empty_index_returns_no_results(client):
+    assert client.get("/search", params={"q": "alpha"}).json() == {
+        "query": "alpha",
+        "results": [],
+    }
+
+
+def test_ask_answers_with_sources_usage_and_cost(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    payload = client.post("/ask", json={"question": "what is alpha?", "top_k": 2}).json()
+
+    assert payload["question"] == "what is alpha?"
+    assert payload["answer"].startswith("Alpha is described in [1].")
+    assert payload["sources"][0]["chunk"]["source"] == str(docs / "a.md")
+    assert payload["usage"]["input_tokens"] == 100
+    assert payload["cost_usd"] is not None
+
+
+def test_ask_rejects_blank_questions_and_a_large_top_k(client):
+    assert client.post("/ask", json={"question": ""}).status_code == 422
+    assert client.post("/ask", json={"question": "   "}).status_code == 422
+    assert client.post("/ask", json={"question": "x", "top_k": 99}).status_code == 422
+
+
+def test_stats_summarizes_the_index(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    payload = client.get("/stats", params={"top": 2}).json()
+
+    assert (payload["documents"], payload["chunks"]) == (2, 2)
+    assert len(payload["top_terms"]) == 2
+    assert client.get("/stats", params={"top": -1}).status_code == 422

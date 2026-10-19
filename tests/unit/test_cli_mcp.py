@@ -156,3 +156,27 @@ def _wait_for_port(port, process, timeout=30.0):
         except OSError:
             time.sleep(0.1)
     pytest.fail(f"docsage mcp --http did not listen on port {port} within {timeout}s")
+
+
+def test_serve_command_runs_the_http_api_with_uvicorn(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("fastapi")
+    import uvicorn
+    from fastapi import FastAPI
+
+    runs = []
+    monkeypatch.setattr(uvicorn, "run", lambda app, **options: runs.append((app, options)))
+
+    index = str(tmp_path / "index.json")
+    assert cli.main(["--index", index, "serve", "--host", "0.0.0.0", "--port", "9000"]) == 0
+
+    app, options = runs[0]
+    assert isinstance(app, FastAPI)
+    assert options == {"host": "0.0.0.0", "port": 9000}
+    assert "http://0.0.0.0:9000" in capsys.readouterr().err
+
+
+def test_serve_command_explains_how_to_install_the_extra(tmp_path, monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "docsage.interfaces.http_api", None)
+
+    assert cli.main(["--index", str(tmp_path / "index.json"), "serve"]) == 2
+    assert 'pip install "docsage[api]"' in capsys.readouterr().err
