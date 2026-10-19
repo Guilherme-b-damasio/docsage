@@ -1,6 +1,9 @@
 """HTTP API. Thin layer like the CLI and the MCP server: validate the request, call a use
 case, return the shared JSON shapes from ``docsage.interfaces.serializers``.
 
+It also serves a minimal web UI under ``/ui`` built from the same HTML renderers as
+``docsage report`` and ``docsage dashboard``: a search page, answer reports and the dashboard.
+
 Requires the optional ``api`` extra (``pip install "docsage[api]"``).
 """
 
@@ -11,16 +14,21 @@ from pathlib import Path
 from typing import Annotated, Any, Protocol
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from docsage import __version__
 from docsage.application.services import (
+    AnswerReportService,
+    DashboardService,
     IndexingService,
     QuestionAnsweringService,
+    SearchReportService,
     SearchService,
     StatsService,
 )
 from docsage.domain.models import is_url
+from docsage.infrastructure.html_search import PageLinks
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
     answer_to_dict,
@@ -31,6 +39,8 @@ from docsage.interfaces.serializers import (
 
 MAX_TOP_K = 50
 MAX_TOP_TERMS = 100
+
+UI_LINKS = PageLinks(search="/ui", ask="/ui/ask", dashboard="/ui/dashboard")
 
 
 class ServiceProvider(Protocol):
@@ -43,6 +53,12 @@ class ServiceProvider(Protocol):
     def indexing_service(self) -> IndexingService: ...
 
     def stats_service(self) -> StatsService: ...
+
+    def search_report_service(self, links: PageLinks | None = None) -> SearchReportService: ...
+
+    def answer_report_service(self, report_format: str = "html") -> AnswerReportService: ...
+
+    def dashboard_service(self, dashboard_format: str = "html") -> DashboardService: ...
 
 
 class IndexRequest(BaseModel):
@@ -108,4 +124,36 @@ def build_app(services: ServiceProvider) -> FastAPI:
         answer = services.question_answering_service().ask(request.question, request.top_k)
         return answer_to_dict(answer)
 
+    _add_web_ui(app, services)
     return app
+
+
+def _add_web_ui(app: FastAPI, services: ServiceProvider) -> None:
+    """HTML pages for a browser; every page is self-contained and works offline."""
+
+    @app.get("/", include_in_schema=False)
+    def home() -> RedirectResponse:
+        return RedirectResponse(UI_LINKS.search)
+
+    @app.get("/ui", response_class=HTMLResponse, tags=["web UI"])
+    def search_page(
+        q: Annotated[str, Query(description="The query; empty shows only the form.")] = "",
+        top_k: Annotated[int, Query(ge=1, le=MAX_TOP_K)] = 5,
+    ) -> str:
+        """A search form and the ranked passages with highlights and score breakdowns."""
+        return services.search_report_service(UI_LINKS).report(q, top_k)
+
+    @app.get("/ui/ask", response_class=HTMLResponse, tags=["web UI"], response_model=None)
+    def answer_page(
+        q: Annotated[str, Query(description="The question.")] = "",
+        top_k: Annotated[int, Query(ge=1, le=MAX_TOP_K)] = 5,
+    ) -> str | RedirectResponse:
+        """The answer report: Claude's answer with its highlighted, cited passages."""
+        if not q.strip():
+            return RedirectResponse(UI_LINKS.search)
+        return services.answer_report_service("html").report(q.strip(), top_k).content
+
+    @app.get("/ui/dashboard", response_class=HTMLResponse, tags=["web UI"])
+    def dashboard_page() -> str:
+        """Documents per type, chunk lengths, top terms and document relationships."""
+        return services.dashboard_service("html").render()

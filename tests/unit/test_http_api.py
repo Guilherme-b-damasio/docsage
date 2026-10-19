@@ -117,3 +117,57 @@ def test_stats_summarizes_the_index(client, docs):
     assert (payload["documents"], payload["chunks"]) == (2, 2)
     assert len(payload["top_terms"]) == 2
     assert client.get("/stats", params={"top": -1}).status_code == 422
+
+
+def test_root_redirects_to_the_web_ui(client):
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/ui"
+
+
+def test_web_ui_home_shows_the_search_form(client):
+    response = client.get("/ui")
+
+    assert response.headers["content-type"].startswith("text/html")
+    assert '<form class="search" method="get" action="/ui"' in response.text
+    assert 'formaction="/ui/ask"' in response.text
+    assert '<a href="/ui/dashboard">Dashboard</a>' in response.text
+
+
+def test_web_ui_search_page_lists_highlighted_results(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    html = client.get("/ui", params={"q": "alpha"}).text
+
+    assert "1 matching passage" in html
+    assert '<mark title="alpha">' in html
+    assert 'value="alpha"' in html
+    assert client.get("/ui", params={"q": "alpha", "top_k": 0}).status_code == 422
+
+
+def test_web_ui_ask_renders_the_answer_report(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    response = client.get("/ui/ask", params={"q": "what is alpha?"})
+
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<h1>what is alpha?</h1>" in response.text
+    assert '<a class="cite" href="#source-1">[1]</a>' in response.text
+
+
+def test_web_ui_ask_without_a_question_goes_back_to_the_search_page(client):
+    response = client.get("/ui/ask", params={"q": "  "}, follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/ui"
+
+
+def test_web_ui_dashboard_renders_the_index_overview(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    response = client.get("/ui/dashboard")
+
+    assert response.status_code == 200
+    assert response.text.startswith("<!doctype html>")
+    assert "a.md" in response.text
