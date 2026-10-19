@@ -277,6 +277,30 @@ counts without parsing the text.
 [docs/mcp.md](docs/mcp.md) walks through the Claude Code, Claude Desktop and HTTP
 setup, with every tool's arguments and a troubleshooting list.
 
+### HTTP API
+
+`pip install -e ".[api]"` adds FastAPI and uvicorn, then `docsage serve` serves the index
+over HTTP at `http://127.0.0.1:8000` (`--host` and `--port` to change it; global options
+such as `--index`, `--retriever` and `--rerank` still apply). Responses use the same JSON
+shapes as `--json`, and interactive docs are at `/docs`:
+
+| Endpoint | Does |
+| --- | --- |
+| `POST /index` | `{"targets": ["docs/", "https://example.com/guide"], "force": false}`: index files, folders and pages |
+| `GET /search?q=...&top_k=5` | rank passages, with highlights and score breakdowns (no model call) |
+| `POST /ask` | `{"question": "...", "top_k": 5}`: answer with Claude, with sources, usage and cost |
+| `GET /stats?top=10` | summarize the index |
+| `GET /health` | liveness check |
+
+```bash
+docsage serve --port 8000
+curl -X POST localhost:8000/index -H "content-type: application/json" -d '{"targets": ["docs/"]}'
+curl "localhost:8000/search?q=chunk%20size&top_k=3"
+```
+
+Only one indexing request writes at a time. `/ask` needs `ANTHROPIC_API_KEY` in the
+server's environment.
+
 ### Visual reports
 
 An answer can be rendered as a single, self-contained HTML page: the question, the
