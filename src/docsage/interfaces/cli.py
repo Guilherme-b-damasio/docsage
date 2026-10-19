@@ -40,6 +40,7 @@ Handler = Callable[[Container, argparse.Namespace], int]
 DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 8765
 HTTP_PATH = "/mcp"
+DEFAULT_API_PORT = 8000
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -254,6 +255,24 @@ def _parser() -> argparse.ArgumentParser:
         help=f"HTTP port (default: {DEFAULT_HTTP_PORT})",
     )
     mcp.set_defaults(handler=_mcp)
+
+    serve = commands.add_parser(
+        "serve", help="serve /index, /search and /ask over HTTP (needs docsage[api])"
+    )
+    serve.add_argument(
+        "--host",
+        default=DEFAULT_HTTP_HOST,
+        help=f"bind address (default: {DEFAULT_HTTP_HOST})",
+    )
+    serve.add_argument(
+        "--port",
+        type=_port,
+        default=DEFAULT_API_PORT,
+        help=f"port (default: {DEFAULT_API_PORT})",
+    )
+    serve.add_argument("--model", default=None)
+    _add_style_arguments(serve)
+    serve.set_defaults(handler=_serve)
     return parser
 
 
@@ -512,6 +531,23 @@ def _interval(value: str) -> float:
     if seconds <= 0:
         raise argparse.ArgumentTypeError(f"interval must be positive, got {value}")
     return seconds
+
+
+def _serve(container: Container, args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+
+        from docsage.interfaces.http_api import build_app
+    except ImportError:
+        print('docsage: the HTTP API needs: pip install "docsage[api]"', file=sys.stderr)
+        return 2
+    print(
+        f"docsage: serving the HTTP API at http://{args.host}:{args.port} "
+        f"(docs at /docs, Ctrl-C to stop)",
+        file=sys.stderr,
+    )
+    uvicorn.run(build_app(container), host=args.host, port=args.port)
+    return 0
 
 
 def _port(value: str) -> int:
