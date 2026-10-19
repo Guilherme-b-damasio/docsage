@@ -40,6 +40,20 @@ plain-text URLs are kept as they are. Pages that cannot be fetched are listed as
 (and `index` exits with 1) while the rest is still indexed; `docsage remove <url>` drops
 a page and every indexed page below that URL. The dashboard counts them as `web`.
 
+`docsage watch <folder>...` indexes the folders like `index` and then keeps the index in
+sync while it runs: files that are created or edited are re-indexed, deleted files are
+dropped from the index, and unchanged files are skipped by their content hash. It polls
+the files every second (`--interval 0.5` to look more often), needs no extra packages,
+never looks inside the index's own folder, and stops with Ctrl-C:
+
+```bash
+docsage watch docs/ notes.md
+# Watching docs, notes.md for changes (Ctrl-C to stop).
+# Indexed 12 documents into 87 chunks.
+# Indexed 1 documents into 4 chunks.
+# Removed docs/old.md.
+```
+
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
 summary), handy for scripts and other tools. Each ranked chunk lists its

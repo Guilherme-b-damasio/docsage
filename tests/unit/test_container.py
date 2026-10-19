@@ -466,3 +466,39 @@ def test_web_pages_are_indexed_by_section_under_their_url(tmp_path):
     assert (report.documents, report.failed) == (1, ())
     assert results[0].chunk.citation == "https://x.io/guide, Setup > Upgrade"
     assert container.search_service().search("pricing", top_k=1) == []
+
+
+def test_watch_service_shares_one_index_between_indexing_and_removal(tmp_path):
+    from docsage.domain.models import FileChanges
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    a, b = docs / "a.md", docs / "b.md"
+    a.write_text("alpha notes", encoding="utf-8")
+    b.write_text("beta notes", encoding="utf-8")
+
+    class ScriptedWatcher:
+        def watch(self, roots):
+            yield FileChanges(changed=(a, b))
+            a.unlink()
+            yield FileChanges(removed=(a,))
+
+    settings = Settings(index_path=tmp_path / "index.json")
+    updates = list(Container(settings, watcher=ScriptedWatcher()).watch_service().watch([docs]))
+
+    assert [update.indexing.documents for update in updates] == [2, 0]
+    assert updates[1].removed == (str(a),)
+    sources = [document.source for document in Container(settings).catalog_service().documents()]
+    assert sources == [str(b)]
+
+
+def test_watch_service_polls_without_looking_inside_the_index_folder(tmp_path):
+    index_path = tmp_path / ".docsage" / "index.json"
+    index_path.parent.mkdir()
+    index_path.write_text('{"chunks": []}', encoding="utf-8")
+    (tmp_path / "a.md").write_text("alpha", encoding="utf-8")
+
+    service = Container(Settings(index_path=index_path)).watch_service(interval=0.1)
+    first = next(service.watch([tmp_path]))
+
+    assert first.changes.changed == (tmp_path / "a.md",)

@@ -6,7 +6,7 @@ import hashlib
 import logging
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from itertools import combinations
 from pathlib import Path
@@ -21,6 +21,7 @@ from docsage.domain.models import (
     DocumentRelation,
     EvaluationCase,
     EvaluationReport,
+    FileChanges,
     HistogramBin,
     IndexOverview,
     SearchResult,
@@ -36,6 +37,7 @@ from docsage.domain.ports import (
     DashboardRenderer,
     DocumentLoader,
     EvaluationRenderer,
+    FileWatcher,
     Highlighter,
     IndexRepository,
     Retriever,
@@ -227,6 +229,61 @@ class RemovalService:
         if matched:
             self._repository.save(self._retriever)
         return RemovalReport(matched, chunks)
+
+
+@dataclass(frozen=True)
+class WatchUpdate:
+    """What one batch of file changes did to the index."""
+
+    changes: FileChanges
+    indexing: IndexingReport
+    removed: tuple[str, ...] = ()
+    """Sources dropped because their file was deleted."""
+    removed_chunks: int = 0
+
+    def __bool__(self) -> bool:
+        """True when the index changed."""
+        return bool(self.indexing.documents or self.removed)
+
+
+class WatchService:
+    """Keeps the index in sync with folders: re-indexes changed files, drops deleted ones.
+
+    ``indexing`` and ``removal`` must share one retriever, or each would save over the
+    other's changes.
+    """
+
+    def __init__(
+        self, indexing: IndexingService, removal: RemovalService, watcher: FileWatcher
+    ) -> None:
+        self._indexing = indexing
+        self._removal = removal
+        self._watcher = watcher
+
+    def watch(self, roots: Sequence[Path]) -> Iterator[WatchUpdate]:
+        """Yields one update per batch of changes, forever (the first one covers the files
+        already there; unchanged ones are skipped by their content hash)."""
+        for changes in self._watcher.watch(roots):
+            yield self.apply(changes)
+
+    def apply(self, changes: FileChanges) -> WatchUpdate:
+        indexing = self._indexing.index(changes.changed)
+        removed: list[str] = []
+        chunks = 0
+        for path in changes.removed:
+            report = self._removal.remove(path)
+            removed.extend(report.documents)
+            chunks += report.chunks
+        logger.info(
+            "applied file changes",
+            extra={
+                "changed": len(changes.changed),
+                "deleted": len(changes.removed),
+                "indexed": indexing.documents,
+                "removed": len(removed),
+            },
+        )
+        return WatchUpdate(changes, indexing, tuple(removed), chunks)
 
 
 def _is_within(candidate: Path, target: Path) -> bool:

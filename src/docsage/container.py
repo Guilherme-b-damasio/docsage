@@ -18,6 +18,7 @@ from docsage.application.services import (
     RemovalService,
     SearchService,
     StatsService,
+    WatchService,
 )
 from docsage.domain.models import ANSWER_LENGTHS, AnswerStyle
 from docsage.domain.ports import (
@@ -28,6 +29,7 @@ from docsage.domain.ports import (
     DashboardRenderer,
     Embedder,
     EvaluationRenderer,
+    FileWatcher,
     Reranker,
     Retriever,
     UrlLoader,
@@ -62,6 +64,7 @@ from docsage.infrastructure.reranking import RerankingRetriever
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
+from docsage.infrastructure.watching import PollingWatcher
 from docsage.infrastructure.web_loader import WebPageLoader
 
 DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
@@ -154,15 +157,17 @@ class Container:
         embedder: Embedder | None = None,
         reranker: Reranker | None = None,
         url_loader: UrlLoader | None = None,
+        watcher: FileWatcher | None = None,
     ) -> None:
-        """``generator``, ``embedder``, ``reranker`` and ``url_loader`` replace the Claude
-        adapters, the local embedding model and the web fetcher, e.g. with offline fakes
-        in tests."""
+        """``generator``, ``embedder``, ``reranker``, ``url_loader`` and ``watcher`` replace
+        the Claude adapters, the local embedding model, the web fetcher and the folder
+        poller, e.g. with offline fakes in tests."""
         self._settings = settings
         self._generator = generator
         self._embedder = embedder
         self._reranker = reranker
         self._url_loader = url_loader
+        self._watcher = watcher
         self._tokenizer = multilingual_tokenizer()
         self._highlighter = TermHighlighter(self._tokenizer)
         self._repository = JsonIndexRepository(settings.index_path, self._new_retriever)
@@ -206,12 +211,27 @@ class Container:
         return CachedEmbedder(inner, cache_path, model)
 
     def indexing_service(self) -> IndexingService:
+        return self._indexing_service(self._repository.load())
+
+    def _indexing_service(self, retriever: Retriever) -> IndexingService:
         return IndexingService(
             loaders=default_loaders(),
             chunker=self._chunker(),
-            retriever=self._repository.load(),
+            retriever=retriever,
             repository=self._repository,
             url_loader=self._url_loader or WebPageLoader(),
+        )
+
+    def watch_service(self, interval: float = 1.0) -> WatchService:
+        """Polls every ``interval`` seconds, never looking inside the index's own folder."""
+        retriever = self._repository.load()
+        watcher = self._watcher or PollingWatcher(
+            interval, ignore=[self._settings.index_path.parent]
+        )
+        return WatchService(
+            self._indexing_service(retriever),
+            RemovalService(retriever, self._repository),
+            watcher,
         )
 
     def _chunker(self) -> Chunker:

@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from docsage import __version__
+from docsage.application.services import WatchUpdate
 from docsage.container import (
     CHUNKERS,
     DASHBOARD_FORMATS,
@@ -114,6 +115,24 @@ def _parser() -> argparse.ArgumentParser:
         help="window: fixed word windows (default); sentence: whole sentences only",
     )
     index.set_defaults(handler=_index)
+
+    watch = commands.add_parser(
+        "watch", help="index folders, then keep the index in sync as their files change"
+    )
+    watch.add_argument("paths", nargs="+", type=Path, metavar="path", help="a file or a folder")
+    watch.add_argument(
+        "--interval",
+        type=_interval,
+        default=1.0,
+        help="seconds between looks at the files (default: 1)",
+    )
+    watch.add_argument(
+        "--chunker",
+        choices=list(CHUNKERS),
+        default=None,
+        help="window: fixed word windows (default); sentence: whole sentences only",
+    )
+    watch.set_defaults(handler=_watch)
 
     remove = commands.add_parser("remove", help="drop a file, folder or web page from the index")
     remove.add_argument(
@@ -275,6 +294,33 @@ def _index(container: Container, args: argparse.Namespace) -> int:
     for url, reason in report.failed:
         print(f"  failed: {url}: {reason}", file=sys.stderr)
     return 1 if report.failed else 0
+
+
+def _watch(container: Container, args: argparse.Namespace) -> int:
+    missing = [str(path) for path in args.paths if not path.exists()]
+    if missing:
+        print(f"docsage: no such file or folder: {', '.join(missing)}", file=sys.stderr)
+        return 2
+    service = container.watch_service(args.interval)
+    targets = ", ".join(str(path) for path in args.paths)
+    print(f"Watching {targets} for changes (Ctrl-C to stop).", flush=True)
+    try:
+        for update in service.watch(args.paths):
+            _print_watch_update(update)
+    except KeyboardInterrupt:
+        print("Stopped watching.")
+    return 0
+
+
+def _print_watch_update(update: WatchUpdate) -> None:
+    report = update.indexing
+    if report.documents:
+        print(f"Indexed {report.documents} documents into {report.chunks} chunks.")
+    for source in update.removed:
+        print(f"Removed {source}.")
+    for path in report.skipped:
+        print(f"  skipped (unsupported): {path}", file=sys.stderr)
+    sys.stdout.flush()
 
 
 def _remove(container: Container, args: argparse.Namespace) -> int:
@@ -459,6 +505,13 @@ def _mcp(container: Container, args: argparse.Namespace) -> int:
     # stdout carries the protocol; logs already go to stderr.
     server.run("stdio")
     return 0
+
+
+def _interval(value: str) -> float:
+    seconds = float(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError(f"interval must be positive, got {value}")
+    return seconds
 
 
 def _port(value: str) -> int:

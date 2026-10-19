@@ -17,6 +17,7 @@ from docsage.domain.models import (
     ChunkPoint,
     Document,
     EvaluationReport,
+    FileChanges,
     Highlight,
     IndexOverview,
     SearchResult,
@@ -38,6 +39,16 @@ class UrlLoader(Protocol):
     def load(self, url: str) -> Document:
         """Raises ``OSError`` when the page cannot be fetched and ``ValueError`` when
         its content cannot be indexed."""
+        ...
+
+
+class FileWatcher(Protocol):
+    """Reports file changes under folders as they happen."""
+
+    def watch(self, roots: Sequence[Path]) -> Iterator[FileChanges]:
+        """Yields one batch per detected change, forever; the first batch lists every
+        file already present, so a fresh watch also picks up what changed while nobody
+        was watching."""
         ...
 
 

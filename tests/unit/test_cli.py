@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from docsage.domain.models import TokenUsage
 from docsage.interfaces.cli import main
 
@@ -696,3 +698,78 @@ def test_remove_command_drops_web_pages_by_url(tmp_path, capsys, monkeypatch):
 
     assert main(["--index", str(index), "remove", "https://x.io/docs"]) == 0
     assert "Removed 2 documents (2 chunks)." in capsys.readouterr().out
+
+
+def _scripted_watch(monkeypatch, batches):
+    """Runs ``docsage watch`` over prepared batches, then stops it as Ctrl-C would."""
+    from docsage.container import Container
+    from docsage.interfaces import cli
+
+    class ScriptedWatcher:
+        def __init__(self):
+            self.roots = None
+
+        def watch(self, roots):
+            self.roots = list(roots)
+            for setup, changes in batches:
+                setup()
+                yield changes
+            raise KeyboardInterrupt
+
+    watcher = ScriptedWatcher()
+    monkeypatch.setattr(cli, "Container", lambda settings: Container(settings, watcher=watcher))
+    return watcher
+
+
+def test_watch_indexes_then_follows_changes_until_interrupted(tmp_path, capsys, monkeypatch):
+    from docsage.domain.models import FileChanges
+
+    index = tmp_path / "index.json"
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    a, b = docs / "a.md", docs / "b.md"
+    a.write_text("alpha notes", encoding="utf-8")
+    watcher = _scripted_watch(
+        monkeypatch,
+        [
+            (lambda: None, FileChanges(changed=(a,))),
+            (lambda: b.write_text("beta notes", encoding="utf-8"), FileChanges(changed=(b,))),
+            (lambda: a.unlink(), FileChanges(removed=(a,))),
+        ],
+    )
+
+    assert main(["--index", str(index), "watch", str(docs)]) == 0
+
+    out = capsys.readouterr().out
+    assert f"Watching {docs} for changes" in out
+    assert out.count("Indexed 1 documents into 1 chunks.") == 2
+    assert f"Removed {a}." in out
+    assert out.rstrip().endswith("Stopped watching.")
+    assert watcher.roots == [docs]
+    assert main(["--index", str(index), "search", "alpha"]) == 1
+    assert main(["--index", str(index), "search", "beta"]) == 0
+
+
+def test_watch_stays_quiet_when_nothing_changed_in_the_index(tmp_path, capsys, monkeypatch):
+    from docsage.domain.models import FileChanges
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"\x89PNG")
+    _scripted_watch(monkeypatch, [(lambda: None, FileChanges(changed=(image,)))])
+
+    assert main(["--index", str(tmp_path / "index.json"), "watch", str(tmp_path)]) == 0
+
+    captured = capsys.readouterr()
+    assert "Indexed" not in captured.out
+    assert f"skipped (unsupported): {image}" in captured.err
+
+
+def test_watch_rejects_missing_paths(tmp_path, capsys):
+    assert main(["--index", str(tmp_path / "index.json"), "watch", str(tmp_path / "nope")]) == 2
+    assert "no such file or folder" in capsys.readouterr().err
+
+
+def test_watch_rejects_a_non_positive_interval(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["watch", str(tmp_path), "--interval", "0"])
+    assert "interval must be positive" in capsys.readouterr().err
