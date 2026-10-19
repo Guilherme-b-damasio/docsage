@@ -313,6 +313,31 @@ that follows the system's light or dark mode:
 | `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
 | `/ui/dashboard` | the index dashboard |
 
+### Docker
+
+The image serves the HTTP API and web UI on port 8000 with the `api`, `mcp` and `pdf`
+extras installed (`--build-arg EXTRAS=api,mcp,pdf,embeddings` adds the embedding
+retrievers). It runs as an unprivileged user in `/data`, where the index is stored, so
+mount a volume there to keep it; a `docsage.toml` placed in `/data` is picked up too:
+
+```bash
+docker build -t docsage .
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY -v docsage-index:/data -v "$PWD/docs:/docs:ro" docsage
+```
+
+`docker-compose.yml` does the same with a named volume and mounts `./docs` (or the folder
+in `DOCSAGE_DOCS`) read-only at `/docs`. Any CLI command runs in a one-off container:
+
+```bash
+docker compose up --build -d
+docker compose run --rm api index /docs
+docker compose --profile mcp up -d
+```
+
+The `mcp` profile adds the MCP server over Streamable HTTP at `http://localhost:8765/mcp`,
+sharing the index volume; index through one service at a time, since each process saves
+the whole index.
+
 ### Visual reports
 
 An answer can be rendered as a single, self-contained HTML page: the question, the
