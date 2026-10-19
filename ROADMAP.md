@@ -63,7 +63,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] HTML loader (strip tags, keep headings)
 - [x] DOCX loader
 - [x] Web page loader (fetch URL, extract main content)
-- [ ] Watch mode: re-index a folder on file changes
+- [x] Watch mode: re-index a folder on file changes
 - [ ] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
 - [ ] Minimal web UI reusing the HTML renderers
 - [ ] Dockerfile and docker-compose example
