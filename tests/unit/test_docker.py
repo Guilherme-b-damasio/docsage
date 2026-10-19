@@ -56,3 +56,29 @@ def test_docker_context_keeps_what_the_build_copies(path):
 
     assert (ROOT / path).exists()
     assert not any(re.fullmatch(pattern.replace("*", ".*"), path) for pattern in ignored)
+
+
+def _compose_commands() -> dict[str, list[str]]:
+    """Each service's ``command:``, written as a JSON array in docker-compose.yml."""
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    services = re.findall(r"^  (\w+):\n((?:    .*\n|\n)+)", compose, re.MULTILINE)
+    return {
+        name: json.loads(command)
+        for name, body in services
+        for command in re.findall(r"^    command: (\[.*\])$", body, re.MULTILINE)
+    }
+
+
+def test_compose_services_run_valid_commands_on_the_ports_they_publish():
+    commands = _compose_commands()
+
+    assert set(commands) == {"api", "mcp"}
+    api = _parser().parse_args(commands["api"])
+    mcp = _parser().parse_args(commands["mcp"])
+    assert (api.handler.__name__, api.host, api.port) == ("_serve", "0.0.0.0", DEFAULT_API_PORT)
+    assert (mcp.handler.__name__, mcp.http, mcp.host) == ("_mcp", True, "0.0.0.0")
+    assert mcp.port == DEFAULT_HTTP_PORT
+
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f'"{api.port}:{api.port}"' in compose
+    assert f'"{mcp.port}:{mcp.port}"' in compose

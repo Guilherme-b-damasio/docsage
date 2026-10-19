@@ -1,0 +1,37 @@
+# docker compose up --build         HTTP API and web UI at http://localhost:8000
+# docker compose run --rm api index /docs
+#                                   index the mounted folder (DOCSAGE_DOCS, default ./docs)
+# docker compose --profile mcp up   also serve MCP over Streamable HTTP at :8765/mcp
+#
+# Both services share the index volume. Index through one of them at a time: each process
+# saves the whole index, so two writers at once would overwrite each other's changes.
+
+x-docsage: &docsage
+  build: .
+  image: docsage:latest
+  environment:
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  volumes:
+    - index:/data
+    - ${DOCSAGE_DOCS:-./docs}:/docs:ro
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *docsage
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+
+  mcp:
+    <<: *docsage
+    command: ["mcp", "--http", "--host", "0.0.0.0", "--port", "8765"]
+    ports:
+      - "8765:8765"
+    # The image's health check probes the HTTP API, which this service does not run.
+    healthcheck:
+      disable: true
+    profiles: ["mcp"]
+
+volumes:
+  index:
