@@ -66,7 +66,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Watch mode: re-index a folder on file changes
 - [x] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
 - [x] Minimal web UI reusing the HTML renderers
-- [ ] Dockerfile and docker-compose example
+- [x] Dockerfile and docker-compose example
 - [ ] Publish to PyPI via GitHub Actions on release tags
 
 ## Milestone 0.8: Live index and richer visuals
