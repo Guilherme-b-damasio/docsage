@@ -502,3 +502,19 @@ def test_watch_service_polls_without_looking_inside_the_index_folder(tmp_path):
     first = next(service.watch([tmp_path]))
 
     assert first.changes.changed == (tmp_path / "a.md",)
+
+
+def test_search_report_service_renders_an_html_results_page(tmp_path):
+    from docsage.infrastructure.html_search import PageLinks
+
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+    notes = tmp_path / "notes.md"
+    notes.write_text("Lisbon is the capital of Portugal.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    page = container.search_report_service().report("lisbon")
+    with_form = container.search_report_service(PageLinks("/s", "/a", "/d")).report("lisbon")
+
+    assert '<mark title="lisbon">Lisbon</mark>' in page
+    assert "<form" not in page
+    assert 'action="/s"' in with_form

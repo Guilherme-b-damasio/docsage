@@ -41,6 +41,7 @@ from docsage.domain.ports import (
     Highlighter,
     IndexRepository,
     Retriever,
+    SearchRenderer,
     StreamingAnswerGenerator,
     TextTokenizer,
     UrlLoader,
@@ -317,6 +318,20 @@ class SearchService:
         results = _highlighted(self._retriever.search(query, top_k), query, self._highlighter)
         logger.debug("searched index", extra={"top_k": top_k, "results": len(results)})
         return results
+
+
+class SearchReportService:
+    """Searches the index and renders the ranked passages as a results page."""
+
+    def __init__(self, searching: SearchService, renderer: SearchRenderer) -> None:
+        self._searching = searching
+        self._renderer = renderer
+
+    def report(self, query: str, top_k: int = 5) -> str:
+        """The rendered page; a blank query renders the page without searching."""
+        query = query.strip()
+        results = self._searching.search(query, top_k) if query else []
+        return self._renderer.render(query, results)
 
 
 class EvaluationService:

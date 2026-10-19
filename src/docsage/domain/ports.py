@@ -168,6 +168,12 @@ class AnswerRenderer(Protocol):
     def render(self, answer: Answer) -> str: ...
 
 
+class SearchRenderer(Protocol):
+    """Turns a query and its ranked passages into a results page (HTML, text...)."""
+
+    def render(self, query: str, results: Sequence[SearchResult]) -> str: ...
+
+
 class DashboardRenderer(Protocol):
     """Turns an overview of the index into a dashboard (HTML, text...)."""
 
