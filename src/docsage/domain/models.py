@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import dataclass, field
+from pathlib import Path
 
 WEB_SCHEMES = ("http://", "https://")
 
@@ -267,3 +268,16 @@ class EvaluationReport:
         if not self.outcomes:
             return 0.0
         return sum(outcome.reciprocal_rank for outcome in self.outcomes) / len(self.outcomes)
+
+
+@dataclass(frozen=True)
+class FileChanges:
+    """Files that appeared, changed or disappeared under watched folders since the last look."""
+
+    changed: tuple[Path, ...] = ()
+    """Files created or modified, in sorted order."""
+    removed: tuple[Path, ...] = ()
+    """Files deleted, in sorted order."""
+
+    def __bool__(self) -> bool:
+        return bool(self.changed or self.removed)
