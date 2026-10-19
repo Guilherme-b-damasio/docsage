@@ -287,6 +287,37 @@ def test_answer_report_service_renders_the_answer():
     assert report.answer.sources[0].chunk.source == "a.md"
 
 
+class RecordingSearchRenderer:
+    def __init__(self):
+        self.calls = []
+
+    def render(self, query, results):
+        self.calls.append((query, [result.chunk.source for result in results]))
+        return f"<{query}: {len(results)}>"
+
+
+def test_search_report_service_renders_the_ranked_results():
+    from docsage.application.services import SearchReportService
+
+    renderer = RecordingSearchRenderer()
+    service = SearchReportService(SearchService(_alpha_beta_retriever()), renderer)
+
+    assert service.report("  beta ", top_k=3) == "<beta: 1>"
+    assert renderer.calls == [("beta", ["b.md"])]
+
+
+def test_search_report_service_renders_a_blank_query_without_searching():
+    from docsage.application.services import SearchReportService
+
+    class FailingSearch:
+        def search(self, query, top_k=5):
+            raise AssertionError("must not search")
+
+    renderer = RecordingSearchRenderer()
+
+    assert SearchReportService(FailingSearch(), renderer).report("   ") == "<: 0>"
+
+
 class FakeStreamingGenerator(FakeGenerator):
     def stream(self, question, context):
         self.calls.append((question, list(context)))

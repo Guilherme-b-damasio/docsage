@@ -16,6 +16,7 @@ from docsage.application.services import (
     QuestionAnsweringService,
     RelationService,
     RemovalService,
+    SearchReportService,
     SearchService,
     StatsService,
     WatchService,
@@ -56,6 +57,7 @@ from docsage.infrastructure.fusion import ReciprocalRankFusionRetriever
 from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
+from docsage.infrastructure.html_search import HtmlSearchRenderer, PageLinks
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.pricing import PriceTable
@@ -326,3 +328,7 @@ class Container:
 
     def search_service(self) -> SearchService:
         return SearchService(self._ranking_retriever(), self._highlighter)
+
+    def search_report_service(self, links: PageLinks | None = None) -> SearchReportService:
+        """Renders search results as an HTML page; ``links`` add the web UI's form."""
+        return SearchReportService(self.search_service(), HtmlSearchRenderer(links))
