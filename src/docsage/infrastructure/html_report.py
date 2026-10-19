@@ -54,8 +54,7 @@ class HtmlAnswerRenderer:
         if answer.sources:
             body.append("<h2>Sources</h2>")
             body.extend(
-                self._source_html(rank, result)
-                for rank, result in enumerate(answer.sources, start=1)
+                source_html(rank, result) for rank, result in enumerate(answer.sources, start=1)
             )
         if answer.usage is not None:
             body.append(usage_html(answer.usage, answer.cost_usd))
@@ -78,19 +77,18 @@ class HtmlAnswerRenderer:
 
         return _CITATION.sub(link, escaped).replace("\n", "<br>")
 
-    @staticmethod
-    def _source_html(rank: int, result: SearchResult) -> str:
-        terms = "".join(
-            f'<span class="term">{escape(term)}</span>' for term in result.matched_terms
-        )
-        terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
-        return (
-            f'<article class="card source" id="source-{rank}">\n'
-            f'<header><span class="rank">[{rank}] {escape(result.chunk.citation)}</span>'
-            f'<span class="muted">score {result.score:.2f}</span></header>\n'
-            f"<blockquote>{highlighted(result.chunk.text, result.highlights)}</blockquote>"
-            f"{terms_html}{breakdown_html(rank, result)}\n</article>"
-        )
+
+def source_html(rank: int, result: SearchResult) -> str:
+    """A ranked passage card: citation, score, highlighted text, terms and score breakdown."""
+    terms = "".join(f'<span class="term">{escape(term)}</span>' for term in result.matched_terms)
+    terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
+    return (
+        f'<article class="card source" id="source-{rank}">\n'
+        f'<header><span class="rank">[{rank}] {escape(result.chunk.citation)}</span>'
+        f'<span class="muted">score {result.score:.2f}</span></header>\n'
+        f"<blockquote>{highlighted(result.chunk.text, result.highlights)}</blockquote>"
+        f"{terms_html}{breakdown_html(rank, result)}\n</article>"
+    )
 
 
 def breakdown_html(rank: int, result: SearchResult) -> str:
