@@ -53,3 +53,11 @@ def test_view_script_is_valid_javascript(tmp_path):
     source.write_text(_script(app_view("Dashboard", "1.2.3")), encoding="utf-8")
 
     subprocess.run(["node", "--check", str(source)], check=True)
+
+
+def test_view_asks_the_host_to_open_links_to_sources():
+    script = _script(app_view("Answer", "1.2.3"))
+
+    assert '"ui/open-link"' in script
+    assert "event.preventDefault()" in script
+    assert 'startsWith("#")' in script
