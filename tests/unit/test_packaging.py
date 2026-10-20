@@ -25,3 +25,11 @@ def test_pyproject_reads_the_version_from_the_package():
 
 def test_installed_metadata_matches_the_package_version():
     assert version("docsage") == __version__
+
+
+def test_license_is_an_spdx_expression_shipped_with_the_package():
+    project = _pyproject()["project"]
+
+    assert project["license"] == "MIT"
+    assert project["license-files"] == ["LICENSE"]
+    assert (ROOT / "LICENSE").is_file()
