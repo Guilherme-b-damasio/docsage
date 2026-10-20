@@ -8,8 +8,10 @@ JSON-RPC over ``postMessage``: it sends ``ui/initialize``, then
 This view is a small shell: the tool renders its visual output on the server with the
 regular HTML renderers and puts the complete page in the result's ``_meta`` under
 ``HTML_META_KEY`` (``_meta`` never reaches the model). The shell swaps that page in,
-applies the host's light or dark theme and reports its size. When the page is missing it
-shows the result's text content, the same fallback hosts without MCP Apps display.
+applies the host's light or dark theme and reports its size. Links to sources go
+through the host (``ui/open-link``), since the sandboxed view cannot open them itself.
+When the page is missing it shows the result's text content, the same fallback hosts
+without MCP Apps display.
 """
 
 from __future__ import annotations
@@ -78,6 +80,14 @@ BRIDGE_JS = """
     else showText(result);
     reportSize();
   };
+
+  // The view's sandbox cannot navigate or open windows: the host opens links for it.
+  document.addEventListener("click", (event) => {
+    const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (!link || link.getAttribute("href").startsWith("#")) return;
+    event.preventDefault();
+    request("ui/open-link", { url: link.href });
+  });
 
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent) return;

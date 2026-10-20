@@ -105,3 +105,38 @@ def test_report_charts_the_tokens_and_cost_of_the_answer():
 
 def test_report_without_usage_has_no_usage_section():
     assert "<h2>Usage</h2>" not in HtmlAnswerRenderer().render(_answer())
+
+
+class FixedLocator:
+    def __init__(self, href):
+        self._href = href
+        self.chunks = []
+
+    def href(self, chunk):
+        self.chunks.append(chunk.id)
+        return self._href
+
+
+def test_report_links_each_passage_to_its_source():
+    locator = FixedLocator("file:///docs/a.md?x=1&y=2")
+
+    html = HtmlAnswerRenderer(locator).render(_answer())
+
+    assert locator.chunks == ["a.md#0"]
+    assert (
+        '[1] <a href="file:///docs/a.md?x=1&amp;y=2" target="_blank" '
+        'rel="noopener noreferrer" title="Open the source">a.md</a>'
+    ) in html
+
+
+def test_report_leaves_unlinkable_passages_as_plain_text():
+    html = HtmlAnswerRenderer(FixedLocator(None)).render(_answer())
+
+    assert '<span class="rank">[1] a.md</span>' in html
+
+
+def test_report_links_files_and_pdf_pages_by_default(tmp_path):
+    chunk = Chunk("g#0", str(tmp_path / "guide.pdf"), "text", 0, first_page=4, last_page=4)
+    html = HtmlAnswerRenderer().render(Answer("Q?", "A [1].", (SearchResult(chunk, 1.0),)))
+
+    assert f'href="{(tmp_path / "guide.pdf").resolve().as_uri()}#page=4"' in html

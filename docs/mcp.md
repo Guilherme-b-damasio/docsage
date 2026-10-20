@@ -185,6 +185,9 @@ call and show:
 The server renders the page and sends it in the tool result's `_meta["docsage/html"]`,
 which hosts never add to the model's context; the view swaps it in, follows the host's
 light or dark theme and reports its height. Nothing is loaded from the network.
+Clicking a passage's citation in the answer report asks the host to open its source
+(`ui/open-link`), since the sandboxed view cannot open links itself; the host may ask
+the user first.
 
 Hosts without MCP Apps ignore the link and show the text content, which always carries
 the ranked passages, the answer with its sources or the dashboard as text bars, so every tool stays usable
