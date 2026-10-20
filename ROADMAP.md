@@ -76,6 +76,13 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [ ] Markdown export of the answer report (`docsage report --format markdown`)
 - [ ] Recently indexed documents panel in the dashboard (newest first, with chunk counts)
 
+## Milestone 0.9: Interactive views
+- [ ] Clickable source links in the HTML search results page and the web UI
+- [ ] MCP Apps view for `index_stats` (stat tiles and a top-terms bar chart)
+- [ ] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
+- [ ] Filter search results by source type or folder (`search_documents` `source` argument)
+- [ ] Highlight the passage's terms when opening an HTML or Markdown source from a report
+
 ## Quality (ongoing, pick when a milestone item is blocked)
 - [ ] Benchmarks for indexing large folders
 - [ ] Example corpus and a walkthrough in `docs/`
