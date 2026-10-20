@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from docsage.application.services import (
     DashboardService,
     EvaluationService,
     IndexingService,
+    LiveWatchService,
     QuestionAnsweringService,
     RelationService,
     RemovalService,
@@ -226,10 +228,21 @@ class Container:
 
     def watch_service(self, interval: float = 1.0) -> WatchService:
         """Polls every ``interval`` seconds, never looking inside the index's own folder."""
+        return self._watch_service(self._file_watcher(interval))
+
+    def live_watch_service(
+        self, interval: float = 1.0, guard: AbstractContextManager[object] | None = None
+    ) -> LiveWatchService:
+        """Like ``watch_service``, but reloads the index for every batch and applies it
+        inside ``guard``, for watching while other writers (MCP tools) share the index."""
+        watcher = self._file_watcher(interval)
+        return LiveWatchService(watcher, lambda: self._watch_service(watcher), guard)
+
+    def _file_watcher(self, interval: float) -> FileWatcher:
+        return self._watcher or PollingWatcher(interval, ignore=[self._settings.index_path.parent])
+
+    def _watch_service(self, watcher: FileWatcher) -> WatchService:
         retriever = self._repository.load()
-        watcher = self._watcher or PollingWatcher(
-            interval, ignore=[self._settings.index_path.parent]
-        )
         return WatchService(
             self._indexing_service(retriever),
             RemovalService(retriever, self._repository),
