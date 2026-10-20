@@ -7,6 +7,7 @@ import logging
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field, replace
 from itertools import combinations
 from pathlib import Path
@@ -285,6 +286,34 @@ class WatchService:
             },
         )
         return WatchUpdate(changes, indexing, tuple(removed), chunks)
+
+
+class LiveWatchService:
+    """Keeps the index in sync with folders while something else also writes to it.
+
+    ``WatchService`` holds one retriever for as long as it watches, so index changes made
+    elsewhere meanwhile (an MCP tool indexing a file, say) would be saved over by its next
+    batch. Here every batch is applied by a fresh ``WatchService`` from ``appliers``,
+    built from the index as it is on disk at that moment, inside ``guard`` (e.g. a lock
+    the other writers hold too).
+    """
+
+    def __init__(
+        self,
+        watcher: FileWatcher,
+        appliers: Callable[[], WatchService],
+        guard: AbstractContextManager[object] | None = None,
+    ) -> None:
+        self._watcher = watcher
+        self._appliers = appliers
+        self._guard = guard if guard is not None else nullcontext()
+
+    def watch(self, roots: Sequence[Path]) -> Iterator[WatchUpdate]:
+        """Yields one update per batch of changes, forever (see ``WatchService.watch``)."""
+        for changes in self._watcher.watch(roots):
+            with self._guard:
+                update = self._appliers().apply(changes)
+            yield update
 
 
 def _is_within(candidate: Path, target: Path) -> bool:

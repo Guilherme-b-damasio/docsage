@@ -1,7 +1,13 @@
+import copy
 from itertools import islice
 from pathlib import Path
 
-from docsage.application.services import IndexingService, RemovalService, WatchService
+from docsage.application.services import (
+    IndexingService,
+    LiveWatchService,
+    RemovalService,
+    WatchService,
+)
 from docsage.domain.models import FileChanges
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.chunking import SlidingWindowChunker
@@ -106,3 +112,78 @@ def test_unsupported_files_are_reported_as_skipped(tmp_path: Path):
 
     assert update.indexing.skipped == (str(image),)
     assert not update
+
+
+class DiskRepository:
+    """Keeps a saved copy, like a file on disk: every load starts from the last save."""
+
+    def __init__(self):
+        self._saved = BM25Retriever()
+
+    def save(self, retriever):
+        self._saved = copy.deepcopy(retriever)
+
+    def load(self):
+        return copy.deepcopy(self._saved)
+
+    def size_bytes(self):
+        return 0
+
+
+def _indexing(repository, retriever):
+    return IndexingService([PlainTextLoader()], SlidingWindowChunker(), retriever, repository)
+
+
+def _live(watcher, repository, guard=None):
+    def applier():
+        retriever = repository.load()
+        return WatchService(
+            _indexing(repository, retriever), RemovalService(retriever, repository), watcher
+        )
+
+    return LiveWatchService(watcher, applier, guard)
+
+
+def test_live_watch_keeps_what_others_wrote_between_batches(tmp_path: Path):
+    a, b, c = (tmp_path / name for name in ("a.md", "b.md", "c.md"))
+    for path, text in ((a, "alpha"), (b, "beta"), (c, "gamma")):
+        path.write_text(text, encoding="utf-8")
+    repository = DiskRepository()
+
+    def another_writer_indexes_b():
+        _indexing(repository, repository.load()).index([b])
+
+    watcher = ScriptedWatcher(
+        [
+            (lambda: None, FileChanges(changed=(a,))),
+            (another_writer_indexes_b, FileChanges(changed=(c,))),
+        ]
+    )
+
+    updates = list(_live(watcher, repository).watch([tmp_path]))
+
+    assert [update.indexing.documents for update in updates] == [1, 1]
+    assert _sources(repository.load()) == [str(a), str(b), str(c)]
+    assert watcher.roots == [tmp_path]
+
+
+def test_live_watch_applies_each_batch_inside_the_guard(tmp_path: Path):
+    a = tmp_path / "a.md"
+    a.write_text("alpha", encoding="utf-8")
+    events = []
+
+    class RecordingGuard:
+        def __enter__(self):
+            events.append("enter")
+
+        def __exit__(self, *exc):
+            events.append("exit")
+            return False
+
+    repository = DiskRepository()
+    watcher = ScriptedWatcher([(lambda: None, FileChanges(changed=(a,)))])
+    updates = _live(watcher, repository, RecordingGuard()).watch([tmp_path])
+
+    update = next(updates)
+
+    assert update and events == ["enter", "exit"]
