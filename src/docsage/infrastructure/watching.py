@@ -16,7 +16,8 @@ class PollingWatcher:
     """Looks at the watched folders every ``interval`` seconds and reports what changed.
 
     A file counts as changed when its modification time or size differs from the last
-    look. Files under ``ignore`` (e.g. the index's own folder) are never reported.
+    look. Files under ``ignore`` (e.g. the index's own folder) are never reported, unless
+    that folder holds the watched root itself (an index kept next to the documents).
     """
 
     def __init__(
@@ -46,9 +47,10 @@ class PollingWatcher:
     def snapshot(self, roots: Sequence[Path]) -> Snapshot:
         files: Snapshot = {}
         for root in roots:
+            ignore = self._ignore_under(root)
             candidates = sorted(root.rglob("*")) if root.is_dir() else [root]
             for path in candidates:
-                if self._ignored(path):
+                if _ignored(path, ignore):
                     continue
                 try:
                     stat = path.stat()
@@ -58,11 +60,21 @@ class PollingWatcher:
                     files[path] = (stat.st_mtime_ns, stat.st_size)
         return files
 
-    def _ignored(self, path: Path) -> bool:
-        if not self._ignore:
-            return False
-        resolved = path.resolve()
-        return any(resolved == folder or folder in resolved.parents for folder in self._ignore)
+    def _ignore_under(self, root: Path) -> tuple[Path, ...]:
+        """The ignored folders that apply below ``root``: not those that contain it."""
+        resolved = root.resolve()
+        return tuple(
+            folder
+            for folder in self._ignore
+            if not (resolved == folder or folder in resolved.parents)
+        )
+
+
+def _ignored(path: Path, ignore: tuple[Path, ...]) -> bool:
+    if not ignore:
+        return False
+    resolved = path.resolve()
+    return any(resolved == folder or folder in resolved.parents for folder in ignore)
 
 
 def diff(previous: Snapshot, current: Snapshot) -> FileChanges:

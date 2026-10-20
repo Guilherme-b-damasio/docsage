@@ -504,6 +504,34 @@ def test_watch_service_polls_without_looking_inside_the_index_folder(tmp_path):
     assert first.changes.changed == (tmp_path / "a.md",)
 
 
+def test_live_watch_service_keeps_documents_indexed_by_others_meanwhile(tmp_path):
+    import threading
+
+    from docsage.domain.models import FileChanges
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    a, b, c = docs / "a.md", docs / "b.md", tmp_path / "c.md"
+    for path, text in ((a, "alpha notes"), (b, "beta notes"), (c, "gamma notes")):
+        path.write_text(text, encoding="utf-8")
+    settings = Settings(index_path=tmp_path / "index.json")
+
+    class ScriptedWatcher:
+        def watch(self, roots):
+            yield FileChanges(changed=(a,))
+            Container(settings).indexing_service().index([c])  # e.g. an MCP tool call
+            yield FileChanges(changed=(b,))
+
+    lock = threading.Lock()
+    service = Container(settings, watcher=ScriptedWatcher()).live_watch_service(guard=lock)
+    updates = list(service.watch([docs]))
+
+    assert [update.indexing.documents for update in updates] == [1, 1]
+    sources = {document.source for document in Container(settings).catalog_service().documents()}
+    assert sources == {str(a), str(b), str(c)}
+    assert not lock.locked()
+
+
 def test_search_report_service_renders_an_html_results_page(tmp_path):
     from docsage.infrastructure.html_search import PageLinks
 

@@ -254,6 +254,20 @@ def _parser() -> argparse.ArgumentParser:
         default=DEFAULT_HTTP_PORT,
         help=f"HTTP port (default: {DEFAULT_HTTP_PORT})",
     )
+    mcp.add_argument(
+        "--watch",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="FOLDER",
+        help="keep the index in sync with this folder while serving (repeatable)",
+    )
+    mcp.add_argument(
+        "--interval",
+        type=_interval,
+        default=1.0,
+        help="seconds between looks at the watched files (default: 1)",
+    )
     mcp.set_defaults(handler=_mcp)
 
     serve = commands.add_parser(
@@ -513,7 +527,14 @@ def _mcp(container: Container, args: argparse.Namespace) -> int:
     except ImportError:
         print('docsage: the MCP server needs: pip install "docsage[mcp]"', file=sys.stderr)
         return 2
-    server = build_server(container)
+    missing = [str(folder) for folder in args.watch if not folder.exists()]
+    if missing:
+        print(f"docsage: cannot watch missing paths: {', '.join(missing)}", file=sys.stderr)
+        return 2
+    server = build_server(container, watch=args.watch, interval=args.interval)
+    if args.watch:
+        folders = ", ".join(str(folder) for folder in args.watch)
+        print(f"docsage: keeping the index in sync with {folders}", file=sys.stderr)
     if args.http:
         url = f"http://{args.host}:{args.port}{HTTP_PATH}"
         print(f"docsage: serving MCP over Streamable HTTP at {url}", file=sys.stderr)

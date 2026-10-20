@@ -85,6 +85,17 @@ def test_ignored_folders_and_single_files(tmp_path):
     assert watcher.snapshot([tmp_path / "missing"]) == {}
 
 
+def test_an_ignored_folder_that_holds_the_watched_root_does_not_hide_it(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("alpha", encoding="utf-8")
+    (tmp_path / "outside.md").write_text("not watched", encoding="utf-8")
+    watcher = PollingWatcher(ignore=[tmp_path])  # e.g. --index index.json next to docs/
+
+    assert list(watcher.snapshot([docs])) == [docs / "a.md"]
+    assert list(watcher.snapshot([docs / "a.md"])) == [docs / "a.md"]
+
+
 def test_interval_must_be_positive():
     with pytest.raises(ValueError):
         PollingWatcher(interval=0)

@@ -44,7 +44,8 @@ a page and every indexed page below that URL. The dashboard counts them as `web`
 sync while it runs: files that are created or edited are re-indexed, deleted files are
 dropped from the index, and unchanged files are skipped by their content hash. It polls
 the files every second (`--interval 0.5` to look more often), needs no extra packages,
-never looks inside the index's own folder, and stops with Ctrl-C:
+never looks inside the index's own folder (unless the watched folder is in it), and
+stops with Ctrl-C:
 
 ```bash
 docsage watch docs/ notes.md
@@ -233,6 +234,14 @@ For clients that connect over the network, `--http` serves Streamable HTTP inste
 ```bash
 docsage --index ~/notes/.docsage/index.json mcp --http --port 8765
 claude mcp add --transport http docsage http://127.0.0.1:8765/mcp
+```
+
+`--watch <folder>` (repeatable) keeps the index in sync with a folder while the server
+runs, as `docsage watch` does, and tells listening clients that `docsage://documents`
+changed (see [docs/mcp.md](docs/mcp.md#5-keeping-the-index-in-sync-while-serving)):
+
+```bash
+claude mcp add docsage -- docsage --index ~/notes/.docsage/index.json mcp --watch ~/notes
 ```
 
 The server offers these tools:

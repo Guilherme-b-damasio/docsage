@@ -615,3 +615,57 @@ def test_index_url_is_marked_open_world():
 
     assert tools["index_url"].annotations.open_world_hint is True
     assert tools["remove_url"].annotations.destructive_hint is True
+
+
+class _Update:
+    def __init__(self, changed):
+        self.changed = changed
+
+    def __bool__(self):
+        return self.changed
+
+
+def test_watch_loop_announces_only_updates_that_changed_the_index():
+    import threading
+
+    from docsage.interfaces.mcp_server import _publish_updates
+
+    announced = []
+    updates = [_Update(True), _Update(False), _Update(True)]
+
+    _publish_updates(lambda: iter(updates), lambda: announced.append(1), threading.Event())
+
+    assert announced == [1, 1]
+
+
+def test_watch_loop_stops_once_the_server_is_shutting_down():
+    import threading
+
+    from docsage.interfaces.mcp_server import _publish_updates
+
+    stop = threading.Event()
+    announced = []
+
+    def announce():
+        announced.append(1)
+        stop.set()
+
+    _publish_updates(lambda: iter([_Update(True)] * 5), announce, stop)
+
+    assert announced == [1]
+
+
+def test_watch_loop_logs_a_failing_watcher_and_returns(caplog):
+    import threading
+
+    from docsage.interfaces.mcp_server import _publish_updates
+
+    def broken():
+        yield _Update(True)
+        raise OSError("folder vanished")
+
+    announced = []
+    _publish_updates(broken, lambda: announced.append(1), threading.Event())
+
+    assert announced == [1]
+    assert "stopped watching for file changes" in caplog.text

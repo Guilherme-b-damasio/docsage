@@ -5,18 +5,28 @@ its published output schema (``docsage.interfaces.mcp_schemas``) for application
 Tools with visual output also link an MCP Apps view (a ``ui://`` resource): hosts that
 support MCP Apps show the rendered HTML page, the others show the text.
 
+With ``watch`` folders the server also keeps the index in sync with them while it runs
+and tells listening clients (``subscriptions/listen``) that ``docsage://documents``
+changed.
+
 Requires the optional ``mcp`` extra (``pip install "docsage[mcp]"``).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import logging
+import threading
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import AbstractAsyncContextManager, AbstractContextManager, asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Protocol
 
+from anyio.from_thread import BlockingPortal
 from mcp import MCPError
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
+from mcp.server.subscriptions import InMemorySubscriptionBus, SubscriptionBus
+from mcp.shared.subscriptions import ResourcesListChanged, ResourceUpdated
 from mcp.types import INVALID_PARAMS, CallToolResult, TextContent, ToolAnnotations
 
 from docsage import __version__
@@ -27,11 +37,13 @@ from docsage.application.services import (
     IndexingReport,
     IndexingService,
     IndexStats,
+    LiveWatchService,
     QuestionAnsweringService,
     RemovalReport,
     RemovalService,
     SearchService,
     StatsService,
+    WatchUpdate,
 )
 from docsage.domain.models import Answer, Chunk, SearchResult, is_url
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
@@ -56,6 +68,8 @@ from docsage.interfaces.serializers import (
     search_results_to_dict,
     stats_to_dict,
 )
+
+logger = logging.getLogger(__name__)
 
 SERVER_NAME = "docsage"
 DOCUMENTS_URI = "docsage://documents"
@@ -98,13 +112,36 @@ class ServiceProvider(Protocol):
 
     def dashboard_service(self, dashboard_format: str = "html") -> DashboardService: ...
 
+    def live_watch_service(
+        self, interval: float = 1.0, guard: AbstractContextManager[object] | None = None
+    ) -> LiveWatchService: ...
 
-def build_server(services: ServiceProvider) -> MCPServer:
+
+def build_server(
+    services: ServiceProvider, watch: Sequence[Path] = (), interval: float = 1.0
+) -> MCPServer:
     """Creates an MCP server whose tools call the use cases from ``services``.
 
     Services are requested on every call so changes to the index on disk are picked up.
+    With ``watch`` folders, the index follows their files (polled every ``interval``
+    seconds) for as long as the server runs.
     """
-    server: MCPServer = MCPServer(SERVER_NAME, version=__version__, instructions=INSTRUCTIONS)
+    # Tools run in worker threads: one write at a time, tools and watcher alike, or two
+    # writers would each save over the chunks of the other.
+    writing = threading.Lock()
+    bus = InMemorySubscriptionBus()
+    lifespan = (
+        _watching(lambda: services.live_watch_service(interval, writing).watch(watch), bus)
+        if watch
+        else None
+    )
+    server: MCPServer = MCPServer(
+        SERVER_NAME,
+        version=__version__,
+        instructions=INSTRUCTIONS,
+        subscriptions=bus,
+        lifespan=lifespan,
+    )
 
     @server.tool(
         title="Search documents",
@@ -163,7 +200,8 @@ def build_server(services: ServiceProvider) -> MCPServer:
         server's working directory.
         """
         target = _existing_path(path)
-        report = services.indexing_service().index(expand_paths([target]), force=force)
+        with writing:
+            report = services.indexing_service().index(expand_paths([target]), force=force)
         return _result(format_indexing_report(report), indexing_report_to_dict(report))
 
     @server.tool(
@@ -179,7 +217,9 @@ def build_server(services: ServiceProvider) -> MCPServer:
         headings; the URL becomes the citation. A page whose content has not changed
         since the last run is skipped unless force is true.
         """
-        report = services.indexing_service().index_urls([_web_address(url)], force=force)
+        address = _web_address(url)
+        with writing:
+            report = services.indexing_service().index_urls([address], force=force)
         if report.failed:
             raise ToolError(f"Could not index {url}: {report.failed[0][1]}")
         return _result(format_indexing_report(report), indexing_report_to_dict(report))
@@ -192,7 +232,9 @@ def build_server(services: ServiceProvider) -> MCPServer:
     )
     def remove_url(url: str) -> Annotated[CallToolResult, RemovalOutput]:
         """Drop an indexed web page, and every indexed page below that URL, from the index."""
-        report = services.removal_service().remove_url(_web_address(url))
+        address = _web_address(url)
+        with writing:
+            report = services.removal_service().remove_url(address)
         return _result(format_removal_report(url, report), removal_report_to_dict(url, report))
 
     @server.tool(
@@ -206,7 +248,9 @@ def build_server(services: ServiceProvider) -> MCPServer:
 
         Only the index changes; the files on disk are never touched.
         """
-        report = services.removal_service().remove(Path(_require(path, "path")))
+        target = Path(_require(path, "path"))
+        with writing:
+            report = services.removal_service().remove(target)
         return _result(
             format_removal_report(path, report), removal_report_to_dict(path, report)
         )
@@ -305,6 +349,61 @@ def build_server(services: ServiceProvider) -> MCPServer:
         )
 
     return server
+
+
+def _watching(
+    updates: Callable[[], Iterator[WatchUpdate]], bus: SubscriptionBus
+) -> Callable[[MCPServer], AbstractAsyncContextManager[None]]:
+    """Server lifespan that applies file changes in the background while the server runs.
+
+    The watcher blocks between changes, so it runs on a daemon thread that hands each
+    index change back to the event loop; it never keeps the process alive on exit.
+    """
+
+    @asynccontextmanager
+    async def lifespan(_: MCPServer) -> AsyncIterator[None]:
+        stop = threading.Event()
+        async with BlockingPortal() as portal:
+            watcher = threading.Thread(
+                target=_publish_updates,
+                args=(updates, lambda: portal.call(_announce_change, bus), stop),
+                name="docsage-watch",
+                daemon=True,
+            )
+            watcher.start()
+            try:
+                yield
+            finally:
+                stop.set()
+                await portal.stop(cancel_remaining=True)
+
+    return lifespan
+
+
+def _publish_updates(
+    updates: Callable[[], Iterator[WatchUpdate]],
+    announce: Callable[[], None],
+    stop: threading.Event,
+) -> None:
+    """Applies watch updates until ``stop`` is set, announcing those that changed the index.
+
+    A failing watcher is logged and stops watching; the server keeps serving.
+    """
+    try:
+        for update in updates():
+            if stop.is_set():
+                return
+            if update:
+                announce()
+    except Exception:
+        if not stop.is_set():
+            logger.exception("stopped watching for file changes")
+
+
+async def _announce_change(bus: SubscriptionBus) -> None:
+    """Tells listening clients that the document list changed."""
+    await bus.publish(ResourcesListChanged())
+    await bus.publish(ResourceUpdated(uri=DOCUMENTS_URI))
 
 
 def format_passages(chunks: Sequence[Chunk], budget: int, label: str = "") -> str:
