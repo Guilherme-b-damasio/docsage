@@ -6,7 +6,9 @@ import re
 from html import escape
 
 from docsage.domain.models import Answer, SearchResult, TokenUsage
+from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import highlighted, page
+from docsage.infrastructure.source_links import FileAndUrlLocator
 from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
 from docsage.infrastructure.units import usage_summary
 
@@ -18,6 +20,8 @@ REPORT_CSS = """
 .cite { text-decoration: none; font-weight: 600; }
 .source header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .source .rank { font-weight: 600; }
+.source .rank a { color: inherit; text-decoration-color: var(--border); }
+.source .rank a:hover { color: var(--accent); text-decoration-color: currentColor; }
 .source blockquote {
   margin: 8px 0 0; padding-left: 12px; border-left: 3px solid var(--border);
   white-space: pre-wrap; overflow-wrap: anywhere;
@@ -39,9 +43,13 @@ def _score_label(value: float) -> str:
 class HtmlAnswerRenderer:
     """Question, answer and cited passages on one offline page, light and dark aware.
 
-    Inline citations such as ``[2]`` link to the matching passage, and every query term
-    found in a passage is wrapped in ``<mark>``.
+    Inline citations such as ``[2]`` link to the matching passage, each passage links to
+    its source (file, PDF page or URL) through ``locator``, and every query term found in
+    a passage is wrapped in ``<mark>``.
     """
+
+    def __init__(self, locator: SourceLocator | None = None) -> None:
+        self._locator = locator if locator is not None else FileAndUrlLocator()
 
     def render(self, answer: Answer) -> str:
         body = [
@@ -54,7 +62,8 @@ class HtmlAnswerRenderer:
         if answer.sources:
             body.append("<h2>Sources</h2>")
             body.extend(
-                source_html(rank, result) for rank, result in enumerate(answer.sources, start=1)
+                source_html(rank, result, self._locator.href(result.chunk))
+                for rank, result in enumerate(answer.sources, start=1)
             )
         if answer.usage is not None:
             body.append(usage_html(answer.usage, answer.cost_usd))
@@ -78,13 +87,22 @@ class HtmlAnswerRenderer:
         return _CITATION.sub(link, escaped).replace("\n", "<br>")
 
 
-def source_html(rank: int, result: SearchResult) -> str:
-    """A ranked passage card: citation, score, highlighted text, terms and score breakdown."""
+def source_html(rank: int, result: SearchResult, href: str | None = None) -> str:
+    """A ranked passage card: citation, score, highlighted text, terms and score breakdown.
+
+    With ``href`` the citation links to the passage's source.
+    """
     terms = "".join(f'<span class="term">{escape(term)}</span>' for term in result.matched_terms)
     terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
+    citation = escape(result.chunk.citation)
+    if href is not None:
+        citation = (
+            f'<a href="{escape(href)}" target="_blank" rel="noopener noreferrer" '
+            f'title="Open the source">{citation}</a>'
+        )
     return (
         f'<article class="card source" id="source-{rank}">\n'
-        f'<header><span class="rank">[{rank}] {escape(result.chunk.citation)}</span>'
+        f'<header><span class="rank">[{rank}] {citation}</span>'
         f'<span class="muted">score {result.score:.2f}</span></header>\n'
         f"<blockquote>{highlighted(result.chunk.text, result.highlights)}</blockquote>"
         f"{terms_html}{breakdown_html(rank, result)}\n</article>"
