@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docsage"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Ask questions about your documents with retrieval-augmented generation and Claude."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,9 @@ dev = [
 
 [project.scripts]
 docsage = "docsage.interfaces.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "docsage.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
