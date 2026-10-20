@@ -349,6 +349,14 @@ class SearchService:
         return results
 
 
+@dataclass(frozen=True)
+class SearchReport:
+    query: str
+    results: tuple[SearchResult, ...]
+    content: str
+    """The rendered results page, e.g. a complete HTML document."""
+
+
 class SearchReportService:
     """Searches the index and renders the ranked passages as a results page."""
 
@@ -358,9 +366,15 @@ class SearchReportService:
 
     def report(self, query: str, top_k: int = 5) -> str:
         """The rendered page; a blank query renders the page without searching."""
+        return self.search(query, top_k).content
+
+    def search(self, query: str, top_k: int = 5) -> SearchReport:
+        """The ranked results together with their rendered page, for callers that need both."""
         query = query.strip()
-        results = self._searching.search(query, top_k) if query else []
-        return self._renderer.render(query, results)
+        results = tuple(self._searching.search(query, top_k)) if query else ()
+        content = self._renderer.render(query, results)
+        logger.debug("rendered search report", extra={"characters": len(content)})
+        return SearchReport(query, results, content)
 
 
 class EvaluationService:

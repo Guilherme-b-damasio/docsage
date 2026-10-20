@@ -526,3 +526,16 @@ def test_removing_a_path_never_drops_web_pages():
 
     assert report.documents == ()
     assert len(retriever) == 1
+
+
+def test_search_report_service_returns_the_results_with_their_page():
+    from docsage.application.services import SearchReportService
+
+    renderer = RecordingSearchRenderer()
+    service = SearchReportService(SearchService(_alpha_beta_retriever()), renderer)
+
+    report = service.search("  beta ", top_k=3)
+
+    assert report.query == "beta"
+    assert [result.chunk.source for result in report.results] == ["b.md"]
+    assert report.content == "<beta: 1>"
