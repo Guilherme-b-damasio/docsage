@@ -29,15 +29,17 @@ def test_mcp_command_runs_the_server_over_stdio(tmp_path, monkeypatch):
     server = FakeServer()
     built_with = []
 
-    def fake_build(services):
-        built_with.append(services)
+    def fake_build(services, **options):
+        built_with.append((services, options))
         return server
 
     monkeypatch.setattr(mcp_server, "build_server", fake_build)
 
     assert cli.main(["--index", str(tmp_path / "index.json"), "mcp"]) == 0
     assert server.transports == ["stdio"]
-    assert isinstance(built_with[0], Container)
+    services, options = built_with[0]
+    assert isinstance(services, Container)
+    assert options == {"watch": [], "interval": 1.0}
 
 
 def test_mcp_command_explains_how_to_install_the_extra(tmp_path, monkeypatch, capsys):
@@ -77,7 +79,7 @@ def test_mcp_command_runs_the_server_over_http(tmp_path, monkeypatch, capsys):
     import docsage.interfaces.mcp_server as mcp_server
 
     server = FakeServer()
-    monkeypatch.setattr(mcp_server, "build_server", lambda services: server)
+    monkeypatch.setattr(mcp_server, "build_server", lambda services, **options: server)
 
     argv = ["--index", str(tmp_path / "index.json"), "mcp", "--http", "--port", "9000"]
     assert cli.main(argv) == 0
@@ -91,7 +93,7 @@ def test_mcp_command_defaults_to_port_8765(tmp_path, monkeypatch):
     import docsage.interfaces.mcp_server as mcp_server
 
     server = FakeServer()
-    monkeypatch.setattr(mcp_server, "build_server", lambda services: server)
+    monkeypatch.setattr(mcp_server, "build_server", lambda services, **options: server)
 
     assert cli.main(["--index", str(tmp_path / "index.json"), "mcp", "--http"]) == 0
     assert server.options[0]["port"] == 8765
@@ -180,3 +182,39 @@ def test_serve_command_explains_how_to_install_the_extra(tmp_path, monkeypatch, 
 
     assert cli.main(["--index", str(tmp_path / "index.json"), "serve"]) == 2
     assert 'pip install "docsage[api]"' in capsys.readouterr().err
+
+
+def test_mcp_command_watches_folders_while_serving(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("mcp")
+    import docsage.interfaces.mcp_server as mcp_server
+
+    docs, notes = tmp_path / "docs", tmp_path / "notes"
+    docs.mkdir()
+    notes.mkdir()
+    server = FakeServer()
+    built_with = []
+
+    def fake_build(services, **options):
+        built_with.append(options)
+        return server
+
+    monkeypatch.setattr(mcp_server, "build_server", fake_build)
+    argv = ["--index", str(tmp_path / "index.json"), "mcp"]
+    argv += ["--watch", str(docs), "--watch", str(notes), "--interval", "0.5"]
+
+    assert cli.main(argv) == 0
+    assert built_with == [{"watch": [docs, notes], "interval": 0.5}]
+    assert server.transports == ["stdio"]
+    assert f"keeping the index in sync with {docs}, {notes}" in capsys.readouterr().err
+
+
+def test_mcp_command_refuses_to_watch_a_missing_folder(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("mcp")
+    import docsage.interfaces.mcp_server as mcp_server
+
+    monkeypatch.setattr(mcp_server, "build_server", lambda services, **options: FakeServer())
+    missing = tmp_path / "nowhere"
+    argv = ["--index", str(tmp_path / "index.json"), "mcp", "--watch", str(missing)]
+
+    assert cli.main(argv) == 2
+    assert f"cannot watch missing paths: {missing}" in capsys.readouterr().err
