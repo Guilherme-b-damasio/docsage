@@ -14,6 +14,7 @@ from docsage.application.services import (  # noqa: E402
     DashboardService,
     QuestionAnsweringService,
     RelationService,
+    SearchReportService,
     SearchService,
     StatsService,
 )
@@ -23,6 +24,7 @@ from docsage.infrastructure.bm25 import BM25Retriever  # noqa: E402
 from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer  # noqa: E402
 from docsage.infrastructure.html_report import HtmlAnswerRenderer  # noqa: E402
+from docsage.infrastructure.html_search import HtmlSearchRenderer  # noqa: E402
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY  # noqa: E402
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
@@ -52,6 +54,9 @@ class FakeServices:
 
     def search_service(self):
         return SearchService(self.retriever, self.highlighter)
+
+    def search_report_service(self):
+        return SearchReportService(self.search_service(), HtmlSearchRenderer())
 
     def question_answering_service(self):
         return QuestionAnsweringService(self.retriever, self.generator, self.highlighter)
@@ -496,9 +501,34 @@ def test_index_dashboard_rejects_negative_top():
 
 
 def test_tools_without_a_view_carry_no_html():
-    result = call(FakeServices(CHUNKS), "search_documents", {"query": "capital"})
+    result = call(FakeServices(CHUNKS), "index_stats", {})
 
     assert not (result.meta or {}).get(HTML_META_KEY)
+
+
+def test_search_documents_returns_the_html_results_page_for_its_view():
+    result = call(FakeServices(CHUNKS), "search_documents", {"query": "capital france"})
+
+    html = result.meta[HTML_META_KEY]
+    assert html.startswith("<!doctype html>")
+    assert "capital france" in html and "<mark" in html and "<svg" in html
+    assert "<form" not in html
+    assert "<mark" not in text_of(result)
+
+
+def test_search_documents_links_the_search_results_view():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            tools = await client.list_tools()
+            view = await client.read_resource("ui://docsage/search-results")
+            return tools, view
+
+    tools, view = asyncio.run(run())
+    tool = next(item for item in tools.tools if item.name == "search_documents")
+
+    assert tool.meta == {"ui": {"resourceUri": "ui://docsage/search-results"}}
+    assert view.contents[0].mime_type == APP_MIME_TYPE
+    assert "ui/initialize" in view.contents[0].text
 
 
 def test_index_dashboard_links_its_mcp_apps_view():
