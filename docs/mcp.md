@@ -84,6 +84,26 @@ claude mcp add --transport http docsage http://127.0.0.1:8765/mcp
 The endpoint is always `/mcp`. The server binds to `127.0.0.1` by default; only pass
 `--host 0.0.0.0` on a trusted network, since there is no authentication.
 
+## 5. Keeping the index in sync while serving
+
+`--watch <folder>` (repeatable) makes the server index the folder when it starts and
+then follow its files for as long as it runs, like `docsage watch`: new and edited
+files are re-indexed and deleted ones are dropped (`--interval` sets how often it
+looks, default every second). It works with stdio and `--http`:
+
+```bash
+docsage --index ~/notes/.docsage/index.json mcp --watch ~/notes
+claude mcp add docsage -- docsage --index ~/notes/.docsage/index.json mcp --watch ~/notes
+```
+
+Whenever the watcher changes the index, clients listening on `subscriptions/listen`
+receive `notifications/resources/list_changed` and an update for
+`docsage://documents`, so they can re-read the document list. Clients on older
+protocol versions do not get these notifications; they still see the current index
+on their next tool call or resource read. Tool calls that write (`index_path`,
+`remove_path`, `index_url`, `remove_url`) and the watcher take turns, so neither
+overwrites the other's changes.
+
 ## What the server offers
 
 ### Tools
