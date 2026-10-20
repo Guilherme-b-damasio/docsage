@@ -258,11 +258,12 @@ The server offers these tools:
 | `index_dashboard`  | charts of file types, chunk lengths, top terms, related documents and the chunk map |
 
 In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
-`ask_documents` shows the HTML answer report with highlighted citations and
+`search_documents` shows the ranked passages with a score breakdown bar chart each,
+`ask_documents` the HTML answer report with highlighted citations and
 `index_dashboard` the HTML dashboard, right in the conversation; other hosts get the
 same content as text.
 
-It also publishes two read-only resources (JSON), plus the two `ui://` views:
+It also publishes two read-only resources (JSON), plus the three `ui://` views:
 
 | Resource                      | Contents                                                     |
 | ----------------------------- | ------------------------------------------------------------ |
