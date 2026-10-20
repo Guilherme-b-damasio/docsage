@@ -352,8 +352,10 @@ the whole index.
 
 An answer can be rendered as a single, self-contained HTML page: the question, the
 answer with each `[n]` citation linked to its passage, and every cited passage with
-the matched query terms highlighted. The page inlines its CSS (no network needed) and
-follows the system's light or dark mode. A plain-text renderer is the fallback for
+the matched query terms highlighted. Each passage's citation links to its source: the
+web page it came from, or the file on disk (`file://`, opened at the page for PDFs, with
+relative paths resolved from the directory docsage runs in). The page inlines its CSS
+(no network needed) and follows the system's light or dark mode. A plain-text renderer is the fallback for
 clients that cannot show HTML (matched terms appear in `**bold**`).
 
 `docsage report` answers a question with Claude and writes the report: to stdout by
