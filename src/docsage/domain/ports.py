@@ -162,6 +162,14 @@ class Highlighter(Protocol):
     def highlight(self, query: str, text: str) -> list[Highlight]: ...
 
 
+class SourceLocator(Protocol):
+    """Points at where a passage can be opened: its file, page or web address."""
+
+    def href(self, chunk: Chunk) -> str | None:
+        """A link to the chunk's source, or None when it cannot be linked."""
+        ...
+
+
 class AnswerRenderer(Protocol):
     """Turns an answer and its cited passages into a shareable report (HTML, text...)."""
 
