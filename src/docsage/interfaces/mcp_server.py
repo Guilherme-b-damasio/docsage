@@ -41,7 +41,7 @@ from docsage.application.services import (
     QuestionAnsweringService,
     RemovalReport,
     RemovalService,
-    SearchService,
+    SearchReportService,
     StatsService,
     WatchUpdate,
 )
@@ -76,6 +76,7 @@ DOCUMENTS_URI = "docsage://documents"
 CHUNK_URI_TEMPLATE = "docsage://chunks/{chunk_id}"
 DASHBOARD_VIEW_URI = "ui://docsage/dashboard"
 ANSWER_VIEW_URI = "ui://docsage/answer-report"
+SEARCH_VIEW_URI = "ui://docsage/search-results"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
@@ -96,7 +97,7 @@ PROMPT_CHARACTERS = 60_000
 class ServiceProvider(Protocol):
     """Builds the use cases the server calls; ``docsage.container.Container`` is one."""
 
-    def search_service(self) -> SearchService: ...
+    def search_report_service(self) -> SearchReportService: ...
 
     def question_answering_service(self) -> QuestionAnsweringService: ...
 
@@ -146,17 +147,35 @@ def build_server(
     @server.tool(
         title="Search documents",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+        meta=_view_meta(SEARCH_VIEW_URI),
     )
     def search_documents(query: str, top_k: int = 5) -> Annotated[CallToolResult, SearchOutput]:
         """Find the indexed passages that best match a query (BM25, no model call).
 
         Returns the passages ranked by score, each with its citation (file, page or
-        Markdown section) so you can quote or open the source.
+        Markdown section) so you can quote or open the source. Hosts that support MCP
+        Apps also show the results with a score breakdown bar chart per passage.
         """
-        results = services.search_service().search(_require(query, "query"), _clamp(top_k))
+        report = services.search_report_service().search(_require(query, "query"), _clamp(top_k))
+        results = report.results
         return _result(
-            format_search_results(query, results), search_results_to_dict(query, results)
+            format_search_results(query, results),
+            search_results_to_dict(query, results),
+            report.content,
         )
+
+    @server.resource(
+        SEARCH_VIEW_URI,
+        title="Search results view",
+        description=(
+            "MCP Apps view that shows the ranked passages returned by search_documents, "
+            "with highlighted terms and a score breakdown per passage."
+        ),
+        mime_type=APP_MIME_TYPE,
+        meta={"ui": {"prefersBorder": True}},
+    )
+    def search_view() -> str:
+        return app_view("docsage search", __version__)
 
     @server.tool(
         title="Ask documents",

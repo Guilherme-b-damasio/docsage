@@ -157,6 +157,7 @@ content.
 | `docsage://chunks/{chunk_id}` | the full text, position and citation of one chunk              |
 | `ui://docsage/dashboard`      | the MCP Apps view of `index_dashboard` (see Visual output)     |
 | `ui://docsage/answer-report`  | the MCP Apps view of `ask_documents` (see Visual output)       |
+| `ui://docsage/search-results` | the MCP Apps view of `search_documents` (see Visual output)    |
 
 ### Prompts
 
@@ -169,11 +170,13 @@ Pass sources exactly as `docsage://documents` lists them.
 
 ### Visual output (MCP Apps)
 
-`ask_documents` and `index_dashboard` link an [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+`search_documents`, `ask_documents` and `index_dashboard` link an [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
 view through their `_meta.ui.resourceUri`. Hosts that support MCP Apps render that
 `ui://` resource (`text/html;profile=mcp-app`) in a sandboxed frame next to the tool
 call and show:
 
+- `search_documents`: the ranked passages with their matched terms highlighted and a
+  bar chart of each passage's BM25 score, term by term.
 - `ask_documents`: the HTML answer report, with every cited passage and its matched
   terms highlighted and a score breakdown chart per source.
 - `index_dashboard`: the HTML index dashboard, with stat tiles and charts of file
@@ -184,7 +187,7 @@ which hosts never add to the model's context; the view swaps it in, follows the 
 light or dark theme and reports its height. Nothing is loaded from the network.
 
 Hosts without MCP Apps ignore the link and show the text content, which always carries
-the answer with its sources or the dashboard as text bars, so every tool stays usable
+the ranked passages, the answer with its sources or the dashboard as text bars, so every tool stays usable
 from any client.
 
 ## Troubleshooting
