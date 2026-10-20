@@ -67,7 +67,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] FastAPI HTTP server exposing `/index`, `/search`, `/ask`
 - [x] Minimal web UI reusing the HTML renderers
 - [x] Dockerfile and docker-compose example
-- [ ] Publish to PyPI via GitHub Actions on release tags
+- [x] Publish to PyPI via GitHub Actions on release tags
 
 ## Milestone 0.8: Live index and richer visuals
 - [ ] `docsage mcp --watch <folder>`: keep the index in sync while serving and notify clients that `docsage://documents` changed

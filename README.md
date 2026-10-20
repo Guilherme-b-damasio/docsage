@@ -403,6 +403,16 @@ docsage dashboard --format mermaid      # related documents as a Mermaid graph
 `python scripts/screenshots.py` regenerates both screenshots from this repository's own
 docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
 
+## What's new in 0.7
+
+- HTML (`.html`, `.htm`) and Word (`.docx`) loaders, and web pages by URL
+  (`docsage index https://...`, MCP `index_url` / `remove_url`), main content only.
+- `docsage watch` keeps the index in sync with folders as files change.
+- `docsage serve` exposes `/index`, `/search`, `/ask` and `/stats` over HTTP
+  (`docsage[api]`), with a web UI under `/ui` built from the HTML renderers.
+- A Dockerfile and a `docker-compose.yml` with the API and an optional MCP service.
+- Version tags are published to PyPI by GitHub Actions with trusted publishing.
+
 ## What's new in 0.6
 
 - `ask` streams the answer as Claude writes it (`--no-stream` to wait for the whole text).
@@ -490,6 +500,10 @@ end to end: one in-memory client session indexes the small corpus in
 `tests/fixtures/corpus/`, reads resources, searches, asks and removes, against a real
 on-disk index. Only the answer generator is faked (`Container(settings, generator)`),
 so no test calls the Claude API.
+
+Pushing a `vX.Y.Z` tag runs the `Release` workflow, which checks that the tag matches
+`docsage.__version__`, builds the package and publishes it to PyPI (see
+[CONTRIBUTING.md](CONTRIBUTING.md#releasing)).
 
 The project uses [git flow](CONTRIBUTING.md). See the [roadmap](ROADMAP.md) for planned work.
 

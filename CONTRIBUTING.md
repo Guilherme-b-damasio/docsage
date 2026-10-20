@@ -32,3 +32,17 @@ Keep each commit small and focused. Tests and lint must pass before a commit.
 - `application` imports only from `domain`.
 - `infrastructure` implements ports from `domain`.
 - Only `container.py` and `interfaces` know about concrete adapters.
+
+## Releasing
+
+Releases are cut by the maintainer from `main`:
+
+1. On a `release/X.Y.Z` branch, set `__version__` in `src/docsage/__init__.py` (the only
+   place the version lives; `pyproject.toml` reads it from there).
+2. Merge to `main` and `develop`, then tag the merge on `main` as `vX.Y.Z` and push the tag.
+3. The `Release` workflow runs the tests, checks the tag with
+   `python scripts/check_release.py`, builds the sdist and wheel, and publishes them to
+   PyPI with trusted publishing.
+
+PyPI must list this repository's `release.yml` workflow and the `pypi` environment as a
+trusted publisher before the first release; no API token is stored in GitHub.
