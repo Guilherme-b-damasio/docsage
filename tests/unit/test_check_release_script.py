@@ -59,3 +59,14 @@ def test_main_falls_back_to_the_github_ref(release, monkeypatch):
 
     monkeypatch.delenv("GITHUB_REF_NAME")
     assert release.main([]) == 2
+
+
+def test_release_workflow_runs_the_check_before_publishing():
+    workflow = (SCRIPT.parents[1] / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'tags: ["v*.*.*"]' in workflow
+    assert workflow.index("scripts/check_release.py") < workflow.index("python -m build")
+    assert "id-token: write" in workflow
+    assert "pypa/gh-action-pypi-publish" in workflow
