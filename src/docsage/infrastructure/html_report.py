@@ -8,7 +8,11 @@ from html import escape
 from docsage.domain.models import Answer, SearchResult, TokenUsage
 from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import highlighted, page
-from docsage.infrastructure.source_links import FileAndUrlLocator
+from docsage.infrastructure.source_links import (
+    FileAndUrlLocator,
+    HighlightingLocator,
+    passage_href,
+)
 from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
 from docsage.infrastructure.units import usage_summary
 
@@ -45,11 +49,14 @@ class HtmlAnswerRenderer:
 
     Inline citations such as ``[2]`` link to the matching passage, each passage links to
     its source (file, PDF page or URL) through ``locator``, and every query term found in
-    a passage is wrapped in ``<mark>``.
+    a passage is wrapped in ``<mark>``. By default a text source opens at the passage
+    itself (see ``HighlightingLocator``).
     """
 
     def __init__(self, locator: SourceLocator | None = None) -> None:
-        self._locator = locator if locator is not None else FileAndUrlLocator()
+        self._locator = (
+            locator if locator is not None else HighlightingLocator(FileAndUrlLocator())
+        )
 
     def render(self, answer: Answer) -> str:
         body = [
@@ -62,7 +69,7 @@ class HtmlAnswerRenderer:
         if answer.sources:
             body.append("<h2>Sources</h2>")
             body.extend(
-                source_html(rank, result, self._locator.href(result.chunk))
+                source_html(rank, result, passage_href(self._locator, result))
                 for rank, result in enumerate(answer.sources, start=1)
             )
         if answer.usage is not None:

@@ -135,6 +135,17 @@ def test_report_leaves_unlinkable_passages_as_plain_text():
     assert '<span class="rank">[1] a.md</span>' in html
 
 
+def test_report_opens_a_markdown_source_at_the_cited_passage(tmp_path):
+    source = str(tmp_path / "notes.md")
+    chunk = Chunk("n#0", source, "The index keeps chunks.", 0)
+    result = SearchResult(chunk, 1.0, (Highlight(4, 9, "index"),))
+
+    html = HtmlAnswerRenderer().render(Answer("Q?", "A [1].", (result,)))
+
+    base = (tmp_path / "notes.md").resolve().as_uri()
+    assert f'href="{base}#:~:text=The%20index%20keeps%20chunks.&amp;text=index"' in html
+
+
 def test_report_links_files_and_pdf_pages_by_default(tmp_path):
     chunk = Chunk("g#0", str(tmp_path / "guide.pdf"), "text", 0, first_page=4, last_page=4)
     html = HtmlAnswerRenderer().render(Answer("Q?", "A [1].", (SearchResult(chunk, 1.0),)))

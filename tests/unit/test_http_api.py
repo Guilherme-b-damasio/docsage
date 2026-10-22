@@ -177,8 +177,8 @@ def test_web_ui_links_citations_to_the_served_source(client, docs):
     search = client.get("/ui", params={"q": "alpha"}).text
     answer = client.get("/ui/ask", params={"q": "what is alpha?"}).text
 
-    assert f'href="{href}"' in search
-    assert f'href="{href}"' in answer
+    assert f'href="{href}#:~:text=' in search
+    assert f'href="{href}#:~:text=' in answer
 
 
 def test_web_ui_serves_an_indexed_file_as_sandboxed_text(client, docs):

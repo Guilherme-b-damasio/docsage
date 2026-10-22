@@ -6,7 +6,11 @@ import re
 
 from docsage.domain.models import Answer, SearchResult
 from docsage.domain.ports import SourceLocator
-from docsage.infrastructure.source_links import FileAndUrlLocator
+from docsage.infrastructure.source_links import (
+    FileAndUrlLocator,
+    HighlightingLocator,
+    passage_href,
+)
 from docsage.infrastructure.text_report import breakdown, emphasized
 from docsage.infrastructure.units import usage_summary
 
@@ -19,10 +23,13 @@ class MarkdownAnswerRenderer:
 
     Matched terms appear in ``**bold**`` and every passage's citation links to its source
     (see ``SourceLocator``), so the report reads the same on GitHub, in an editor or a wiki.
+    By default a text source opens at the passage itself (see ``HighlightingLocator``).
     """
 
     def __init__(self, locator: SourceLocator | None = None) -> None:
-        self._locator = locator if locator is not None else FileAndUrlLocator()
+        self._locator = (
+            locator if locator is not None else HighlightingLocator(FileAndUrlLocator())
+        )
 
     def render(self, answer: Answer) -> str:
         lines = [f"# {_one_line(answer.question)}", "", _linked(answer.text, answer.sources)]
@@ -36,7 +43,7 @@ class MarkdownAnswerRenderer:
 
     def _source(self, rank: int, result: SearchResult) -> list[str]:
         title = _LINK_TEXT_SPECIALS.sub(r"\\\1", result.chunk.citation)
-        href = self._locator.href(result.chunk)
+        href = passage_href(self._locator, result)
         if href is not None:
             title = f"[{title}](<{href}>)"
         lines = [

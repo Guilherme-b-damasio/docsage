@@ -70,4 +70,4 @@ def test_markdown_report_links_files_by_default(tmp_path):
 
     markdown = MarkdownAnswerRenderer().render(Answer("Q?", "A.", (_result(source=str(source)),)))
 
-    assert f"(<{source.resolve().as_uri()}>)" in markdown
+    assert f"(<{source.resolve().as_uri()}#:~:text=" in markdown

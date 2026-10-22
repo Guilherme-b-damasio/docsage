@@ -10,7 +10,11 @@ from docsage.domain.models import SearchResult
 from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import page
 from docsage.infrastructure.html_report import REPORT_CSS, source_html
-from docsage.infrastructure.source_links import FileAndUrlLocator
+from docsage.infrastructure.source_links import (
+    FileAndUrlLocator,
+    HighlightingLocator,
+    passage_href,
+)
 from docsage.infrastructure.svg_charts import CHART_CSS
 
 SEARCH_CSS = """
@@ -48,14 +52,17 @@ class HtmlSearchRenderer:
 
     With ``links`` the page also carries a search form and navigation, so it doubles as the
     home page of the web UI; without them it is a standalone, shareable results page.
-    Each passage's citation links to its source (see ``SourceLocator``).
+    Each passage's citation links to its source (see ``SourceLocator``); by default a
+    text source opens at the passage itself (see ``HighlightingLocator``).
     """
 
     def __init__(
         self, links: PageLinks | None = None, locator: SourceLocator | None = None
     ) -> None:
         self._links = links
-        self._locator = locator if locator is not None else FileAndUrlLocator()
+        self._locator = (
+            locator if locator is not None else HighlightingLocator(FileAndUrlLocator())
+        )
 
     def render(self, query: str, results: Sequence[SearchResult]) -> str:
         body: list[str] = []
@@ -68,7 +75,7 @@ class HtmlSearchRenderer:
                 f'<p class="muted">{_count(len(results))}</p>\n</header>'
             )
             body.extend(
-                source_html(rank, result, self._locator.href(result.chunk))
+                source_html(rank, result, passage_href(self._locator, result))
                 for rank, result in enumerate(results, 1)
             )
         elif self._links is None:
