@@ -77,7 +77,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Recently indexed documents panel in the dashboard (newest first, with chunk counts)
 
 ## Milestone 0.9: Interactive views
-- [ ] Clickable source links in the HTML search results page and the web UI
+- [x] Clickable source links in the HTML search results page and the web UI
 - [ ] MCP Apps view for `index_stats` (stat tiles and a top-terms bar chart)
 - [ ] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
 - [ ] Filter search results by source type or folder (`search_documents` `source` argument)

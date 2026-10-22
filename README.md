@@ -322,6 +322,12 @@ that follows the system's light or dark mode:
 | `/ui?q=...` | a search form and the ranked passages with highlights and score breakdowns |
 | `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
 | `/ui/dashboard` | the index dashboard |
+| `/ui/source?path=...` | an indexed file, opened from a citation |
+
+Citations on the search and answer pages link to their source: web pages to their URL,
+files to `/ui/source` (browsers do not open `file://` links from a web page), at the
+right page for PDFs. It serves only files that are in the index, as plain text for
+Markdown and text files, and sandboxed so an indexed HTML page cannot run scripts.
 
 ### Docker
 
