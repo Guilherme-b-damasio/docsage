@@ -38,6 +38,9 @@ class PageLinks:
     ask: str
     """Form action for asking Claude, with the question in ``q``."""
     dashboard: str
+    source: str | None = None
+    """Where the server serves indexed files to open from citations; without it, files
+    are linked with ``file://`` URIs."""
 
 
 class HtmlSearchRenderer:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from docsage.domain.models import Chunk
-from docsage.infrastructure.source_links import FileAndUrlLocator
+from docsage.infrastructure.source_links import FileAndUrlLocator, ServedSourceLocator
 
 
 def _chunk(source, first_page=None):
@@ -36,3 +36,11 @@ def test_pdf_passages_open_at_their_first_page(tmp_path):
     href = FileAndUrlLocator(tmp_path).href(_chunk("guide.pdf", first_page=3))
 
     assert href == (tmp_path / "guide.pdf").resolve().as_uri() + "#page=3"
+
+
+def test_served_files_link_to_the_endpoint_with_the_source_quoted():
+    locator = ServedSourceLocator("/ui/source")
+
+    assert locator.href(_chunk("docs/a b&c.md")) == "/ui/source?path=docs%2Fa%20b%26c.md"
+    assert locator.href(_chunk("guide.pdf", first_page=3)) == "/ui/source?path=guide.pdf#page=3"
+    assert locator.href(_chunk("https://example.com/x")) == "https://example.com/x"
