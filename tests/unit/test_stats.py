@@ -1,4 +1,4 @@
-from docsage.application.services import StatsService
+from docsage.application.services import StatsReportService, StatsService
 from docsage.domain.models import Chunk
 from docsage.infrastructure.bm25 import BM25Retriever
 
@@ -54,3 +54,25 @@ def test_top_term_ties_are_alphabetical():
     stats = StatsService(retriever, _split, SizedRepository(0)).stats(top=3)
 
     assert [term for term, _ in stats.top_terms] == ["alpha", "mu", "zeta"]
+
+
+class _RecordingRenderer:
+    def __init__(self):
+        self.rendered = []
+
+    def render(self, stats):
+        self.rendered.append(stats)
+        return f"<p>{stats.documents} documents</p>"
+
+
+def test_stats_report_renders_the_stats_it_returns():
+    retriever = BM25Retriever(tokenizer=_split)
+    retriever.add([Chunk("a#0", "a.md", "alpha beta alpha", 0)])
+    renderer = _RecordingRenderer()
+    service = StatsReportService(StatsService(retriever, _split, SizedRepository(10)), renderer)
+
+    report = service.report(top=1)
+
+    assert report.stats.top_terms == (("alpha", 2),)
+    assert renderer.rendered == [report.stats]
+    assert report.content == "<p>1 documents</p>"
