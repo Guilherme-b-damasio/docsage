@@ -36,7 +36,6 @@ from docsage.application.services import (
     DashboardService,
     IndexingReport,
     IndexingService,
-    IndexStats,
     LiveWatchService,
     QuestionAnsweringService,
     RemovalReport,
@@ -45,7 +44,7 @@ from docsage.application.services import (
     StatsService,
     WatchUpdate,
 )
-from docsage.domain.models import Answer, Chunk, SearchResult, is_url
+from docsage.domain.models import Answer, Chunk, IndexStats, SearchResult, is_url
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (

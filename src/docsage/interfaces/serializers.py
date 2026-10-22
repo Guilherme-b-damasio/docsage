@@ -13,7 +13,6 @@ from typing import Any
 from docsage.application.services import (
     DocumentSummary,
     IndexingReport,
-    IndexStats,
     RemovalReport,
 )
 from docsage.domain.models import (
@@ -23,6 +22,7 @@ from docsage.domain.models import (
     EvaluationReport,
     Highlight,
     IndexOverview,
+    IndexStats,
     SearchResult,
     TermScore,
     TokenUsage,

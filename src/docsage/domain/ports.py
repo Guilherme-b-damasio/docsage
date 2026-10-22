@@ -20,6 +20,7 @@ from docsage.domain.models import (
     FileChanges,
     Highlight,
     IndexOverview,
+    IndexStats,
     SearchResult,
     TokenUsage,
 )
@@ -186,6 +187,12 @@ class DashboardRenderer(Protocol):
     """Turns an overview of the index into a dashboard (HTML, text...)."""
 
     def render(self, overview: IndexOverview) -> str: ...
+
+
+class StatsRenderer(Protocol):
+    """Turns the index statistics into a page (HTML, text...)."""
+
+    def render(self, stats: IndexStats) -> str: ...
 
 
 class EvaluationRenderer(Protocol):

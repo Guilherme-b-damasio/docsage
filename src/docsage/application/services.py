@@ -26,6 +26,7 @@ from docsage.domain.models import (
     FileChanges,
     HistogramBin,
     IndexOverview,
+    IndexStats,
     RecentDocument,
     SearchResult,
     is_url,
@@ -597,17 +598,6 @@ class AnswerReportService:
         content = self._renderer.render(answer)
         logger.debug("rendered answer report", extra={"characters": len(content)})
         return AnswerReport(answer, content)
-
-
-@dataclass(frozen=True)
-class IndexStats:
-    documents: int
-    chunks: int
-    terms: int
-    """Indexed terms summed over chunks (overlapping windows count twice)."""
-    vocabulary: int
-    top_terms: tuple[tuple[str, int], ...]
-    index_bytes: int
 
 
 class StatsService:

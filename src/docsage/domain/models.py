@@ -203,6 +203,19 @@ class RecentDocument:
 
 
 @dataclass(frozen=True)
+class IndexStats:
+    """Headline numbers of the index and its most frequent terms."""
+
+    documents: int
+    chunks: int
+    terms: int
+    """Indexed terms summed over chunks (overlapping windows count twice)."""
+    vocabulary: int
+    top_terms: tuple[tuple[str, int], ...]
+    index_bytes: int
+
+
+@dataclass(frozen=True)
 class IndexOverview:
     """Everything the index dashboard shows, computed once from the stored chunks."""
 
