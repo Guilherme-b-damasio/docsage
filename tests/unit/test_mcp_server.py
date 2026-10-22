@@ -608,6 +608,28 @@ def test_ask_documents_links_the_answer_report_view():
     assert view.contents[0].mime_type == APP_MIME_TYPE
 
 
+def test_answer_report_view_offers_a_follow_up_question():
+    text = read(FakeServices(), "ui://docsage/answer-report").contents[0].text
+
+    assert '"tools/call"' in text
+    assert '"tool": "ask_documents", "argument": "question"' in text
+
+
+def test_other_views_offer_no_follow_up():
+    for uri in ("ui://docsage/search-results", "ui://docsage/dashboard", "ui://docsage/index-stats"):
+        assert "const FOLLOW_UP = null;" in read(FakeServices(), uri).contents[0].text
+
+
+def test_ask_documents_tool_is_visible_to_apps():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            return await client.list_tools()
+
+    tool = next(item for item in asyncio.run(run()).tools if item.name == "ask_documents")
+
+    assert "visibility" not in tool.meta["ui"]
+
+
 def test_ask_documents_reports_usage_in_text_and_structured_output():
     services = FakeServices(CHUNKS)
     usage = TokenUsage(model="claude-opus-5-5", input_tokens=1000, output_tokens=500)

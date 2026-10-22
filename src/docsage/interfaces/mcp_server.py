@@ -46,7 +46,7 @@ from docsage.application.services import (
     WatchUpdate,
 )
 from docsage.domain.models import Answer, Chunk, IndexStats, SearchResult, is_url
-from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
+from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, FollowUp, app_view
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
     AnswerOutput,
@@ -78,6 +78,8 @@ DASHBOARD_VIEW_URI = "ui://docsage/dashboard"
 ANSWER_VIEW_URI = "ui://docsage/answer-report"
 SEARCH_VIEW_URI = "ui://docsage/search-results"
 STATS_VIEW_URI = "ui://docsage/index-stats"
+ASK_FOLLOW_UP = FollowUp("ask_documents", "question", "Ask a follow-up question", "Ask")
+"""Lets the user ask another question from the answer report view."""
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
@@ -190,7 +192,8 @@ def build_server(
 
         Retrieves the top_k passages and asks Claude for an answer grounded on them.
         Needs ANTHROPIC_API_KEY in the server's environment. Hosts that support MCP Apps
-        also show an HTML report with the cited passages highlighted.
+        also show an HTML report with the cited passages highlighted, from which the
+        user can ask a follow-up question.
         """
         service = services.answer_report_service("html")
         report = service.report(_require(question, "question"), _clamp(top_k))
@@ -199,12 +202,15 @@ def build_server(
     @server.resource(
         ANSWER_VIEW_URI,
         title="Answer report view",
-        description="MCP Apps view that shows the HTML answer report returned by ask_documents.",
+        description=(
+            "MCP Apps view that shows the HTML answer report returned by ask_documents, "
+            "with a form to ask a follow-up question."
+        ),
         mime_type=APP_MIME_TYPE,
         meta={"ui": {"prefersBorder": True}},
     )
     def answer_view() -> str:
-        return app_view("docsage answer", __version__)
+        return app_view("docsage answer", __version__, ASK_FOLLOW_UP)
 
     @server.tool(
         title="Index path",
