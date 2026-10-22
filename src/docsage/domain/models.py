@@ -45,6 +45,9 @@ class Chunk:
     last_page: int | None = None
     section: str = ""
     """Heading path the chunk belongs to, e.g. ``Setup > Install`` (Markdown only)."""
+    indexed_at: str = ""
+    """When the source document was indexed, as an ISO 8601 UTC timestamp (empty for
+    chunks indexed before docsage recorded it)."""
 
     @property
     def citation(self) -> str:

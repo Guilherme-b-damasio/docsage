@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from itertools import combinations
 from pathlib import Path
 
@@ -88,13 +89,16 @@ class IndexingService:
         retriever: Retriever,
         repository: IndexRepository,
         url_loader: UrlLoader | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
-        """Without a ``url_loader``, ``index_urls`` reports every URL as failed."""
+        """Without a ``url_loader``, ``index_urls`` reports every URL as failed.
+        ``clock`` tells when documents are indexed (the current UTC time by default)."""
         self._loaders = loaders
         self._chunker = chunker
         self._retriever = retriever
         self._repository = repository
         self._url_loader = url_loader
+        self._clock = clock if clock is not None else _utc_now
 
     def index(self, paths: Iterable[Path], force: bool = False) -> IndexingReport:
         """Indexes ``paths``; files whose content is already indexed are skipped
@@ -131,8 +135,10 @@ class IndexingService:
             logger.debug("skipped unchanged document", extra={"source": document.source})
             run.unchanged += 1
             return
+        indexed_at = self._clock().isoformat(timespec="seconds")
         new_chunks = [
-            replace(chunk, content_hash=digest) for chunk in self._chunker.split(document)
+            replace(chunk, content_hash=digest, indexed_at=indexed_at)
+            for chunk in self._chunker.split(document)
         ]
         self._retriever.remove(document.source)
         self._retriever.add(new_chunks)
@@ -173,6 +179,10 @@ class IndexingService:
         if self._url_loader is None:
             raise ValueError("Indexing web pages is not configured")
         return self._url_loader.load(url)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 @dataclass

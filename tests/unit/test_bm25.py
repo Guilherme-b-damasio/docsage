@@ -133,3 +133,14 @@ def test_repeated_query_term_is_one_contribution():
 
     assert [item.term for item in result.contributions] == ["cats"]
     assert result.contributions[0].score == pytest.approx(result.score)
+
+
+def test_repository_keeps_when_each_chunk_was_indexed(tmp_path):
+    path = tmp_path / "index.json"
+    retriever = BM25Retriever()
+    stamp = "2026-10-22T09:30:00+00:00"
+    retriever.add([Chunk(id="a", source="a.txt", text="alpha", position=0, indexed_at=stamp)])
+
+    JsonIndexRepository(path).save(retriever)
+
+    assert JsonIndexRepository(path).load().chunks()[0].indexed_at == stamp
