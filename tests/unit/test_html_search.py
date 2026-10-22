@@ -56,3 +56,23 @@ def test_home_page_without_a_query_shows_only_the_form():
     assert "<title>docsage</title>" in html
     assert 'value=""' in html
     assert "<h1>" not in html
+
+
+class _Locator:
+    def href(self, chunk):
+        return None if chunk.source == "b.md" else f"https://example.com/{chunk.source}"
+
+
+def test_results_page_links_each_passage_to_its_source():
+    html = HtmlSearchRenderer(locator=_Locator()).render("bm25", [_result(), _result("b.md")])
+
+    assert '<a href="https://example.com/a.md" target="_blank"' in html
+    assert "[2] b.md</span>" in html
+
+
+def test_results_page_links_files_on_disk_by_default(tmp_path):
+    source = tmp_path / "a.md"
+
+    html = HtmlSearchRenderer().render("bm25", [_result(str(source))])
+
+    assert f'href="{source.resolve().as_uri()}"' in html

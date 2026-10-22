@@ -88,6 +88,8 @@ def test_answer_report_service_renders_html_text_or_markdown(tmp_path):
     assert '<mark title="lisbon">Lisbon</mark>' in html.content
     assert "**Lisbon**" in text.content
     assert markdown.content.startswith("# Where is Lisbon?\n\nLisbon [\\[1\\]](#source-1).")
+    served = container.answer_report_service("html", "/f").report("Where is Lisbon?")
+    assert 'href="/f?path=' in served.content
     with pytest.raises(ValueError, match="Unknown report format"):
         container.answer_report_service("pdf")
 
@@ -548,3 +550,6 @@ def test_search_report_service_renders_an_html_results_page(tmp_path):
     assert '<mark title="lisbon">Lisbon</mark>' in page
     assert "<form" not in page
     assert 'action="/s"' in with_form
+    assert f'href="{notes.resolve().as_uri()}"' in page
+    served = container.search_report_service(PageLinks("/s", "/a", "/d", "/f")).report("lisbon")
+    assert 'href="/f?path=' in served

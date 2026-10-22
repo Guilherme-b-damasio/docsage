@@ -156,6 +156,49 @@ def test_web_ui_ask_renders_the_answer_report(client, docs):
     assert '<a class="cite" href="#source-1">[1]</a>' in response.text
 
 
+def test_web_ui_links_citations_to_the_served_source(client, docs):
+    from urllib.parse import quote
+
+    client.post("/index", json={"targets": [str(docs)]})
+    href = f"/ui/source?path={quote(str(docs / 'a.md'), safe='')}"
+
+    search = client.get("/ui", params={"q": "alpha"}).text
+    answer = client.get("/ui/ask", params={"q": "what is alpha?"}).text
+
+    assert f'href="{href}"' in search
+    assert f'href="{href}"' in answer
+
+
+def test_web_ui_serves_an_indexed_file_as_sandboxed_text(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    response = client.get("/ui/source", params={"path": str(docs / "a.md")})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+    assert response.headers["content-security-policy"] == "sandbox"
+    assert "alpha notes about retrieval" in response.text
+
+
+def test_web_ui_refuses_files_that_are_not_indexed(client, docs, tmp_path):
+    client.post("/index", json={"targets": [str(docs / "a.md")]})
+    secret = tmp_path / "secret.txt"
+    secret.write_text("do not serve", encoding="utf-8")
+
+    assert client.get("/ui/source", params={"path": str(secret)}).status_code == 404
+    assert client.get("/ui/source", params={"path": str(docs / "b.md")}).status_code == 404
+
+
+def test_web_ui_says_when_an_indexed_file_is_gone(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+    (docs / "a.md").unlink()
+
+    response = client.get("/ui/source", params={"path": str(docs / "a.md")})
+
+    assert response.status_code == 404
+    assert "no longer on disk" in response.json()["detail"]
+
+
 def test_web_ui_ask_without_a_question_goes_back_to_the_search_page(client):
     response = client.get("/ui/ask", params={"q": "  "}, follow_redirects=False)
 

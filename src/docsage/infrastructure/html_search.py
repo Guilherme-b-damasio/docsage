@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from html import escape
 
 from docsage.domain.models import SearchResult
+from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import page
 from docsage.infrastructure.html_report import REPORT_CSS, source_html
+from docsage.infrastructure.source_links import FileAndUrlLocator
 from docsage.infrastructure.svg_charts import CHART_CSS
 
 SEARCH_CSS = """
@@ -36,6 +38,9 @@ class PageLinks:
     ask: str
     """Form action for asking Claude, with the question in ``q``."""
     dashboard: str
+    source: str | None = None
+    """Where the server serves indexed files to open from citations; without it, files
+    are linked with ``file://`` URIs."""
 
 
 class HtmlSearchRenderer:
@@ -43,10 +48,14 @@ class HtmlSearchRenderer:
 
     With ``links`` the page also carries a search form and navigation, so it doubles as the
     home page of the web UI; without them it is a standalone, shareable results page.
+    Each passage's citation links to its source (see ``SourceLocator``).
     """
 
-    def __init__(self, links: PageLinks | None = None) -> None:
+    def __init__(
+        self, links: PageLinks | None = None, locator: SourceLocator | None = None
+    ) -> None:
         self._links = links
+        self._locator = locator if locator is not None else FileAndUrlLocator()
 
     def render(self, query: str, results: Sequence[SearchResult]) -> str:
         body: list[str] = []
@@ -58,7 +67,10 @@ class HtmlSearchRenderer:
                 f"<header>\n<h1>{escape(query)}</h1>\n"
                 f'<p class="muted">{_count(len(results))}</p>\n</header>'
             )
-            body.extend(source_html(rank, result) for rank, result in enumerate(results, 1))
+            body.extend(
+                source_html(rank, result, self._locator.href(result.chunk))
+                for rank, result in enumerate(results, 1)
+            )
         elif self._links is None:
             body.append('<h1>Search</h1>\n<p class="muted">No query.</p>')
         title = f"docsage: {query}" if query else "docsage"

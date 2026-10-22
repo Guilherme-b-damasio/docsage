@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import quote
 
 from docsage.domain.models import Chunk, is_url
 
@@ -30,3 +31,19 @@ class FileAndUrlLocator:
         if chunk.first_page is not None:
             uri += f"#page={chunk.first_page}"
         return uri
+
+
+class ServedSourceLocator:
+    """Web pages link to their URL; files to ``endpoint?path=<source>``, where a web server
+    serves indexed files (browsers do not open ``file://`` links from an ``http`` page)."""
+
+    def __init__(self, endpoint: str) -> None:
+        self._endpoint = endpoint
+
+    def href(self, chunk: Chunk) -> str | None:
+        if is_url(chunk.source):
+            return chunk.source
+        href = f"{self._endpoint}?path={quote(chunk.source, safe='')}"
+        if chunk.first_page is not None:
+            href += f"#page={chunk.first_page}"
+        return href

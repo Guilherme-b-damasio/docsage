@@ -14,12 +14,13 @@ from pathlib import Path
 from typing import Annotated, Any, Protocol
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from docsage import __version__
 from docsage.application.services import (
     AnswerReportService,
+    CatalogService,
     DashboardService,
     IndexingService,
     QuestionAnsweringService,
@@ -40,7 +41,10 @@ from docsage.interfaces.serializers import (
 MAX_TOP_K = 50
 MAX_TOP_TERMS = 100
 
-UI_LINKS = PageLinks(search="/ui", ask="/ui/ask", dashboard="/ui/dashboard")
+UI_LINKS = PageLinks(search="/ui", ask="/ui/ask", dashboard="/ui/dashboard", source="/ui/source")
+
+TEXT_SUFFIXES = (".md", ".markdown", ".txt", ".rst")
+"""Served as plain text, so browsers show them instead of downloading them."""
 
 
 class ServiceProvider(Protocol):
@@ -56,7 +60,11 @@ class ServiceProvider(Protocol):
 
     def search_report_service(self, links: PageLinks | None = None) -> SearchReportService: ...
 
-    def answer_report_service(self, report_format: str = "html") -> AnswerReportService: ...
+    def answer_report_service(
+        self, report_format: str = "html", source_endpoint: str | None = None
+    ) -> AnswerReportService: ...
+
+    def catalog_service(self) -> CatalogService: ...
 
     def dashboard_service(self, dashboard_format: str = "html") -> DashboardService: ...
 
@@ -151,7 +159,26 @@ def _add_web_ui(app: FastAPI, services: ServiceProvider) -> None:
         """The answer report: Claude's answer with its highlighted, cited passages."""
         if not q.strip():
             return RedirectResponse(UI_LINKS.search)
-        return services.answer_report_service("html").report(q.strip(), top_k).content
+        service = services.answer_report_service("html", UI_LINKS.source)
+        return service.report(q.strip(), top_k).content
+
+    @app.get("/ui/source", tags=["web UI"])
+    def source_file(
+        path: Annotated[str, Query(description="An indexed file, as the index stores it.")],
+    ) -> FileResponse:
+        """An indexed file, so citations can open it; anything else is refused. The file is
+        sandboxed, so an indexed HTML page cannot run scripts against the API."""
+        if is_url(path) or not services.catalog_service().document_chunks(path):
+            raise HTTPException(404, "Not an indexed document")
+        file = Path(path)
+        if not file.is_file():
+            raise HTTPException(404, "The document is no longer on disk")
+        text = file.suffix.lower() in TEXT_SUFFIXES
+        return FileResponse(
+            file,
+            media_type="text/plain; charset=utf-8" if text else None,
+            headers={"Content-Security-Policy": "sandbox", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.get("/ui/dashboard", response_class=HTMLResponse, tags=["web UI"])
     def dashboard_page() -> str:
