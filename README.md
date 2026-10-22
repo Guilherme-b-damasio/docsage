@@ -55,6 +55,16 @@ docsage watch docs/ notes.md
 # Removed docs/old.md.
 ```
 
+`docsage search --source <pattern>` searches only part of the index: a file type
+(`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`, matched against the source's
+folders) or a web address prefix (`https://example.com/docs`). The pattern ignores case
+and accepts either slash, and a narrow filter can return fewer than `--top-k` passages:
+
+```bash
+docsage search "chunk size" --source docs/api
+docsage search "chunk size" --source .pdf
+```
+
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
 summary), handy for scripts and other tools. Each ranked chunk lists its
@@ -248,7 +258,7 @@ The server offers these tools:
 
 | Tool               | What it does                                              |
 | ------------------ | --------------------------------------------------------- |
-| `search_documents` | ranked passages with citations, no model call             |
+| `search_documents` | ranked passages with citations, no model call; `source` narrows it to a file type, folder or URL prefix |
 | `ask_documents`    | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
@@ -298,7 +308,7 @@ shapes as `--json`, and interactive docs are at `/docs`:
 | Endpoint | Does |
 | --- | --- |
 | `POST /index` | `{"targets": ["docs/", "https://example.com/guide"], "force": false}`: index files, folders and pages |
-| `GET /search?q=...&top_k=5` | rank passages, with highlights and score breakdowns (no model call) |
+| `GET /search?q=...&top_k=5&source=` | rank passages, with highlights and score breakdowns (no model call); `source` narrows the search |
 | `POST /ask` | `{"question": "...", "top_k": 5}`: answer with Claude, with sources, usage and cost |
 | `GET /stats?top=10` | summarize the index |
 | `GET /health` | liveness check |

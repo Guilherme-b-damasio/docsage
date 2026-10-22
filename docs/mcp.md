@@ -119,6 +119,13 @@ overwrites the other's changes.
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
 | `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms and related documents |
 
+`search_documents` takes an optional `source` that narrows the search to part of the
+index: a file type (`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`, matched
+against the source's folders) or a web address prefix (`https://example.com/docs`).
+The pattern ignores case and accepts either slash; read `docsage://documents` for the
+indexed sources. A narrow filter can return fewer than `top_k` passages, and the filter
+comes back in the structured output as `source`.
+
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths. `index_url` fetches any http(s) address the
 client passes, from the machine the server runs on; keep that in mind before exposing
