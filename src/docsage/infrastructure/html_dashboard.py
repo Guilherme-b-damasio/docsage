@@ -26,13 +26,16 @@ from docsage.infrastructure.svg_charts import (
 )
 from docsage.infrastructure.units import human_size, indexed_label
 
-DASHBOARD_CSS = """
+TILES_CSS = """
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .tiles { margin-bottom: 12px; }
 .tile { margin: 0; }
 .card > h2:first-child { margin-top: 0; }
 .tile .number { font-size: 1.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tile .caption { color: var(--muted); font-size: 0.9rem; }
+"""
+
+DASHBOARD_CSS = TILES_CSS + """
 pre { overflow-x: auto; font-size: 0.85rem; background: var(--bg); padding: 8px; }
 .recent table { width: 100%; }
 .recent td { overflow-wrap: anywhere; }
@@ -88,18 +91,13 @@ class HtmlDashboardRenderer:
 
     @staticmethod
     def _tiles(overview: IndexOverview) -> str:
-        tiles = [
-            (f"{overview.documents:,}", "documents"),
-            (f"{overview.chunks:,}", "chunks"),
-            (f"{overview.vocabulary:,}", f"distinct terms of {overview.terms:,}"),
-            (human_size(overview.index_bytes), "index size"),
-        ]
-        cells = "".join(
-            f'<div class="card tile"><div class="number">{escape(number)}</div>'
-            f'<div class="caption">{escape(caption)}</div></div>'
-            for number, caption in tiles
+        return stat_tiles(
+            overview.documents,
+            overview.chunks,
+            overview.terms,
+            overview.vocabulary,
+            overview.index_bytes,
         )
-        return f'<section class="tiles" aria-label="Summary">{cells}</section>'
 
     @staticmethod
     def _section(
@@ -176,6 +174,22 @@ class HtmlDashboardRenderer:
             f"{legend(names)}\n{scatter_chart(dots, 'Map of chunk embeddings')}\n"
             f"{text_table(('Chunk', 'Document', 'x', 'y'), rows)}\n</section>"
         )
+
+
+def stat_tiles(documents: int, chunks: int, terms: int, vocabulary: int, index_bytes: int) -> str:
+    """The summary tiles: documents, chunks, distinct terms and index size."""
+    tiles = [
+        (f"{documents:,}", "documents"),
+        (f"{chunks:,}", "chunks"),
+        (f"{vocabulary:,}", f"distinct terms of {terms:,}"),
+        (human_size(index_bytes), "index size"),
+    ]
+    cells = "".join(
+        f'<div class="card tile"><div class="number">{escape(number)}</div>'
+        f'<div class="caption">{escape(caption)}</div></div>'
+        for number, caption in tiles
+    )
+    return f'<section class="tiles" aria-label="Summary">{cells}</section>'
 
 
 def map_groups(sources: list[str]) -> dict[str, tuple[str, int]]:

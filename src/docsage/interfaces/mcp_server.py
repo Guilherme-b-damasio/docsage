@@ -36,16 +36,16 @@ from docsage.application.services import (
     DashboardService,
     IndexingReport,
     IndexingService,
-    IndexStats,
     LiveWatchService,
     QuestionAnsweringService,
     RemovalReport,
     RemovalService,
     SearchReportService,
+    StatsReportService,
     StatsService,
     WatchUpdate,
 )
-from docsage.domain.models import Answer, Chunk, SearchResult, is_url
+from docsage.domain.models import Answer, Chunk, IndexStats, SearchResult, is_url
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, app_view
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
@@ -77,6 +77,7 @@ CHUNK_URI_TEMPLATE = "docsage://chunks/{chunk_id}"
 DASHBOARD_VIEW_URI = "ui://docsage/dashboard"
 ANSWER_VIEW_URI = "ui://docsage/answer-report"
 SEARCH_VIEW_URI = "ui://docsage/search-results"
+STATS_VIEW_URI = "ui://docsage/index-stats"
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages and ask_documents for a cited answer. "
@@ -108,6 +109,8 @@ class ServiceProvider(Protocol):
     def removal_service(self) -> RemovalService: ...
 
     def stats_service(self) -> StatsService: ...
+
+    def stats_report_service(self) -> StatsReportService: ...
 
     def catalog_service(self) -> CatalogService: ...
 
@@ -277,13 +280,32 @@ def build_server(
     @server.tool(
         title="Index stats",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+        meta=_view_meta(STATS_VIEW_URI),
     )
     def index_stats(top: int = 10) -> Annotated[CallToolResult, StatsOutput]:
-        """Summarize the index: documents, chunks, terms, top terms and size on disk."""
+        """Summarize the index: documents, chunks, terms, top terms and size on disk.
+
+        Hosts that support MCP Apps also show the numbers as stat tiles with a bar chart
+        of the top terms.
+        """
         if top < 0:
             raise ToolError("top must not be negative")
-        stats = services.stats_service().stats(min(top, MAX_TOP_TERMS))
-        return _result(format_stats(stats), stats_to_dict(stats))
+        report = services.stats_report_service().report(min(top, MAX_TOP_TERMS))
+        stats = report.stats
+        return _result(format_stats(stats), stats_to_dict(stats), report.content)
+
+    @server.resource(
+        STATS_VIEW_URI,
+        title="Index stats view",
+        description=(
+            "MCP Apps view that shows the stat tiles and top-terms bar chart returned by "
+            "index_stats."
+        ),
+        mime_type=APP_MIME_TYPE,
+        meta={"ui": {"prefersBorder": True}},
+    )
+    def stats_view() -> str:
+        return app_view("docsage stats", __version__)
 
     @server.tool(
         title="Index dashboard",

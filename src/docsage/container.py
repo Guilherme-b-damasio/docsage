@@ -20,6 +20,7 @@ from docsage.application.services import (
     RemovalService,
     SearchReportService,
     SearchService,
+    StatsReportService,
     StatsService,
     WatchService,
 )
@@ -60,6 +61,7 @@ from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.html_search import HtmlSearchRenderer, PageLinks
+from docsage.infrastructure.html_stats import HtmlStatsRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.markdown_report import MarkdownAnswerRenderer
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
@@ -267,6 +269,9 @@ class Container:
 
     def stats_service(self) -> StatsService:
         return StatsService(self._repository.load(), self._tokenizer, self._repository)
+
+    def stats_report_service(self) -> StatsReportService:
+        return StatsReportService(self.stats_service(), HtmlStatsRenderer())
 
     def dashboard_service(self, dashboard_format: str = "html") -> DashboardService:
         """``dashboard_format`` is a key of ``DASHBOARD_FORMATS``."""

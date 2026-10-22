@@ -16,6 +16,7 @@ from docsage.application.services import (  # noqa: E402
     RelationService,
     SearchReportService,
     SearchService,
+    StatsReportService,
     StatsService,
 )
 from docsage.container import Container, Settings  # noqa: E402
@@ -25,6 +26,7 @@ from docsage.infrastructure.highlighting import TermHighlighter  # noqa: E402
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer  # noqa: E402
 from docsage.infrastructure.html_report import HtmlAnswerRenderer  # noqa: E402
 from docsage.infrastructure.html_search import HtmlSearchRenderer  # noqa: E402
+from docsage.infrastructure.html_stats import HtmlStatsRenderer  # noqa: E402
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY  # noqa: E402
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer  # noqa: E402
 from docsage.infrastructure.tokenizer import multilingual_tokenizer  # noqa: E402
@@ -67,6 +69,9 @@ class FakeServices:
 
     def stats_service(self):
         return StatsService(self.retriever, multilingual_tokenizer(), self)
+
+    def stats_report_service(self):
+        return StatsReportService(self.stats_service(), HtmlStatsRenderer())
 
     def catalog_service(self):
         return CatalogService(self.retriever)
@@ -501,9 +506,33 @@ def test_index_dashboard_rejects_negative_top():
 
 
 def test_tools_without_a_view_carry_no_html():
-    result = call(FakeServices(CHUNKS), "index_stats", {})
+    result = call(FakeServices(CHUNKS), "remove_path", {"path": "a.md"})
 
     assert not (result.meta or {}).get(HTML_META_KEY)
+
+
+def test_index_stats_returns_the_html_stats_page_for_its_view():
+    result = call(FakeServices(CHUNKS), "index_stats", {"top": 3})
+
+    html = result.meta[HTML_META_KEY]
+    assert html.startswith("<!doctype html>")
+    assert 'aria-label="Summary"' in html and "<svg" in html
+    assert "<svg" not in text_of(result) and "Documents:  2" in text_of(result)
+
+
+def test_index_stats_links_the_stats_view():
+    async def run():
+        async with Client(build_server(FakeServices())) as client:
+            tools = await client.list_tools()
+            view = await client.read_resource("ui://docsage/index-stats")
+            return tools, view
+
+    tools, view = asyncio.run(run())
+    tool = next(item for item in tools.tools if item.name == "index_stats")
+
+    assert tool.meta == {"ui": {"resourceUri": "ui://docsage/index-stats"}}
+    assert view.contents[0].mime_type == APP_MIME_TYPE
+    assert "ui/initialize" in view.contents[0].text
 
 
 def test_search_documents_returns_the_html_results_page_for_its_view():

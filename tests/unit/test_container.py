@@ -553,3 +553,11 @@ def test_search_report_service_renders_an_html_results_page(tmp_path):
     assert f'href="{notes.resolve().as_uri()}"' in page
     served = container.search_report_service(PageLinks("/s", "/a", "/d", "/f")).report("lisbon")
     assert 'href="/f?path=' in served
+
+
+def test_stats_report_service_renders_html(tmp_path):
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+    report = container.stats_report_service().report()
+
+    assert report.stats.documents == 0
+    assert report.content.startswith("<!doctype html>") and "docsage stats" in report.content

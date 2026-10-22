@@ -26,6 +26,7 @@ from docsage.domain.models import (
     FileChanges,
     HistogramBin,
     IndexOverview,
+    IndexStats,
     RecentDocument,
     SearchResult,
     is_url,
@@ -45,6 +46,7 @@ from docsage.domain.ports import (
     IndexRepository,
     Retriever,
     SearchRenderer,
+    StatsRenderer,
     StreamingAnswerGenerator,
     TextTokenizer,
     UrlLoader,
@@ -599,17 +601,6 @@ class AnswerReportService:
         return AnswerReport(answer, content)
 
 
-@dataclass(frozen=True)
-class IndexStats:
-    documents: int
-    chunks: int
-    terms: int
-    """Indexed terms summed over chunks (overlapping windows count twice)."""
-    vocabulary: int
-    top_terms: tuple[tuple[str, int], ...]
-    index_bytes: int
-
-
 class StatsService:
     """Summarizes what is in the index."""
 
@@ -635,6 +626,27 @@ class StatsService:
             top_terms=tuple(ranked[:top]),
             index_bytes=self._repository.size_bytes(),
         )
+
+
+@dataclass(frozen=True)
+class StatsReport:
+    stats: IndexStats
+    content: str
+    """The rendered statistics page, e.g. a complete HTML document."""
+
+
+class StatsReportService:
+    """Summarizes the index and renders the statistics as a page."""
+
+    def __init__(self, summarizing: StatsService, renderer: StatsRenderer) -> None:
+        self._summarizing = summarizing
+        self._renderer = renderer
+
+    def report(self, top: int = 10) -> StatsReport:
+        stats = self._summarizing.stats(top)
+        content = self._renderer.render(stats)
+        logger.debug("rendered stats report", extra={"characters": len(content)})
+        return StatsReport(stats, content)
 
 
 class RelationService:
