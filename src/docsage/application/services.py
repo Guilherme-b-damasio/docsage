@@ -26,6 +26,7 @@ from docsage.domain.models import (
     FileChanges,
     HistogramBin,
     IndexOverview,
+    RecentDocument,
     SearchResult,
     is_url,
 )
@@ -707,7 +708,8 @@ class DashboardService:
         self._relations = relations
         self._projector = projector
 
-    def overview(self, top: int = 15, bins: int = 10) -> IndexOverview:
+    def overview(self, top: int = 15, bins: int = 10, recent: int = 10) -> IndexOverview:
+        """``recent`` caps how many recently indexed documents the overview lists."""
         stats = self._stats.stats(top)
         chunks = self._retriever.chunks()
         types = Counter(file_type(source) for source in {chunk.source for chunk in chunks})
@@ -722,6 +724,7 @@ class DashboardService:
             top_terms=stats.top_terms,
             relations=self._relations.relations() if self._relations else (),
             chunk_map=self._chunk_map(chunks),
+            recent_documents=recent_documents(chunks, recent),
         )
 
     def _chunk_map(self, chunks: Sequence[Chunk]) -> tuple[ChunkPoint, ...]:
@@ -737,6 +740,22 @@ class DashboardService:
     def render_overview(self, overview: IndexOverview) -> str:
         """Renders an overview built earlier, e.g. to show it in several formats."""
         return self._renderer.render(overview)
+
+
+def recent_documents(chunks: Sequence[Chunk], limit: int) -> tuple[RecentDocument, ...]:
+    """The ``limit`` most recently indexed documents with their chunk counts, newest first;
+    documents without a recorded time come last, by name."""
+    counts = Counter(chunk.source for chunk in chunks)
+    stamps: dict[str, str] = {}
+    for chunk in chunks:
+        stamps[chunk.source] = max(stamps.get(chunk.source, ""), chunk.indexed_at)
+    by_name = sorted(stamps)
+    timed = sorted(
+        (source for source in by_name if stamps[source]), key=stamps.__getitem__, reverse=True
+    )
+    untimed = [source for source in by_name if not stamps[source]]
+    ordered = [*timed, *untimed][: max(0, limit)]
+    return tuple(RecentDocument(source, stamps[source], counts[source]) for source in ordered)
 
 
 def file_type(source: str) -> str:
