@@ -329,6 +329,22 @@ def test_report_open_uses_the_output_path_when_given(tmp_path, capsys, monkeypat
     assert opened == [output.resolve().as_uri()]
 
 
+def test_report_writes_markdown_to_a_temporary_md_file_when_opened(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url) or True)
+
+    assert main(["--index", str(index), "report", "alpha?", "--format", "markdown", "--open"]) == 0
+
+    (url,) = opened
+    assert url.endswith("/report.md")
+    written = Path(capsys.readouterr().out.removeprefix("Wrote ").strip())
+    content = written.read_text(encoding="utf-8")
+    assert content.startswith("# alpha?\n")
+    assert "> **alpha** notes" in content
+
+
 def test_report_open_says_where_the_file_is_without_a_browser(tmp_path, capsys, monkeypatch):
     _offline(monkeypatch)
     index = _indexed(tmp_path, capsys)

@@ -66,7 +66,7 @@ def test_search_results_carry_highlights_from_the_shared_tokenizer(tmp_path):
     assert result.chunk.text[highlight.start : highlight.end] == "Index"
 
 
-def test_answer_report_service_renders_html_or_text(tmp_path):
+def test_answer_report_service_renders_html_text_or_markdown(tmp_path):
     import pytest
 
     from docsage.container import Container
@@ -82,10 +82,12 @@ def test_answer_report_service_renders_html_or_text(tmp_path):
 
     html = container.answer_report_service().report("Where is Lisbon?")
     text = container.answer_report_service("text").report("Where is Lisbon?")
+    markdown = container.answer_report_service("markdown").report("Where is Lisbon?")
 
     assert html.answer.text == "Lisbon [1]."
     assert '<mark title="lisbon">Lisbon</mark>' in html.content
     assert "**Lisbon**" in text.content
+    assert markdown.content.startswith("# Where is Lisbon?\n\nLisbon [\\[1\\]](#source-1).")
     with pytest.raises(ValueError, match="Unknown report format"):
         container.answer_report_service("pdf")
 

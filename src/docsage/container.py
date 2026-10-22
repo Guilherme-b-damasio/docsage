@@ -61,6 +61,7 @@ from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.html_search import HtmlSearchRenderer, PageLinks
 from docsage.infrastructure.loaders import default_loaders
+from docsage.infrastructure.markdown_report import MarkdownAnswerRenderer
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.pricing import PriceTable
 from docsage.infrastructure.projection import PcaProjector
@@ -75,6 +76,7 @@ DEFAULT_INDEX_PATH = Path(".docsage") / "index.json"
 
 REPORT_FORMATS: dict[str, type[AnswerRenderer]] = {
     "html": HtmlAnswerRenderer,
+    "markdown": MarkdownAnswerRenderer,
     "text": TextAnswerRenderer,
 }
 
