@@ -74,7 +74,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] MCP Apps view for `search_documents` results (score breakdown bars per result)
 - [x] Clickable citations in the HTML answer report (link each passage to its source file, page or URL)
 - [x] Markdown export of the answer report (`docsage report --format markdown`)
-- [ ] Recently indexed documents panel in the dashboard (newest first, with chunk counts)
+- [x] Recently indexed documents panel in the dashboard (newest first, with chunk counts)
 
 ## Milestone 0.9: Interactive views
 - [ ] Clickable source links in the HTML search results page and the web UI

@@ -393,6 +393,11 @@ per file type, a histogram of chunk lengths (in words) and the most frequent ter
 charts are inline SVG, so the page works offline, follows light and dark mode, shows
 each value on hover and has a "Show as table" view under every chart.
 
+Right under the totals, "Recently indexed" lists the newest documents first, with when
+each one was indexed (UTC) and how many chunks it was split into. docsage records the
+time on every chunk as it indexes; documents indexed by an older version show "unknown"
+until they are re-indexed (`docsage index --force`).
+
 A "Related documents" graph links documents that share characteristic terms (frequent
 in the document, rare across the index), with thicker lines for more shared terms. Its
 Mermaid source is one click away, and `--format mermaid` prints just that diagram, ready
@@ -420,6 +425,16 @@ docsage dashboard --format mermaid      # related documents as a Mermaid graph
 
 `python scripts/screenshots.py` regenerates both screenshots from this repository's own
 docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
+
+## What's new in 0.8
+
+- `docsage mcp --watch <folder>` keeps the index in sync while serving and tells MCP
+  clients that `docsage://documents` changed.
+- `search_documents` results show up in an MCP Apps view with score breakdown bars.
+- Every cited passage in the HTML answer report links to its source file, PDF page or
+  URL, and the MCP Apps view asks the host to open those links.
+- `docsage report --format markdown` exports the answer report as Markdown.
+- The dashboard lists the most recently indexed documents with their chunk counts.
 
 ## What's new in 0.7
 
