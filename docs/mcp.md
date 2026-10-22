@@ -158,6 +158,7 @@ content.
 | `ui://docsage/dashboard`      | the MCP Apps view of `index_dashboard` (see Visual output)     |
 | `ui://docsage/answer-report`  | the MCP Apps view of `ask_documents` (see Visual output)       |
 | `ui://docsage/search-results` | the MCP Apps view of `search_documents` (see Visual output)    |
+| `ui://docsage/index-stats`    | the MCP Apps view of `index_stats` (see Visual output)         |
 
 ### Prompts
 
