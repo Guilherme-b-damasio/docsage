@@ -73,7 +73,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] `docsage mcp --watch <folder>`: keep the index in sync while serving and notify clients that `docsage://documents` changed
 - [x] MCP Apps view for `search_documents` results (score breakdown bars per result)
 - [x] Clickable citations in the HTML answer report (link each passage to its source file, page or URL)
-- [ ] Markdown export of the answer report (`docsage report --format markdown`)
+- [x] Markdown export of the answer report (`docsage report --format markdown`)
 - [ ] Recently indexed documents panel in the dashboard (newest first, with chunk counts)
 
 ## Milestone 0.9: Interactive views

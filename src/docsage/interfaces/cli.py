@@ -436,7 +436,7 @@ def _report(container: Container, args: argparse.Namespace) -> int:
     return 0
 
 
-_EXTENSIONS = {"html": "html", "text": "txt"}
+_EXTENSIONS = {"html": "html", "markdown": "md", "text": "txt"}
 
 
 def _write_output(content: str, output: Path | None) -> None:
