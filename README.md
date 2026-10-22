@@ -359,13 +359,19 @@ relative paths resolved from the directory docsage runs in). The page inlines it
 clients that cannot show HTML (matched terms appear in `**bold**`).
 
 `docsage report` answers a question with Claude and writes the report: to stdout by
-default, to a file with `-o`, or as plain text with `--format text`. `--open` shows it in
-the default browser (in a temporary file unless `-o` is given):
+default, to a file with `-o`, as plain text with `--format text`, or as Markdown with
+`--format markdown`. `--open` shows it in the default browser (in a temporary file unless
+`-o` is given):
 
 ```bash
 docsage report "How does BM25 work?" --open
 docsage report "How does BM25 work?" -o reports/bm25.html
+docsage report "How does BM25 work?" --format markdown -o notes/bm25.md
 ```
+
+The Markdown report suits notes, wikis and pull requests: each `[n]` in the answer links
+to its passage, every passage is a quote with the matched terms in `**bold**` under a
+heading that links to its source, followed by its score breakdown and the token usage.
 
 ![Answer report: the answer with linked citations, then each cited passage with its matched terms highlighted and a score breakdown chart](docs/images/answer-report-light.png)
 
