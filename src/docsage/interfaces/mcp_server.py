@@ -45,7 +45,14 @@ from docsage.application.services import (
     StatsService,
     WatchUpdate,
 )
-from docsage.domain.models import Answer, Chunk, IndexStats, SearchResult, is_url
+from docsage.domain.models import (
+    Answer,
+    Chunk,
+    IndexStats,
+    SearchResult,
+    SourceFilter,
+    is_url,
+)
 from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, FollowUp, app_view
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
@@ -82,7 +89,8 @@ ASK_FOLLOW_UP = FollowUp("ask_documents", "question", "Ask a follow-up question"
 """Lets the user ask another question from the answer report view."""
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
-    "Use search_documents to find passages and ask_documents for a cited answer. "
+    "Use search_documents to find passages (optionally narrowed to a file type, folder "
+    "or URL prefix with source) and ask_documents for a cited answer. "
     "index_path adds files or folders, remove_path drops them, index_url and remove_url "
     "do the same for web pages, index_stats summarizes "
     "and index_dashboard charts the index. "
@@ -154,18 +162,28 @@ def build_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
         meta=_view_meta(SEARCH_VIEW_URI),
     )
-    def search_documents(query: str, top_k: int = 5) -> Annotated[CallToolResult, SearchOutput]:
+    def search_documents(
+        query: str, top_k: int = 5, source: str = ""
+    ) -> Annotated[CallToolResult, SearchOutput]:
         """Find the indexed passages that best match a query (BM25, no model call).
 
         Returns the passages ranked by score, each with its citation (file, page or
         Markdown section) so you can quote or open the source. Hosts that support MCP
         Apps also show the results with a score breakdown bar chart per passage.
+
+        source narrows the search to part of the index: a file type (".md", "*.pdf"),
+        a folder or path ("docs", "docs/api", matched against the source's folders) or
+        a web address prefix ("https://example.com/docs"). Read docsage://documents for
+        the indexed sources. A narrow filter can return fewer than top_k passages.
         """
-        report = services.search_report_service().search(_require(query, "query"), _clamp(top_k))
+        wanted = SourceFilter(source)
+        report = services.search_report_service().search(
+            _require(query, "query"), _clamp(top_k), wanted
+        )
         results = report.results
         return _result(
-            format_search_results(query, results),
-            search_results_to_dict(query, results),
+            format_search_results(query, results, wanted.pattern),
+            search_results_to_dict(query, results, wanted.pattern),
             report.content,
         )
 
@@ -468,10 +486,11 @@ def format_passages(chunks: Sequence[Chunk], budget: int, label: str = "") -> st
     return "\n\n".join(blocks)
 
 
-def format_search_results(query: str, results: Sequence[SearchResult]) -> str:
+def format_search_results(query: str, results: Sequence[SearchResult], source: str = "") -> str:
+    within = f" in {source}" if source.strip() else ""
     if not results:
-        return f'No indexed passages match "{query}".'
-    blocks = [f'{len(results)} passages for "{query}":']
+        return f'No indexed passages{within} match "{query}".'
+    blocks = [f'{len(results)} passages{within} for "{query}":']
     for rank, result in enumerate(results, start=1):
         matched = f"; matched: {', '.join(result.matched_terms)}" if result.matched_terms else ""
         blocks.append(

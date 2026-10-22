@@ -9,7 +9,7 @@ from docsage.application.services import (
     SearchService,
     content_hash,
 )
-from docsage.domain.models import Chunk, Document, Highlight, TokenUsage
+from docsage.domain.models import Chunk, Document, Highlight, SourceFilter, TokenUsage
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.chunking import SlidingWindowChunker
 from docsage.infrastructure.loaders import PlainTextLoader
@@ -296,6 +296,79 @@ def test_search_service_without_highlighter_leaves_results_bare():
     results = SearchService(_alpha_beta_retriever()).search("beta", top_k=3)
 
     assert results[0].highlights == ()
+
+
+def _mixed_source_retriever():
+    retriever = BM25Retriever()
+    retriever.add(
+        [
+            Chunk(id="n#0", source="notes/alpha.md", text="alpha notes", position=0),
+            Chunk(id="d#0", source="docs/alpha.md", text="alpha docs", position=0),
+            Chunk(id="p#0", source="docs/alpha.pdf", text="alpha manual", position=0),
+            Chunk(id="w#0", source="https://example.com/alpha", text="alpha page", position=0),
+        ]
+    )
+    return retriever
+
+
+def test_search_service_keeps_only_the_sources_the_filter_matches():
+    service = SearchService(_mixed_source_retriever())
+
+    results = service.search("alpha", top_k=5, source=SourceFilter("docs"))
+
+    assert [result.chunk.source for result in results] == ["docs/alpha.md", "docs/alpha.pdf"]
+
+
+def test_search_service_filters_by_file_type():
+    service = SearchService(_mixed_source_retriever())
+
+    results = service.search("alpha", top_k=5, source=SourceFilter(".md"))
+
+    assert sorted(result.chunk.source for result in results) == ["docs/alpha.md", "notes/alpha.md"]
+
+
+def test_search_service_returns_nothing_when_no_source_matches():
+    service = SearchService(_mixed_source_retriever())
+
+    assert service.search("alpha", top_k=5, source=SourceFilter("missing")) == []
+
+
+class CountingRetriever(BM25Retriever):
+    """Records the ``top_k`` each search asked the index for."""
+
+    def __init__(self):
+        super().__init__()
+        self.asked = []
+
+    def search(self, query, top_k):
+        self.asked.append(top_k)
+        return super().search(query, top_k)
+
+
+def _chunks(source, count):
+    return [
+        Chunk(id=f"{source}#{index}", source=source, text="alpha", position=index)
+        for index in range(count)
+    ]
+
+
+def test_search_service_asks_for_more_candidates_so_the_filter_can_keep_top_k():
+    retriever = CountingRetriever()
+    retriever.add(_chunks("a.md", 3) + _chunks("b.pdf", 9))
+
+    results = SearchService(retriever).search("alpha", top_k=2, source=SourceFilter(".md"))
+
+    assert retriever.asked == [8]
+    assert len(results) == 2
+
+
+def test_search_service_asks_only_for_top_k_without_a_filter():
+    retriever = CountingRetriever()
+    retriever.add(_chunks("a.md", 1))
+
+    SearchService(retriever).search("alpha", top_k=2)
+
+    assert retriever.asked == [2]
 
 
 def test_question_answering_highlights_sources_and_passes_them_on():

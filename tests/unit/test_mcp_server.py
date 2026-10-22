@@ -157,6 +157,33 @@ def test_search_documents_rejects_bad_arguments():
     assert "top_k must be at least 1" in text_of(result)
 
 
+def test_search_documents_narrows_the_search_to_a_source():
+    result = call(
+        FakeServices(CHUNKS), "search_documents", {"query": "capital", "source": ".pdf"}
+    )
+
+    text = text_of(result)
+    assert text.startswith('1 passages in .pdf for "capital":')
+    assert "b.pdf, p. 3" in text
+    assert "a.md" not in text
+    assert result.structured_content["source"] == ".pdf"
+    assert [item["chunk"]["source"] for item in result.structured_content["results"]] == ["b.pdf"]
+
+
+def test_search_documents_reports_an_empty_source_filter():
+    result = call(FakeServices(CHUNKS), "search_documents", {"query": "capital"})
+
+    assert result.structured_content["source"] == ""
+
+
+def test_search_documents_without_matches_in_a_source():
+    result = call(
+        FakeServices(CHUNKS), "search_documents", {"query": "capital", "source": "notes"}
+    )
+
+    assert text_of(result) == 'No indexed passages in notes match "capital".'
+
+
 def test_ask_documents_answers_with_sources():
     services = FakeServices(CHUNKS)
 
@@ -391,7 +418,7 @@ def test_every_tool_publishes_an_output_schema():
     schemas = {tool.name: tool.output_schema for tool in asyncio.run(run()).tools}
 
     assert all(schema and schema["type"] == "object" for schema in schemas.values())
-    assert schemas["search_documents"]["required"] == ["query", "results"]
+    assert schemas["search_documents"]["required"] == ["query", "source", "results"]
     assert set(schemas["index_stats"]["properties"]) == {
         "documents",
         "chunks",

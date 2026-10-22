@@ -74,6 +74,61 @@ class Highlight:
 
 
 @dataclass(frozen=True)
+class SourceFilter:
+    """Which indexed sources a search may return; an empty pattern keeps every source.
+
+    A pattern is read as one of three things, in this order:
+
+    * a file type, when it starts with a dot or ``*.``: ``.md``, ``*.pdf``;
+    * a web address prefix, when it starts with ``http://`` or ``https://``;
+    * a path, otherwise: it matches a source whose folders (or whole path) contain the
+      pattern's segments in order, so ``docs`` matches ``project/docs/faq.md`` and
+      ``docs/api`` only matches below that folder.
+
+    Matching ignores case and reads a Windows separator as ``/``, so a pattern written
+    either way matches sources indexed on Windows and on POSIX alike.
+    """
+
+    pattern: str = ""
+
+    def __bool__(self) -> bool:
+        """False when the filter keeps every source, so callers can skip the work."""
+        return bool(self._wanted)
+
+    def matches(self, source: str) -> bool:
+        wanted = self._wanted
+        if not wanted:
+            return True
+        found = _normalized(source)
+        if wanted.startswith("."):
+            return found.endswith(wanted)
+        if is_url(wanted):
+            return found.startswith(wanted)
+        return _contains_segments(found, wanted)
+
+    @property
+    def _wanted(self) -> str:
+        """The pattern as it is matched: normalized, without a leading ``*``."""
+        return _normalized(self.pattern).lstrip("*")
+
+
+def _normalized(value: str) -> str:
+    return value.strip().replace("\\", "/").casefold()
+
+
+def _contains_segments(source: str, wanted: str) -> bool:
+    """True when ``wanted``'s path segments appear in a row in ``source``, at a boundary."""
+    found = [segment for segment in source.split("/") if segment]
+    segments = [segment for segment in wanted.split("/") if segment]
+    if not segments or len(segments) > len(found):
+        return False
+    return any(
+        found[start : start + len(segments)] == segments
+        for start in range(len(found) - len(segments) + 1)
+    )
+
+
+@dataclass(frozen=True)
 class TermScore:
     """How much one query term added to a result's relevance score."""
 

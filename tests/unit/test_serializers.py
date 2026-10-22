@@ -60,7 +60,7 @@ def test_dumps_keeps_non_ascii_text():
     text = dumps(search_results_to_dict("ação", []))
 
     assert "ação" in text
-    assert json.loads(text) == {"query": "ação", "results": []}
+    assert json.loads(text) == {"query": "ação", "source": "", "results": []}
 
 
 def test_chunk_page_range_is_serialized():

@@ -87,8 +87,20 @@ def test_search_validates_its_parameters(client):
 def test_search_on_an_empty_index_returns_no_results(client):
     assert client.get("/search", params={"q": "alpha"}).json() == {
         "query": "alpha",
+        "source": "",
         "results": [],
     }
+
+
+def test_search_narrows_results_to_a_source(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    payload = client.get("/search", params={"q": "notes", "source": "docs"}).json()
+    assert payload["source"] == "docs"
+    assert len(payload["results"]) == 2
+
+    other = client.get("/search", params={"q": "notes", "source": ".pdf"}).json()
+    assert other["results"] == []
 
 
 def test_ask_answers_with_sources_usage_and_cost(client, docs):

@@ -28,7 +28,7 @@ from docsage.application.services import (
     SearchService,
     StatsService,
 )
-from docsage.domain.models import is_url
+from docsage.domain.models import SourceFilter, is_url
 from docsage.infrastructure.html_search import PageLinks
 from docsage.interfaces.paths import expand_paths
 from docsage.interfaces.serializers import (
@@ -100,9 +100,20 @@ def build_app(services: ServiceProvider) -> FastAPI:
     def search(
         q: Annotated[str, Query(min_length=1, description="The query.")],
         top_k: Annotated[int, Query(ge=1, le=MAX_TOP_K)] = 5,
+        source: Annotated[
+            str,
+            Query(
+                description=(
+                    'Only search these sources: a file type (".md"), a folder ("docs/api") '
+                    'or a URL prefix ("https://example.com/docs"). Empty searches them all.'
+                )
+            ),
+        ] = "",
     ) -> dict[str, Any]:
         """Ranks the indexed passages against ``q`` (no model call)."""
-        return search_results_to_dict(q, services.search_service().search(q, top_k))
+        wanted = SourceFilter(source)
+        results = services.search_service().search(q, top_k, wanted)
+        return search_results_to_dict(q, results, wanted.pattern)
 
     @app.get("/stats")
     def stats(top: Annotated[int, Query(ge=0, le=MAX_TOP_TERMS)] = 10) -> dict[str, Any]:

@@ -80,7 +80,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Clickable source links in the HTML search results page and the web UI
 - [x] MCP Apps view for `index_stats` (stat tiles and a top-terms bar chart)
 - [x] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
-- [ ] Filter search results by source type or folder (`search_documents` `source` argument)
+- [x] Filter search results by source type or folder (`search_documents` `source` argument)
 - [ ] Highlight the passage's terms when opening an HTML or Markdown source from a report
 
 ## Quality (ongoing, pick when a milestone item is blocked)

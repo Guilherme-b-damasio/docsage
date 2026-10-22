@@ -20,7 +20,7 @@ from docsage.container import (
     Container,
     load_settings,
 )
-from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult, is_url
+from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult, SourceFilter, is_url
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
@@ -147,6 +147,15 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("--json", action="store_true", help="print results as JSON")
     search.add_argument(
         "--explain", action="store_true", help="show how much each query term adds to the score"
+    )
+    search.add_argument(
+        "--source",
+        default="",
+        metavar="pattern",
+        help=(
+            "only search these sources: a file type (.md), a folder (docs/api) or a URL "
+            "prefix (https://example.com/docs)"
+        ),
     )
     search.set_defaults(handler=_search)
 
@@ -367,12 +376,13 @@ def _remove(container: Container, args: argparse.Namespace) -> int:
 
 
 def _search(container: Container, args: argparse.Namespace) -> int:
-    results = container.search_service().search(args.query, args.top_k)
+    wanted = SourceFilter(args.source)
+    results = container.search_service().search(args.query, args.top_k, wanted)
     if args.json:
-        print(dumps(search_results_to_dict(args.query, results)))
+        print(dumps(search_results_to_dict(args.query, results, wanted.pattern)))
         return 0 if results else 1
     if not results:
-        print("No matches.")
+        print(f"No matches in {wanted.pattern}." if wanted else "No matches.")
         return 1
     for rank, result in enumerate(results, start=1):
         preview = result.chunk.text[:160].replace("\n", " ")

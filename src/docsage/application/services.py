@@ -29,6 +29,7 @@ from docsage.domain.models import (
     IndexStats,
     RecentDocument,
     SearchResult,
+    SourceFilter,
     is_url,
 )
 from docsage.domain.ports import (
@@ -356,10 +357,35 @@ class SearchService:
         self._retriever = retriever
         self._highlighter = highlighter
 
-    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
-        results = _highlighted(self._retriever.search(query, top_k), query, self._highlighter)
-        logger.debug("searched index", extra={"top_k": top_k, "results": len(results)})
+    def search(
+        self, query: str, top_k: int = 5, source: SourceFilter | None = None
+    ) -> list[SearchResult]:
+        """The best ``top_k`` passages, restricted to the sources ``source`` keeps."""
+        wanted = source or SourceFilter()
+        ranked = self._retriever.search(query, self._candidates(top_k, wanted))
+        if wanted:
+            ranked = [result for result in ranked if wanted.matches(result.chunk.source)][:top_k]
+        results = _highlighted(ranked, query, self._highlighter)
+        logger.debug(
+            "searched index",
+            extra={"top_k": top_k, "source": wanted.pattern, "results": len(results)},
+        )
         return results
+
+    def _candidates(self, top_k: int, wanted: SourceFilter) -> int:
+        """How many ranked passages to ask for so that ``top_k`` survive the filter.
+
+        Only a share of the index passes the filter, so the retriever is asked for
+        proportionally more passages, never more than the index holds. A selective
+        filter can still return fewer than ``top_k`` passages.
+        """
+        if not wanted:
+            return top_k
+        total = len(self._retriever)
+        kept = sum(1 for chunk in self._retriever.chunks() if wanted.matches(chunk.source))
+        if not kept:
+            return 0
+        return min(total, math.ceil(top_k * total / kept))
 
 
 @dataclass(frozen=True)
@@ -377,14 +403,16 @@ class SearchReportService:
         self._searching = searching
         self._renderer = renderer
 
-    def report(self, query: str, top_k: int = 5) -> str:
+    def report(self, query: str, top_k: int = 5, source: SourceFilter | None = None) -> str:
         """The rendered page; a blank query renders the page without searching."""
-        return self.search(query, top_k).content
+        return self.search(query, top_k, source).content
 
-    def search(self, query: str, top_k: int = 5) -> SearchReport:
+    def search(
+        self, query: str, top_k: int = 5, source: SourceFilter | None = None
+    ) -> SearchReport:
         """The ranked results together with their rendered page, for callers that need both."""
         query = query.strip()
-        results = tuple(self._searching.search(query, top_k)) if query else ()
+        results = tuple(self._searching.search(query, top_k, source)) if query else ()
         content = self._renderer.render(query, results)
         logger.debug("rendered search report", extra={"characters": len(content)})
         return SearchReport(query, results, content)

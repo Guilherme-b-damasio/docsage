@@ -241,6 +241,36 @@ def test_search_explain_prints_the_score_breakdown(tmp_path, capsys):
     assert "alpha " in explained and "beta " in explained
 
 
+def test_search_filters_by_source(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("alpha text", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "alpha", "--source", "notes"]) == 0
+    out = capsys.readouterr().out
+    assert "a.md" in out
+    assert "b.txt" not in out
+
+    assert main(["--index", str(index), "search", "alpha", "--source", ".pdf"]) == 1
+    assert "No matches in .pdf." in capsys.readouterr().out
+
+
+def test_search_json_output_reports_the_source_filter(tmp_path, capsys):
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "search", "alpha", "--json", "--source", ".md"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == ".md"
+    assert len(payload["results"]) == 1
+
+
 def test_search_hides_the_breakdown_without_explain(tmp_path, capsys):
     index = tmp_path / "index.json"
     (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")

@@ -76,3 +76,36 @@ def test_answer_style_defaults_and_rejects_unknown_lengths():
     assert AnswerStyle() == AnswerStyle(language="", length="medium")
     with pytest.raises(ValueError, match="Unknown answer length"):
         AnswerStyle(length="huge")
+
+
+@pytest.mark.parametrize(
+    "pattern,source,matches",
+    [
+        ("", "docs/faq.md", True),
+        (".md", "docs/faq.md", True),
+        (".md", "docs/faq.pdf", False),
+        ("*.pdf", "manual.PDF", True),
+        (".md", "notes.markdown", False),
+        ("docs", "project/docs/faq.md", True),
+        ("docs", "docsage/faq.md", False),
+        ("docs/api", "project/docs/api/v1.md", True),
+        ("docs/api", "project/api/docs/v1.md", False),
+        ("docs\\api", "project/docs/api/v1.md", True),
+        ("DOCS", "project/docs/faq.md", True),
+        ("docs/faq.md", "docs/faq.md", True),
+        ("https://example.com/docs", "https://example.com/docs/intro", True),
+        ("https://example.com/docs", "https://example.com/blog/intro", False),
+    ],
+)
+def test_source_filter_matches_types_folders_and_urls(pattern, source, matches):
+    from docsage.domain.models import SourceFilter
+
+    assert SourceFilter(pattern).matches(source) is matches
+
+
+def test_empty_source_filter_is_falsey_so_callers_can_skip_it():
+    from docsage.domain.models import SourceFilter
+
+    assert not SourceFilter()
+    assert not SourceFilter("  ")
+    assert SourceFilter(".md")

@@ -110,7 +110,7 @@ overwrites the other's changes.
 
 | Tool               | Arguments                  | What it does                                              |
 | ------------------ | -------------------------- | --------------------------------------------------------- |
-| `search_documents` | `query`, `top_k`           | ranked passages with citations, no model call             |
+| `search_documents` | `query`, `top_k`, `source` | ranked passages with citations, no model call             |
 | `ask_documents`    | `question`, `top_k`        | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
@@ -118,6 +118,13 @@ overwrites the other's changes.
 | `remove_url`       | `url`                      | drop a web page, and the pages below that URL             |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
 | `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms and related documents |
+
+`search_documents` takes an optional `source` that narrows the search to part of the
+index: a file type (`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`, matched
+against the source's folders) or a web address prefix (`https://example.com/docs`).
+The pattern ignores case and accepts either slash; read `docsage://documents` for the
+indexed sources. A narrow filter can return fewer than `top_k` passages, and the filter
+comes back in the structured output as `source`.
 
 Relative `path` arguments are resolved from the server's working directory, which the
 client chooses, so prefer absolute paths. `index_url` fetches any http(s) address the
@@ -133,7 +140,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 
 | Tool               | `structuredContent`                                                     |
 | ------------------ | ----------------------------------------------------------------------- |
-| `search_documents` | `query`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
+| `search_documents` | `query`, `source`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
 | `ask_documents`    | `question`, `answer`, `sources[]` ranked like search results            |
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`, `failed[]`             |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |
