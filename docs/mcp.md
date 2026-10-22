@@ -110,7 +110,7 @@ overwrites the other's changes.
 
 | Tool               | Arguments                  | What it does                                              |
 | ------------------ | -------------------------- | --------------------------------------------------------- |
-| `search_documents` | `query`, `top_k`           | ranked passages with citations, no model call             |
+| `search_documents` | `query`, `top_k`, `source` | ranked passages with citations, no model call             |
 | `ask_documents`    | `question`, `top_k`        | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
 | `index_path`       | `path`, `force`            | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | `path`                     | drop a file or folder from the index (files stay on disk) |
@@ -133,7 +133,7 @@ that want fields instead of prose. The structured shapes are the same as the CLI
 
 | Tool               | `structuredContent`                                                     |
 | ------------------ | ----------------------------------------------------------------------- |
-| `search_documents` | `query`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
+| `search_documents` | `query`, `source`, `results[]` with `rank`, `score`, `matched_terms`, `highlights[]`, `contributions[]` and the full `chunk` |
 | `ask_documents`    | `question`, `answer`, `sources[]` ranked like search results            |
 | `index_path`       | `documents`, `chunks`, `unchanged`, `skipped[]`, `failed[]`             |
 | `remove_path`      | `path`, `documents[]`, `chunks`                                         |

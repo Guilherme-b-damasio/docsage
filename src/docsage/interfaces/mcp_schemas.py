@@ -46,6 +46,8 @@ class RankedChunkOutput(TypedDict):
 
 class SearchOutput(TypedDict):
     query: str
+    source: str
+    """The source filter the search ran with, empty when every source was searched."""
     results: list[RankedChunkOutput]
 
 

@@ -61,9 +61,13 @@ def search_result_to_dict(result: SearchResult, rank: int) -> dict[str, Any]:
     }
 
 
-def search_results_to_dict(query: str, results: Sequence[SearchResult]) -> dict[str, Any]:
+def search_results_to_dict(
+    query: str, results: Sequence[SearchResult], source: str = ""
+) -> dict[str, Any]:
+    """``source`` is the filter the search ran with, empty when every source was searched."""
     return {
         "query": query,
+        "source": source,
         "results": [
             search_result_to_dict(result, rank) for rank, result in enumerate(results, start=1)
         ],
