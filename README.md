@@ -340,6 +340,13 @@ files to `/ui/source` (browsers do not open `file://` links from a web page), at
 right page for PDFs. It serves only files that are in the index, as plain text for
 Markdown and text files, and sandboxed so an indexed HTML page cannot run scripts.
 
+A citation of an HTML, Markdown or text source, or of a web page, also carries a
+[text fragment](https://wicg.github.io/scroll-to-text-fragment/)
+(`#:~:text=first words,last words&text=term`) pointing at the passage and the terms it
+matched, so a browser that supports fragments (Chrome, Edge, Safari) opens the source
+scrolled to the cited passage with those terms highlighted. Other browsers ignore the
+fragment and open the source as before, and PDFs still open at their page.
+
 ### Docker
 
 The image serves the HTTP API and web UI on port 8000 with the `api`, `mcp` and `pdf`
@@ -442,6 +449,17 @@ docsage dashboard --format mermaid      # related documents as a Mermaid graph
 
 `python scripts/screenshots.py` regenerates both screenshots from this repository's own
 docs with a headless Chrome or Edge and a canned answer, so it needs no API key.
+
+## What's new in 0.9
+
+- Clickable source links on the HTML search results page and in the web UI.
+- An MCP Apps view for `index_stats`, with stat tiles and a top-terms bar chart.
+- A follow-up question can be asked straight from the answer report view, which calls
+  `ask_documents` again through the host.
+- `search_documents source`, `docsage search --source` and `GET /search?source=` narrow
+  a search to a file type, a folder or a URL prefix.
+- Citations of HTML, Markdown, text and web sources open at the cited passage, with its
+  matched terms highlighted, through a browser text fragment.
 
 ## What's new in 0.8
 

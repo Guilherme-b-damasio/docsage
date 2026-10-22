@@ -81,7 +81,23 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] MCP Apps view for `index_stats` (stat tiles and a top-terms bar chart)
 - [x] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
 - [x] Filter search results by source type or folder (`search_documents` `source` argument)
-- [ ] Highlight the passage's terms when opening an HTML or Markdown source from a report
+- [x] Highlight the passage's terms when opening an HTML or Markdown source from a report
+
+## Milestone 1.0: Shareable output and polish
+- [ ] Serve indexed Markdown and text sources as HTML with the cited passage highlighted
+      (`/ui/source`), so the highlight no longer depends on browser text fragments
+- [ ] Show the active source filter on the HTML search results page and in the web UI
+      form (a `source` input next to the query)
+- [ ] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
+      again
+- [ ] Answer report: group the cited passages by document, newest citation first
+- [ ] `docsage report --format html --self-contained` that inlines the cited passages'
+      source files, so a shared report needs no access to the machine
+- [ ] Compare two answers side by side (`docsage report --compare`) to see how retrieval
+      settings change the answer
+- [ ] Export the dashboard as a single PDF (headless Chrome, reusing `scripts/screenshots.py`)
+- [ ] `docsage doctor`: check the index, the optional extras and the API key, with a
+      one-page HTML report
 
 ## Quality (ongoing, pick when a milestone item is blocked)
 - [ ] Benchmarks for indexing large folders

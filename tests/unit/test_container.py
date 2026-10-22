@@ -550,7 +550,7 @@ def test_search_report_service_renders_an_html_results_page(tmp_path):
     assert '<mark title="lisbon">Lisbon</mark>' in page
     assert "<form" not in page
     assert 'action="/s"' in with_form
-    assert f'href="{notes.resolve().as_uri()}"' in page
+    assert f'href="{notes.resolve().as_uri()}#:~:text=' in page
     served = container.search_report_service(PageLinks("/s", "/a", "/d", "/f")).report("lisbon")
     assert 'href="/f?path=' in served
 

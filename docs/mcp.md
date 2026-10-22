@@ -197,7 +197,9 @@ which hosts never add to the model's context; the view swaps it in, follows the 
 light or dark theme and reports its height. Nothing is loaded from the network.
 Clicking a passage's citation in the answer report asks the host to open its source
 (`ui/open-link`), since the sandboxed view cannot open links itself; the host may ask
-the user first.
+the user first. For an HTML, Markdown or text file, and for a web page, the link carries
+a text fragment pointing at the passage and its matched terms, so a browser that
+supports fragments opens the source at the cited passage; PDFs open at their page.
 
 When the host can proxy tool calls (`hostCapabilities.serverTools`), the answer report
 view also ends with a follow-up form: the question typed there goes to `ask_documents`

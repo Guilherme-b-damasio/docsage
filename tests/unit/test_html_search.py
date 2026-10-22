@@ -75,4 +75,4 @@ def test_results_page_links_files_on_disk_by_default(tmp_path):
 
     html = HtmlSearchRenderer().render("bm25", [_result(str(source))])
 
-    assert f'href="{source.resolve().as_uri()}"' in html
+    assert f'href="{source.resolve().as_uri()}#:~:text=' in html

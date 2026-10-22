@@ -68,7 +68,7 @@ from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.pricing import PriceTable
 from docsage.infrastructure.projection import PcaProjector
 from docsage.infrastructure.reranking import RerankingRetriever
-from docsage.infrastructure.source_links import ServedSourceLocator
+from docsage.infrastructure.source_links import HighlightingLocator, ServedSourceLocator
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -321,7 +321,7 @@ class Container:
         except KeyError:
             raise ValueError(f"Unknown report format: {report_format}") from None
         if source_endpoint is not None and report_format == "html":
-            renderer = HtmlAnswerRenderer(ServedSourceLocator(source_endpoint))
+            renderer = HtmlAnswerRenderer(_served_locator(source_endpoint))
         return AnswerReportService(self.question_answering_service(), renderer)
 
     def _answer_generator(self) -> AnswerGenerator:
@@ -357,5 +357,10 @@ class Container:
 
     def search_report_service(self, links: PageLinks | None = None) -> SearchReportService:
         """Renders search results as an HTML page; ``links`` add the web UI's form."""
-        locator = ServedSourceLocator(links.source) if links and links.source else None
+        locator = _served_locator(links.source) if links and links.source else None
         return SearchReportService(self.search_service(), HtmlSearchRenderer(links, locator))
+
+
+def _served_locator(endpoint: str) -> HighlightingLocator:
+    """Files link to where the web server serves them, opened at the cited passage."""
+    return HighlightingLocator(ServedSourceLocator(endpoint))
