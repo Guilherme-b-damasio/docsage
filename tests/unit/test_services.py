@@ -88,6 +88,48 @@ def _incremental_setup(tmp_path: Path):
     return service, chunker, repository
 
 
+def test_indexing_stamps_each_chunk_with_the_time_its_document_was_indexed(tmp_path: Path):
+    from datetime import UTC, datetime
+
+    (tmp_path / "a.md").write_text("alpha beta gamma delta")
+    retriever = BM25Retriever()
+    clock = lambda: datetime(2026, 10, 22, 9, 30, 15, 123, tzinfo=UTC)  # noqa: E731
+    service = IndexingService(
+        [PlainTextLoader()],
+        SlidingWindowChunker(size=2, overlap=0),
+        retriever,
+        InMemoryRepository(),
+        clock=clock,
+    )
+
+    service.index([tmp_path / "a.md"])
+
+    assert {chunk.indexed_at for chunk in retriever.chunks()} == {"2026-10-22T09:30:15+00:00"}
+
+
+def test_unchanged_documents_keep_the_time_they_were_first_indexed(tmp_path: Path):
+    from datetime import UTC, datetime, timedelta
+
+    (tmp_path / "a.md").write_text("alpha")
+    retriever = BM25Retriever()
+    times = iter(datetime(2026, 1, 1, tzinfo=UTC) + timedelta(days=day) for day in range(3))
+    service = IndexingService(
+        [PlainTextLoader()],
+        SlidingWindowChunker(),
+        retriever,
+        InMemoryRepository(),
+        clock=lambda: next(times),
+    )
+
+    service.index([tmp_path / "a.md"])
+    service.index([tmp_path / "a.md"])
+    first = retriever.chunks()[0].indexed_at
+    service.index([tmp_path / "a.md"], force=True)
+
+    assert first == "2026-01-01T00:00:00+00:00"
+    assert retriever.chunks()[0].indexed_at == "2026-01-02T00:00:00+00:00"
+
+
 def test_reindexing_skips_unchanged_files(tmp_path: Path):
     service, chunker, repository = _incremental_setup(tmp_path)
     repository.saved = None
@@ -181,7 +223,6 @@ def test_question_answering_without_context_skips_generator():
     answer = QuestionAnsweringService(BM25Retriever(), generator).ask("anything")
     assert answer.sources == ()
     assert generator.calls == []
-
 
 
 def test_indexing_logs_each_document_and_a_summary(tmp_path: Path, caplog):

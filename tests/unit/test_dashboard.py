@@ -6,8 +6,9 @@ from docsage.application.services import (
     StatsService,
     file_type,
     histogram,
+    recent_documents,
 )
-from docsage.domain.models import Chunk, DocumentRelation, HistogramBin
+from docsage.domain.models import Chunk, DocumentRelation, HistogramBin, RecentDocument
 from docsage.infrastructure.bm25 import BM25Retriever
 
 
@@ -215,3 +216,36 @@ def test_empty_index_skips_the_projector():
 
     assert service.overview().chunk_map == ()
     assert projector.calls == 0
+
+
+def test_overview_lists_recently_indexed_documents_newest_first():
+    chunks = [
+        Chunk("old.md#0", "old.md", "alpha", 0, indexed_at="2026-10-01T08:00:00+00:00"),
+        Chunk("new.md#0", "new.md", "beta", 0, indexed_at="2026-10-22T09:00:00+00:00"),
+        Chunk("new.md#1", "new.md", "gamma", 1, indexed_at="2026-10-22T09:00:00+00:00"),
+        Chunk("also.md#0", "also.md", "delta", 0, indexed_at="2026-10-22T09:00:00+00:00"),
+        Chunk("legacy.md#0", "legacy.md", "epsilon", 0),
+    ]
+
+    overview = _service(chunks).overview()
+
+    assert overview.recent_documents == (
+        RecentDocument("also.md", "2026-10-22T09:00:00+00:00", 1),
+        RecentDocument("new.md", "2026-10-22T09:00:00+00:00", 2),
+        RecentDocument("old.md", "2026-10-01T08:00:00+00:00", 1),
+        RecentDocument("legacy.md", "", 1),
+    )
+
+
+def test_recent_documents_are_capped():
+    chunks = [
+        Chunk(f"{name}#0", name, "text", 0, indexed_at=f"2026-10-0{day}T00:00:00+00:00")
+        for day, name in enumerate(["a.md", "b.md", "c.md"], start=1)
+    ]
+
+    assert recent_documents(chunks, 2) == (
+        RecentDocument("c.md", "2026-10-03T00:00:00+00:00", 1),
+        RecentDocument("b.md", "2026-10-02T00:00:00+00:00", 1),
+    )
+    assert recent_documents(chunks, 0) == ()
+    assert _service([]).overview().recent_documents == ()

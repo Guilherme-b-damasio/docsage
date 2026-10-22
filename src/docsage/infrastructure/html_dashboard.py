@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from html import escape
 
-from docsage.domain.models import ChunkPoint, DocumentRelation, HistogramBin, IndexOverview
+from docsage.domain.models import (
+    ChunkPoint,
+    DocumentRelation,
+    HistogramBin,
+    IndexOverview,
+    RecentDocument,
+)
 from docsage.infrastructure.html_page import page
 from docsage.infrastructure.mermaid import document_labels, edge_label, relations_diagram
 from docsage.infrastructure.svg_charts import (
@@ -18,7 +24,7 @@ from docsage.infrastructure.svg_charts import (
     scatter_chart,
     text_table,
 )
-from docsage.infrastructure.units import human_size
+from docsage.infrastructure.units import human_size, indexed_label
 
 DASHBOARD_CSS = """
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
@@ -28,13 +34,20 @@ DASHBOARD_CSS = """
 .tile .number { font-size: 1.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tile .caption { color: var(--muted); font-size: 0.9rem; }
 pre { overflow-x: auto; font-size: 0.85rem; background: var(--bg); padding: 8px; }
+.recent table { width: 100%; }
+.recent td { overflow-wrap: anywhere; }
+.recent .chunks { white-space: nowrap; }
+.meter {
+  display: inline-block; height: 8px; border-radius: 4px; margin-right: 8px;
+  background: var(--bar); vertical-align: middle;
+}
 """
 
 
 class HtmlDashboardRenderer:
-    """Stat tiles plus inline-SVG charts: documents per file type, chunk lengths, top
-    terms and, when documents share top terms, a graph of related documents. Every
-    chart has a hover tooltip and a table view underneath."""
+    """Stat tiles, the recently indexed documents, then inline-SVG charts: documents per
+    file type, chunk lengths, top terms and, when documents share top terms, a graph of
+    related documents. Every chart has a hover tooltip and a table view underneath."""
 
     def render(self, overview: IndexOverview) -> str:
         body = [
@@ -43,6 +56,8 @@ class HtmlDashboardRenderer:
             self._tiles(overview),
         ]
         if overview.chunks:
+            if overview.recent_documents:
+                body.append(self._recent(overview.recent_documents))
             body += [
                 self._section(
                     "Documents per file type",
@@ -93,6 +108,24 @@ class HtmlDashboardRenderer:
         return (
             f'<section class="card">\n<h2>{escape(title)}</h2>\n{chart}\n'
             f"{data_table(headers, rows)}\n</section>"
+        )
+
+    @staticmethod
+    def _recent(documents: tuple[RecentDocument, ...]) -> str:
+        peak = max(document.chunks for document in documents) or 1
+        rows = "".join(
+            f"<tr><td>{escape(document.source)}</td>"
+            f"<td>{_time(document.indexed_at)}</td>"
+            f'<td class="chunks"><span class="meter" aria-hidden="true" '
+            f'style="width: {round(48 * document.chunks / peak)}px"></span>'
+            f"{document.chunks:,}</td></tr>"
+            for document in documents
+        )
+        return (
+            '<section class="card recent">\n<h2>Recently indexed</h2>\n'
+            '<p class="muted">Newest first, with the chunks each document was split into.</p>\n'
+            "<table><thead><tr><th>Document</th><th>Indexed</th><th>Chunks</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>\n</section>"
         )
 
     @staticmethod
@@ -167,3 +200,10 @@ def _bins(bins: tuple[HistogramBin, ...]) -> tuple[tuple[str, int], ...]:
         (str(item.low) if item.low == item.high else f"{item.low}–{item.high}", item.count)
         for item in bins
     )
+
+
+def _time(timestamp: str) -> str:
+    label = escape(indexed_label(timestamp))
+    if not timestamp:
+        return label
+    return f'<time datetime="{escape(timestamp)}">{label}</time>'

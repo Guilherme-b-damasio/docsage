@@ -1,6 +1,6 @@
 import re
 
-from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
+from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview, RecentDocument
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.svg_charts import bar_chart, column_chart, data_table, network_chart
 
@@ -137,3 +137,24 @@ def test_dashboard_shows_related_documents_with_a_table_and_mermaid_source():
 
 def test_dashboard_without_relations_has_no_relations_section():
     assert "Related documents" not in HtmlDashboardRenderer().render(_overview())
+
+
+def test_dashboard_lists_recently_indexed_documents_with_chunk_meters():
+    recent = (
+        RecentDocument("docs/<new>.md", "2026-10-22T09:30:00+00:00", 4),
+        RecentDocument("old.md", "", 1),
+    )
+
+    html = HtmlDashboardRenderer().render(_overview(recent_documents=recent))
+
+    assert "<h2>Recently indexed</h2>" in html
+    assert "<td>docs/&lt;new&gt;.md</td>" in html
+    assert '<time datetime="2026-10-22T09:30:00+00:00">2026-10-22 09:30 UTC</time>' in html
+    assert "<td>unknown</td>" in html
+    assert 'style="width: 48px"></span>4</td>' in html
+    assert 'style="width: 12px"></span>1</td>' in html
+    assert html.index("Recently indexed") < html.index("Documents per file type")
+
+
+def test_dashboard_without_recent_documents_has_no_recent_section():
+    assert "Recently indexed" not in HtmlDashboardRenderer().render(_overview())

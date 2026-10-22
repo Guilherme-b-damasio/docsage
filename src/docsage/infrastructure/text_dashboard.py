@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 from docsage.domain.models import ChunkPoint, IndexOverview
 from docsage.infrastructure.mermaid import document_labels
-from docsage.infrastructure.units import human_size
+from docsage.infrastructure.units import human_size, indexed_label
 
 BAR_WIDTH = 30
 MAP_WIDTH = 48
@@ -34,6 +34,8 @@ class TextDashboardRenderer:
         for title, rows in sections:
             if rows:
                 lines += ["", f"{title}:", *bars(rows)]
+        if overview.recent_documents:
+            lines += ["", "Recently indexed:", *recent_lines(overview)]
         if overview.relations:
             lines += ["", "Related documents (shared top terms):", *relation_lines(overview)]
         if overview.chunk_map:
@@ -48,6 +50,15 @@ def bars(rows: Sequence[tuple[str, int]], width: int = BAR_WIDTH) -> list[str]:
     return [
         f"  {name:<{names}}  {'█' * round(width * value / peak)} {value:,}".rstrip()
         for name, value in rows
+    ]
+
+
+def recent_lines(overview: IndexOverview) -> list[str]:
+    """One ``2026-10-22 09:30 UTC  notes.md (3 chunks)`` line per document, newest first."""
+    return [
+        f"  {indexed_label(item.indexed_at):<20}  {item.source} "
+        f"({item.chunks:,} chunk{'' if item.chunks == 1 else 's'})"
+        for item in overview.recent_documents
     ]
 
 

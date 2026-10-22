@@ -45,6 +45,9 @@ class Chunk:
     last_page: int | None = None
     section: str = ""
     """Heading path the chunk belongs to, e.g. ``Setup > Install`` (Markdown only)."""
+    indexed_at: str = ""
+    """When the source document was indexed, as an ISO 8601 UTC timestamp (empty for
+    chunks indexed before docsage recorded it)."""
 
     @property
     def citation(self) -> str:
@@ -190,6 +193,16 @@ class ChunkPoint:
 
 
 @dataclass(frozen=True)
+class RecentDocument:
+    """A document of the index, when it was indexed and into how many chunks."""
+
+    source: str
+    indexed_at: str
+    """ISO 8601 UTC timestamp, empty when the index does not record it."""
+    chunks: int
+
+
+@dataclass(frozen=True)
 class IndexOverview:
     """Everything the index dashboard shows, computed once from the stored chunks."""
 
@@ -207,6 +220,8 @@ class IndexOverview:
     """Pairs of documents sharing top terms, strongest first."""
     chunk_map: tuple[ChunkPoint, ...] = ()
     """Every chunk on a 2D map of its embedding (empty without an embedding model)."""
+    recent_documents: tuple[RecentDocument, ...] = ()
+    """The most recently indexed documents, newest first."""
 
 
 @dataclass(frozen=True)

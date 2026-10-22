@@ -1,4 +1,4 @@
-from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview
+from docsage.domain.models import DocumentRelation, HistogramBin, IndexOverview, RecentDocument
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer, bars
 
 
@@ -43,3 +43,19 @@ def test_text_dashboard_lists_related_documents():
     text = TextDashboardRenderer().render(overview)
 
     assert "Related documents (shared top terms):\n  a.md <-> b.md: bm25, ranking" in text
+
+
+def test_text_dashboard_lists_recently_indexed_documents():
+    recent = (
+        RecentDocument("new.md", "2026-10-22T09:30:00+00:00", 3),
+        RecentDocument("old.md", "", 1),
+    )
+    overview = IndexOverview(2, 4, 6, 4, 10, (("md", 2),), (), (), recent_documents=recent)
+
+    text = TextDashboardRenderer().render(overview)
+
+    assert (
+        "Recently indexed:\n"
+        "  2026-10-22 09:30 UTC  new.md (3 chunks)\n"
+        "  unknown               old.md (1 chunk)"
+    ) in text

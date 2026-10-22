@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from itertools import combinations
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from docsage.domain.models import (
     FileChanges,
     HistogramBin,
     IndexOverview,
+    RecentDocument,
     SearchResult,
     is_url,
 )
@@ -88,13 +90,16 @@ class IndexingService:
         retriever: Retriever,
         repository: IndexRepository,
         url_loader: UrlLoader | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
-        """Without a ``url_loader``, ``index_urls`` reports every URL as failed."""
+        """Without a ``url_loader``, ``index_urls`` reports every URL as failed.
+        ``clock`` tells when documents are indexed (the current UTC time by default)."""
         self._loaders = loaders
         self._chunker = chunker
         self._retriever = retriever
         self._repository = repository
         self._url_loader = url_loader
+        self._clock = clock if clock is not None else _utc_now
 
     def index(self, paths: Iterable[Path], force: bool = False) -> IndexingReport:
         """Indexes ``paths``; files whose content is already indexed are skipped
@@ -131,8 +136,10 @@ class IndexingService:
             logger.debug("skipped unchanged document", extra={"source": document.source})
             run.unchanged += 1
             return
+        indexed_at = self._clock().isoformat(timespec="seconds")
         new_chunks = [
-            replace(chunk, content_hash=digest) for chunk in self._chunker.split(document)
+            replace(chunk, content_hash=digest, indexed_at=indexed_at)
+            for chunk in self._chunker.split(document)
         ]
         self._retriever.remove(document.source)
         self._retriever.add(new_chunks)
@@ -173,6 +180,10 @@ class IndexingService:
         if self._url_loader is None:
             raise ValueError("Indexing web pages is not configured")
         return self._url_loader.load(url)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -697,7 +708,8 @@ class DashboardService:
         self._relations = relations
         self._projector = projector
 
-    def overview(self, top: int = 15, bins: int = 10) -> IndexOverview:
+    def overview(self, top: int = 15, bins: int = 10, recent: int = 10) -> IndexOverview:
+        """``recent`` caps how many recently indexed documents the overview lists."""
         stats = self._stats.stats(top)
         chunks = self._retriever.chunks()
         types = Counter(file_type(source) for source in {chunk.source for chunk in chunks})
@@ -712,6 +724,7 @@ class DashboardService:
             top_terms=stats.top_terms,
             relations=self._relations.relations() if self._relations else (),
             chunk_map=self._chunk_map(chunks),
+            recent_documents=recent_documents(chunks, recent),
         )
 
     def _chunk_map(self, chunks: Sequence[Chunk]) -> tuple[ChunkPoint, ...]:
@@ -727,6 +740,22 @@ class DashboardService:
     def render_overview(self, overview: IndexOverview) -> str:
         """Renders an overview built earlier, e.g. to show it in several formats."""
         return self._renderer.render(overview)
+
+
+def recent_documents(chunks: Sequence[Chunk], limit: int) -> tuple[RecentDocument, ...]:
+    """The ``limit`` most recently indexed documents with their chunk counts, newest first;
+    documents without a recorded time come last, by name."""
+    counts = Counter(chunk.source for chunk in chunks)
+    stamps: dict[str, str] = {}
+    for chunk in chunks:
+        stamps[chunk.source] = max(stamps.get(chunk.source, ""), chunk.indexed_at)
+    by_name = sorted(stamps)
+    timed = sorted(
+        (source for source in by_name if stamps[source]), key=stamps.__getitem__, reverse=True
+    )
+    untimed = [source for source in by_name if not stamps[source]]
+    ordered = [*timed, *untimed][: max(0, limit)]
+    return tuple(RecentDocument(source, stamps[source], counts[source]) for source in ordered)
 
 
 def file_type(source: str) -> str:
