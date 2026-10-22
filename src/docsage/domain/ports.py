@@ -171,6 +171,16 @@ class SourceLocator(Protocol):
         ...
 
 
+@runtime_checkable
+class PassageLocator(SourceLocator, Protocol):
+    """A source locator that can also point at the passage inside its source."""
+
+    def passage_href(self, result: SearchResult) -> str | None:
+        """A link that opens the passage's source at the passage, or None when it cannot
+        be linked; it falls back to ``href`` for sources that cannot be pointed into."""
+        ...
+
+
 class AnswerRenderer(Protocol):
     """Turns an answer and its cited passages into a shareable report (HTML, text...)."""
 
