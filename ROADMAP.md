@@ -79,7 +79,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 ## Milestone 0.9: Interactive views
 - [x] Clickable source links in the HTML search results page and the web UI
 - [x] MCP Apps view for `index_stats` (stat tiles and a top-terms bar chart)
-- [ ] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
+- [x] Ask a follow-up from the answer report view (`tools/call` from the MCP Apps view)
 - [ ] Filter search results by source type or folder (`search_documents` `source` argument)
 - [ ] Highlight the passage's terms when opening an HTML or Markdown source from a report
 

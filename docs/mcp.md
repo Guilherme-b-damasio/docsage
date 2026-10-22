@@ -192,6 +192,11 @@ Clicking a passage's citation in the answer report asks the host to open its sou
 (`ui/open-link`), since the sandboxed view cannot open links itself; the host may ask
 the user first.
 
+When the host can proxy tool calls (`hostCapabilities.serverTools`), the answer report
+view also ends with a follow-up form: the question typed there goes to `ask_documents`
+through the host (`tools/call`) and the new report replaces the old one in place. Errors
+from the call are shown under the form, which stays filled in so the user can retry.
+
 Hosts without MCP Apps ignore the link and show the text content, which always carries
 the ranked passages, the answer with its sources, the stats or the dashboard as text bars, so every tool stays usable
 from any client.

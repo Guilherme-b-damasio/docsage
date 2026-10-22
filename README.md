@@ -259,7 +259,8 @@ The server offers these tools:
 
 In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
 `search_documents` shows the ranked passages with a score breakdown bar chart each,
-`ask_documents` the HTML answer report with highlighted citations, `index_stats`
+`ask_documents` the HTML answer report with highlighted citations (and a form to ask a
+follow-up question), `index_stats`
 stat tiles with a top-terms bar chart and `index_dashboard` the HTML dashboard, right
 in the conversation; other hosts get the same content as text.
 
