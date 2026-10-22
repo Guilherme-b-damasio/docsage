@@ -10,6 +10,9 @@ regular HTML renderers and puts the complete page in the result's ``_meta`` unde
 ``HTML_META_KEY`` (``_meta`` never reaches the model). The shell swaps that page in,
 applies the host's light or dark theme and reports its size. Links to sources go
 through the host (``ui/open-link``), since the sandboxed view cannot open them itself.
+A view built with a ``FollowUp`` also shows a form under the page that calls a tool again
+through the host (``tools/call``) and swaps in its result, when the host can proxy tool
+calls (``hostCapabilities.serverTools``).
 When the page is missing it shows the result's text content, the same fallback hosts
 without MCP Apps display.
 """
@@ -17,6 +20,7 @@ without MCP Apps display.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from html import escape
 
 from docsage.infrastructure.html_page import page
@@ -31,21 +35,47 @@ PROTOCOL_VERSION = "2026-01-26"
 
 VIEW_CSS = """
 #fallback { white-space: pre-wrap; font: 0.9rem/1.5 ui-monospace, Consolas, monospace; }
+form.follow-up { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0 0; }
+form.follow-up input {
+  flex: 1 1 260px; min-width: 0; padding: 8px 12px; font: inherit; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+}
+form.follow-up button {
+  padding: 8px 14px; font: inherit; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+}
+form.follow-up button:disabled { opacity: 0.6; cursor: progress; }
+form.follow-up .status { flex-basis: 100%; margin: 0; }
 """
+
+
+@dataclass(frozen=True)
+class FollowUp:
+    """A form under the view's page that calls ``tool`` with the typed text as ``argument``."""
+
+    tool: str
+    argument: str
+    label: str
+    """Placeholder of the text field, e.g. "Ask a follow-up question"."""
+    action: str = "Send"
+    """Text of the submit button."""
 
 BRIDGE_JS = """
 (() => {
   const META_KEY = __META_KEY__;
+  const FOLLOW_UP = __FOLLOW_UP__;
+  const VIEW_CSS = __VIEW_CSS__;
   const fallback = document.getElementById("fallback");
   const pending = new Map();
   let nextId = 1;
   let theme = null;
+  let canCallTools = false;
 
   const send = (message) => window.parent.postMessage({ jsonrpc: "2.0", ...message }, "*");
   const request = (method, params) =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
       const id = nextId++;
-      pending.set(id, resolve);
+      pending.set(id, { resolve, reject });
       send({ id, method, params });
     });
   const applyTheme = (context) => {
@@ -68,11 +98,56 @@ BRIDGE_JS = """
     document.title = parsed.title;
     document.head.replaceChildren(...imported(parsed.head.childNodes));
     document.body.replaceChildren(...imported(parsed.body.childNodes));
+    const style = document.createElement("style");
+    style.textContent = VIEW_CSS;
+    document.head.append(style);
     if (theme) document.documentElement.dataset.theme = theme;
+    if (FOLLOW_UP && canCallTools) document.body.append(followUpForm());
+  };
+  const textOf = (result) =>
+    (result.content || [])
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\\n\\n");
+  // Calls the follow-up tool through the host and shows its result in place of the page.
+  const followUpForm = () => {
+    const form = document.createElement("form");
+    form.className = "follow-up";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.required = true;
+    input.placeholder = FOLLOW_UP.label;
+    input.setAttribute("aria-label", FOLLOW_UP.label);
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = FOLLOW_UP.action;
+    const status = document.createElement("p");
+    status.className = "status muted";
+    status.setAttribute("role", "status");
+    form.append(input, button, status);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      button.disabled = true;
+      status.textContent = "Waiting for the tool result…";
+      request("tools/call", { name: FOLLOW_UP.tool, arguments: { [FOLLOW_UP.argument]: text } })
+        .then((result) => {
+          if (result.isError) throw new Error(textOf(result) || "The tool call failed.");
+          showResult(result);
+          window.scrollTo(0, 0);
+        })
+        .catch((error) => {
+          button.disabled = false;
+          status.textContent = error.message || "The tool call failed.";
+          reportSize();
+        });
+    });
+    return form;
   };
   const showText = (result) => {
-    const blocks = (result.content || []).filter((block) => block.type === "text");
-    fallback.textContent = blocks.map((block) => block.text).join("\\n\\n") || "No output.";
+    if (!fallback.isConnected) document.body.replaceChildren(fallback);
+    fallback.textContent = textOf(result) || "No output.";
   };
   const showResult = (result) => {
     const html = result._meta && result._meta[META_KEY];
@@ -86,7 +161,7 @@ BRIDGE_JS = """
     const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
     if (!link || link.getAttribute("href").startsWith("#")) return;
     event.preventDefault();
-    request("ui/open-link", { url: link.href });
+    request("ui/open-link", { url: link.href }).catch(() => {});
   });
 
   window.addEventListener("message", (event) => {
@@ -94,9 +169,11 @@ BRIDGE_JS = """
     const message = event.data;
     if (!message || message.jsonrpc !== "2.0") return;
     if (message.method === undefined) {
-      const resolve = pending.get(message.id);
+      const call = pending.get(message.id);
       pending.delete(message.id);
-      if (resolve) resolve(message.result || {});
+      if (!call) return;
+      if (message.error) call.reject(new Error(message.error.message || "Request failed."));
+      else call.resolve(message.result || {});
     } else if (message.id !== undefined) {
       send({ id: message.id, result: {} });
     } else if (message.method === "ui/notifications/tool-result") {
@@ -114,16 +191,32 @@ BRIDGE_JS = """
     appCapabilities: {},
   }).then((result) => {
     applyTheme(result.hostContext);
+    canCallTools = Boolean(result.hostCapabilities && result.hostCapabilities.serverTools);
     send({ method: "ui/notifications/initialized", params: {} });
   });
 })();
 """
 
 
-def app_view(title: str, version: str) -> str:
-    """A self-contained view titled ``title`` that shows the tool result it receives."""
+def app_view(title: str, version: str, follow_up: FollowUp | None = None) -> str:
+    """A self-contained view titled ``title`` that shows the tool result it receives.
+
+    With ``follow_up``, the view also lets the user call that tool again from the page.
+    """
+    form = (
+        None
+        if follow_up is None
+        else {
+            "tool": follow_up.tool,
+            "argument": follow_up.argument,
+            "label": follow_up.label,
+            "action": follow_up.action,
+        }
+    )
     script = (
         BRIDGE_JS.replace("__META_KEY__", json.dumps(HTML_META_KEY))
+        .replace("__FOLLOW_UP__", json.dumps(form))
+        .replace("__VIEW_CSS__", json.dumps(VIEW_CSS))
         .replace("__PROTOCOL_VERSION__", json.dumps(PROTOCOL_VERSION))
         .replace("__VERSION__", json.dumps(version))
     )
