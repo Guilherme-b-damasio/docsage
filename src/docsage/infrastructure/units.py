@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 from docsage.domain.models import TokenUsage
 
 
+def plural(count: int, noun: str) -> str:
+    """``1 passage`` or ``2 passages``, for nouns whose plural is just an ``s``."""
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
 def human_size(size: int) -> str:
     """Formats a byte count as ``512 B``, ``1.5 KB`` or ``2.0 MB``."""
     if size < 1024:

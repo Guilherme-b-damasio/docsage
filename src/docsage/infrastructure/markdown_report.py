@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from docsage.domain.models import Answer, SearchResult
+from docsage.domain.models import Answer, CitedDocument, SearchResult
 from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.source_links import (
     FileAndUrlLocator,
@@ -12,7 +12,7 @@ from docsage.infrastructure.source_links import (
     passage_href,
 )
 from docsage.infrastructure.text_report import breakdown, emphasized
-from docsage.infrastructure.units import usage_summary
+from docsage.infrastructure.units import indexed_label, plural, usage_summary
 
 _CITATION = re.compile(r"\[(\d+)\](?!\()")
 _LINK_TEXT_SPECIALS = re.compile(r"([\\\[\]])")
@@ -26,7 +26,8 @@ def _within(source: str) -> str:
 class MarkdownAnswerRenderer:
     """The answer with ``[n]`` linked to its passage, then each passage as a quote.
 
-    Matched terms appear in ``**bold**`` and every passage's citation links to its source
+    The passages are grouped under the document they come from, newest document first,
+    matched terms appear in ``**bold**`` and every passage's citation links to its source
     (see ``SourceLocator``), so the report reads the same on GitHub, in an editor or a wiki.
     By default a text source opens at the passage itself (see ``HighlightingLocator``).
     """
@@ -40,21 +41,33 @@ class MarkdownAnswerRenderer:
         lines = [f"# {_one_line(answer.question)}", "", _linked(answer.text, answer.sources)]
         if answer.sources:
             lines += ["", f"## Sources{_within(answer.source)}"]
-        for rank, result in enumerate(answer.sources, start=1):
-            lines += ["", *self._source(rank, result)]
+        for document in answer.cited_documents():
+            lines += ["", *self._document(document)]
         if answer.usage is not None:
             lines += ["", "---", "", f"*Usage: {usage_summary(answer.usage, answer.cost_usd)}*"]
         return "\n".join(lines) + "\n"
 
+    def _document(self, document: CitedDocument) -> list[str]:
+        """One document's cited passages under a heading saying when it was indexed."""
+        lines = [
+            f"### {_escaped(document.source)}",
+            "",
+            f"{plural(len(document.citations), 'passage')} cited, "
+            f"indexed {indexed_label(document.indexed_at)}",
+        ]
+        for cited in document.citations:
+            lines += ["", *self._source(cited.rank, cited.result)]
+        return lines
+
     def _source(self, rank: int, result: SearchResult) -> list[str]:
-        title = _LINK_TEXT_SPECIALS.sub(r"\\\1", result.chunk.citation)
+        title = _escaped(result.chunk.citation)
         href = passage_href(self._locator, result)
         if href is not None:
             title = f"[{title}](<{href}>)"
         lines = [
             f'<a id="source-{rank}"></a>',
             "",
-            f"### [{rank}] {title}",
+            f"#### [{rank}] {title}",
             "",
             f"Score {result.score:.2f}",
             "",
@@ -75,6 +88,11 @@ def _linked(text: str, sources: tuple[SearchResult, ...]) -> str:
         return f"[\\[{number}\\]](#source-{number})"
 
     return _CITATION.sub(link, text.strip())
+
+
+def _escaped(text: str) -> str:
+    """Escapes the characters that would otherwise be Markdown link or escape syntax."""
+    return _LINK_TEXT_SPECIALS.sub(r"\\\1", text)
 
 
 def _quoted(text: str) -> str:

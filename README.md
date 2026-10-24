@@ -398,7 +398,11 @@ the whole index.
 
 An answer can be rendered as a single, self-contained HTML page: the question, the
 answer with each `[n]` citation linked to its passage, and every cited passage with
-the matched query terms highlighted. Each passage's citation links to its source: the
+the matched query terms highlighted. The passages are grouped under the document they
+come from, with the number of passages it contributed and when it was indexed, and the
+most recently indexed document leads, so the freshest material is on top (the `[n]`
+markers keep the ranks the answer cites them by). Each passage's citation links to its
+source: the
 web page it came from, or the file on disk (`file://`, opened at the page for PDFs, with
 relative paths resolved from the directory docsage runs in). The page inlines its CSS
 (no network needed) and follows the system's light or dark mode. A plain-text renderer is the fallback for
@@ -416,8 +420,9 @@ docsage report "How does BM25 work?" --format markdown -o notes/bm25.md
 ```
 
 The Markdown report suits notes, wikis and pull requests: each `[n]` in the answer links
-to its passage, every passage is a quote with the matched terms in `**bold**` under a
-heading that links to its source, followed by its score breakdown and the token usage.
+to its passage, the passages sit under a heading per cited document (newest first) and
+every passage is a quote with the matched terms in `**bold**` under a heading that links
+to its source, followed by its score breakdown and the token usage.
 
 ![Answer report: the answer with linked citations, then each cited passage with its matched terms highlighted and a score breakdown chart](docs/images/answer-report-light.png)
 

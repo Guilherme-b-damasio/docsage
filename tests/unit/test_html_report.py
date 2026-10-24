@@ -171,3 +171,59 @@ def test_html_report_escapes_the_source_filter():
     narrowed = Answer(answer.question, answer.text, answer.sources, source="<script>")
 
     assert "<code>&lt;script&gt;</code>" in HtmlAnswerRenderer().render(narrowed)
+
+
+def _indexed(source, chunk_id, indexed_at, text="The index keeps chunks."):
+    chunk = Chunk(chunk_id, source, text, 0, indexed_at=indexed_at)
+    return SearchResult(chunk, 1.0)
+
+
+def test_report_groups_the_cited_passages_by_document_newest_first():
+    answer = Answer(
+        "Q?",
+        "A [1][2][3].",
+        (
+            _indexed("old.md", "old#0", "2026-10-01T09:00:00+00:00"),
+            _indexed("new.md", "new#0", "2026-10-20T09:00:00+00:00"),
+            _indexed("old.md", "old#1", "2026-10-01T09:00:00+00:00"),
+        ),
+    )
+
+    html = HtmlAnswerRenderer(FixedLocator(None)).render(answer)
+
+    assert html.index("<h3>new.md</h3>") < html.index("<h3>old.md</h3>")
+    assert html.count("<h3>old.md</h3>") == 1
+    # The ranks still match the [n] markers in the answer's text.
+    assert html.index('id="source-2"') < html.index('id="source-1"')
+    assert html.index('id="source-1"') < html.index('id="source-3"')
+
+
+def test_report_says_how_many_passages_a_document_contributed_and_when_it_was_indexed():
+    answer = Answer(
+        "Q?",
+        "A [1][2].",
+        (
+            _indexed("notes.md", "n#0", "2026-10-20T09:30:00+00:00"),
+            _indexed("notes.md", "n#1", "2026-10-20T09:30:00+00:00"),
+        ),
+    )
+
+    html = HtmlAnswerRenderer(FixedLocator(None)).render(answer)
+
+    assert '<time datetime="2026-10-20T09:30:00+00:00">2026-10-20 09:30 UTC</time>' in html
+    assert "2 passages cited" in html
+
+
+def test_report_calls_an_unrecorded_index_time_unknown():
+    html = HtmlAnswerRenderer(FixedLocator(None)).render(_answer())
+
+    assert "1 passage cited · indexed unknown" in html
+    assert "<time" not in html
+
+
+def test_report_escapes_a_documents_name():
+    answer = Answer("Q?", "A [1].", (_indexed("<script>.md", "s#0", ""),))
+
+    html = HtmlAnswerRenderer(FixedLocator(None)).render(answer)
+
+    assert "<h3>&lt;script&gt;.md</h3>" in html
