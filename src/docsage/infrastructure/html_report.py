@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from html import escape
 
-from docsage.domain.models import Answer, SearchResult, TokenUsage
+from docsage.domain.models import Answer, CitedDocument, SearchResult, TokenUsage
 from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import highlighted, page
 from docsage.infrastructure.source_links import (
@@ -14,7 +14,7 @@ from docsage.infrastructure.source_links import (
     passage_href,
 )
 from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
-from docsage.infrastructure.units import usage_summary
+from docsage.infrastructure.units import indexed_label, usage_summary
 
 _CITATION = re.compile(r"\[(\d+)\]")
 
@@ -37,6 +37,9 @@ REPORT_CSS = """
 }
 .breakdown { margin-top: 12px; }
 .breakdown h3 { font-size: 0.9rem; font-weight: 600; margin: 0 0 8px; color: var(--muted); }
+.cited { margin: 0 0 8px; }
+.cited > h3 { font-size: 0.95rem; margin: 24px 0 4px; overflow-wrap: anywhere; }
+.cited > p { margin: 0 0 12px; font-size: 0.85rem; color: var(--muted); }
 """
 
 
@@ -68,13 +71,25 @@ class HtmlAnswerRenderer:
         ]
         if answer.sources:
             body.append("<h2>Sources</h2>")
-            body.extend(
-                source_html(rank, result, passage_href(self._locator, result))
-                for rank, result in enumerate(answer.sources, start=1)
-            )
+            body.extend(self._document_html(document) for document in answer.cited_documents())
         if answer.usage is not None:
             body.append(usage_html(answer.usage, answer.cost_usd))
         return page(f"docsage: {answer.question}", "\n".join(body), REPORT_CSS + CHART_CSS)
+
+    def _document_html(self, document: CitedDocument) -> str:
+        """One document's cited passages under a heading saying when it was indexed."""
+        passages = [
+            source_html(cited.rank, cited.result, passage_href(self._locator, cited.result))
+            for cited in document.citations
+        ]
+        cited = _plural(len(document.citations), "passage")
+        return (
+            '<section class="cited">\n'
+            f"<h3>{escape(document.source)}</h3>\n"
+            f'<p>{cited} cited · indexed {_indexed_html(document.indexed_at)}</p>\n'
+            + "\n".join(passages)
+            + "\n</section>"
+        )
 
     def _answer_html(self, answer: Answer) -> str:
         paragraphs = [part.strip() for part in re.split(r"\n\s*\n", answer.text) if part.strip()]
@@ -92,6 +107,14 @@ class HtmlAnswerRenderer:
             return f'<a class="cite" href="#source-{number}">[{number}]</a>'
 
         return _CITATION.sub(link, escaped).replace("\n", "<br>")
+
+
+def _indexed_html(timestamp: str) -> str:
+    """When the document was indexed, as a ``<time>`` element when it is known."""
+    label = escape(indexed_label(timestamp))
+    if not timestamp:
+        return label
+    return f'<time datetime="{escape(timestamp)}">{label}</time>'
 
 
 def _within(source: str) -> str:
