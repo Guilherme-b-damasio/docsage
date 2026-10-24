@@ -74,6 +74,39 @@ class Highlight:
 
 
 @dataclass(frozen=True)
+class SourceView:
+    """An indexed source's whole text with one cited passage marked inside it.
+
+    A viewer shows ``text`` as it was indexed and marks ``text[passage_start:passage_end]``
+    as the cited passage, with ``highlights`` pointing at the query terms found in it, so
+    the reader sees the passage in its surrounding document.
+    """
+
+    source: str
+    text: str
+    passage_start: int | None = None
+    """Where the cited passage begins in ``text`` (None when no passage is marked)."""
+    passage_end: int | None = None
+    """Offset just past the cited passage, so ``text[start:end]`` is the passage."""
+    highlights: tuple[Highlight, ...] = ()
+    """Matched terms inside the passage, as offsets in ``text`` (not in the passage)."""
+
+    @property
+    def passage(self) -> str:
+        """The cited passage, or an empty string when none is marked."""
+        if self.passage_start is None or self.passage_end is None:
+            return ""
+        return self.text[self.passage_start : self.passage_end]
+
+    def __post_init__(self) -> None:
+        if (self.passage_start is None) != (self.passage_end is None):
+            raise ValueError("A marked passage needs both passage_start and passage_end")
+        if self.passage_start is not None and self.passage_end is not None:
+            if not 0 <= self.passage_start <= self.passage_end <= len(self.text):
+                raise ValueError("The marked passage must lie inside the source's text")
+
+
+@dataclass(frozen=True)
 class SourceFilter:
     """Which indexed sources a search may return; an empty pattern keeps every source.
 

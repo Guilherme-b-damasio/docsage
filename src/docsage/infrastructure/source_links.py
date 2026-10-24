@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from docsage.domain.models import Chunk, SearchResult, is_url
-from docsage.domain.ports import PassageLocator, SourceLocator
+from docsage.domain.ports import PassageLocator, SourceLocator, SourceRenderer
 
 TEXT_FRAGMENT_SOURCES = (".html", ".htm", ".md", ".markdown", ".txt", ".rst")
 """File types a browser can open at a passage; web pages always can."""
@@ -16,6 +16,9 @@ RANGE_WORDS = 6
 
 MAX_TERM_DIRECTIVES = 4
 """How many matched terms are highlighted on top of the passage itself."""
+
+PASSAGE_ANCHOR = "passage"
+"""Fragment the server's rendered source page gives the cited passage."""
 
 
 class FileAndUrlLocator:
@@ -57,6 +60,35 @@ class ServedSourceLocator:
         if chunk.first_page is not None:
             href += f"#page={chunk.first_page}"
         return href
+
+
+class ServedPassageLocator:
+    """Points a passage at the page the web server renders for its source.
+
+    A source the server can render itself (see ``SourceRenderer.supports``) links to
+    ``endpoint?path=<source>&chunk=<id>&terms=<matched terms>#passage``: the server marks
+    the passage in the page it returns, so the citation opens at the passage in every
+    browser instead of relying on support for text fragments. Every other source (web
+    pages, PDFs, Word documents) is left to ``inner``.
+    """
+
+    def __init__(self, endpoint: str, inner: PassageLocator, renderer: SourceRenderer) -> None:
+        self._endpoint = endpoint
+        self._inner = inner
+        self._renderer = renderer
+
+    def href(self, chunk: Chunk) -> str | None:
+        return self._inner.href(chunk)
+
+    def passage_href(self, result: SearchResult) -> str | None:
+        chunk = result.chunk
+        if not self._renderer.supports(chunk.source):
+            return self._inner.passage_href(result)
+        href = f"{self._endpoint}?path={quote(chunk.source, safe='')}&chunk={quote(chunk.id)}"
+        terms = " ".join(result.matched_terms)
+        if terms:
+            href += f"&terms={quote(terms)}"
+        return f"{href}#{PASSAGE_ANCHOR}"
 
 
 class HighlightingLocator:

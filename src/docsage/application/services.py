@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager, nullcontext
@@ -24,12 +25,14 @@ from docsage.domain.models import (
     EvaluationCase,
     EvaluationReport,
     FileChanges,
+    Highlight,
     HistogramBin,
     IndexOverview,
     IndexStats,
     RecentDocument,
     SearchResult,
     SourceFilter,
+    SourceView,
     is_url,
 )
 from docsage.domain.ports import (
@@ -47,6 +50,7 @@ from docsage.domain.ports import (
     IndexRepository,
     Retriever,
     SearchRenderer,
+    SourceRenderer,
     StatsRenderer,
     StreamingAnswerGenerator,
     TextTokenizer,
@@ -871,3 +875,98 @@ def _summarize(source: str, chunks: list[Chunk]) -> DocumentSummary:
         pages=max(pages) if pages else None,
         sections=tuple(sections),
     )
+
+
+@dataclass(frozen=True)
+class SourcePage:
+    view: SourceView
+    content: str
+    """The rendered source page, e.g. a complete HTML document."""
+
+
+class SourcePageService:
+    """Shows an indexed document with one of its passages marked.
+
+    The document is read back with the loaders that indexed it, so a stored chunk's words
+    are found in the text exactly as they were indexed. Passing no chunk (or one this
+    document no longer holds, after a re-index) shows the document without a passage.
+    """
+
+    def __init__(
+        self,
+        catalog: CatalogService,
+        loaders: Sequence[DocumentLoader],
+        renderer: SourceRenderer,
+        highlighter: Highlighter | None = None,
+    ) -> None:
+        self._catalog = catalog
+        self._loaders = list(loaders)
+        self._renderer = renderer
+        self._highlighter = highlighter
+
+    def supports(self, source: str) -> bool:
+        """True when the renderer can show ``source``; other formats stay files."""
+        return self._renderer.supports(source)
+
+    def page(self, source: str, chunk_id: str = "", terms: str = "") -> SourcePage:
+        """The document with the passage of ``chunk_id`` marked and ``terms`` highlighted.
+
+        Raises ``LookupError`` when ``source`` is not indexed, ``UnsupportedFileError``
+        when no loader reads it and ``OSError`` when it is no longer readable.
+        """
+        if not self._catalog.document_chunks(source):
+            raise LookupError(f"Not an indexed document: {source}")
+        view = self._view(source, chunk_id, terms)
+        content = self._renderer.render(view)
+        logger.debug(
+            "rendered source page",
+            extra={"source": source, "passage": view.passage_start, "characters": len(content)},
+        )
+        return SourcePage(view, content)
+
+    def _view(self, source: str, chunk_id: str, terms: str) -> SourceView:
+        text = self._load(source).text
+        span = self._passage_span(source, chunk_id, text)
+        if span is None:
+            return SourceView(source, text)
+        start, end = span
+        return SourceView(source, text, start, end, self._highlights(text[start:end], terms, start))
+
+    def _passage_span(self, source: str, chunk_id: str, text: str) -> tuple[int, int] | None:
+        chunk = self._catalog.chunk(chunk_id) if chunk_id else None
+        if chunk is None or chunk.source != source:
+            return None
+        return passage_span(text, chunk.text)
+
+    def _highlights(self, passage: str, terms: str, offset: int) -> tuple[Highlight, ...]:
+        """The query terms found in the passage, as offsets in the whole document."""
+        if self._highlighter is None or not terms.strip():
+            return ()
+        found = self._highlighter.highlight(terms, passage)
+        return tuple(
+            replace(highlight, start=highlight.start + offset, end=highlight.end + offset)
+            for highlight in found
+        )
+
+    def _load(self, source: str) -> Document:
+        path = Path(source)
+        for loader in self._loaders:
+            if loader.supports(path):
+                return loader.load(path)
+        raise UnsupportedFileError(f"No loader for {source}")
+
+
+def passage_span(text: str, passage: str) -> tuple[int, int] | None:
+    """Where ``passage`` occurs in ``text``, ignoring how its whitespace was normalized.
+
+    Chunkers join a passage's words with single spaces, so a stored chunk seldom appears
+    in its document verbatim; its words are matched in order across any whitespace
+    instead. Returns None when the passage is blank or cannot be found, e.g. because the
+    document changed since it was indexed.
+    """
+    words = passage.split()
+    if not words:
+        return None
+    pattern = r"\s+".join(re.escape(word) for word in words)
+    match = re.search(pattern, text)
+    return (match.start(), match.end()) if match else None

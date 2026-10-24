@@ -84,7 +84,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Highlight the passage's terms when opening an HTML or Markdown source from a report
 
 ## Milestone 1.0: Shareable output and polish
-- [ ] Serve indexed Markdown and text sources as HTML with the cited passage highlighted
+- [x] Serve indexed Markdown and text sources as HTML with the cited passage highlighted
       (`/ui/source`), so the highlight no longer depends on browser text fragments
 - [ ] Show the active source filter on the HTML search results page and in the web UI
       form (a `source` input next to the query)
