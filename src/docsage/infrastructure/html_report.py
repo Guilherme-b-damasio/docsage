@@ -140,12 +140,18 @@ def _within(source: str) -> str:
 def source_html(rank: int, result: SearchResult, href: str | None = None) -> str:
     """A ranked passage card: citation, score, highlighted text, terms and score breakdown.
 
-    With ``href`` the citation links to the passage's source.
+    With ``href`` the citation links to the passage's source. A link into this same page,
+    as a self-contained report's inlined copy of the document is, stays in the tab; an
+    external source opens in a new one.
     """
     terms = "".join(f'<span class="term">{escape(term)}</span>' for term in result.matched_terms)
     terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
     citation = escape(result.chunk.citation)
-    if href is not None:
+    if href is not None and href.startswith("#"):
+        citation = (
+            f'<a href="{escape(href)}" title="Go to the document below">{citation}</a>'
+        )
+    elif href is not None:
         citation = (
             f'<a href="{escape(href)}" target="_blank" rel="noopener noreferrer" '
             f'title="Open the source">{citation}</a>'

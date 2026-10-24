@@ -51,6 +51,15 @@ def test_report_points_an_inlined_citation_at_the_copy_inside_the_page():
     assert "file://" not in html
 
 
+def test_report_keeps_an_inlined_citation_in_the_same_tab():
+    answer = Answer("Q?", "A [1].", (_result(),))
+
+    html = _renderer({"notes.md": DOCUMENT}).render(answer)
+
+    assert 'href="#passage-1" title="Go to the document below"' in html
+    assert "_blank" not in html
+
+
 def test_report_links_back_from_an_inlined_document_to_the_passages_card():
     answer = Answer("Q?", "A [1].", (_result(),))
 
