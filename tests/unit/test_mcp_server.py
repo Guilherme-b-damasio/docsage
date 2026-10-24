@@ -612,6 +612,27 @@ def test_dashboard_view_is_the_mcp_apps_shell():
     assert "ui/initialize" in content.text and HTML_META_KEY in content.text
 
 
+def test_dashboard_view_offers_a_top_terms_slider():
+    text = read(FakeServices(), "ui://docsage/dashboard").contents[0].text
+
+    assert '"tools/call"' in text
+    assert '"tool": "index_dashboard", "argument": "top"' in text
+    assert '"minimum": 5, "maximum": 50, "value": 15, "step": 5' in text
+
+
+def test_the_slider_redraws_the_dashboard_through_the_tool():
+    chosen = call(FakeServices(CHUNKS), "index_dashboard", {"top": 1})
+    wider = call(FakeServices(CHUNKS), "index_dashboard", {"top": 5})
+
+    assert len(chosen.structured_content["top_terms"]) == 1
+    assert len(wider.structured_content["top_terms"]) > 1
+
+
+def test_other_views_offer_no_slider():
+    for uri in ("ui://docsage/search-results", "ui://docsage/answer-report"):
+        assert "const SLIDER = null;" in read(FakeServices(), uri).contents[0].text
+
+
 def test_ask_documents_returns_the_html_report_for_its_view():
     result = call(FakeServices(CHUNKS), "ask_documents", {"question": "capital of France?"})
 

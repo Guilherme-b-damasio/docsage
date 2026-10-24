@@ -9,6 +9,7 @@ from docsage.infrastructure.mcp_app_view import (
     HTML_META_KEY,
     PROTOCOL_VERSION,
     FollowUp,
+    SliderControl,
     app_view,
 )
 
@@ -113,5 +114,84 @@ def test_follow_up_form_keeps_its_styles_when_the_page_is_swapped_in():
 def test_follow_up_view_script_is_valid_javascript(tmp_path):
     source = tmp_path / "view.js"
     source.write_text(_script(app_view("Answer", "1.2.3", FOLLOW_UP)), encoding="utf-8")
+
+    subprocess.run(["node", "--check", str(source)], check=True)
+
+
+SLIDER = SliderControl("index_dashboard", "top", "Top terms", 5, 50, 15, step=5)
+
+
+def test_view_without_a_slider_has_no_slider_form():
+    script = _script(app_view("Dashboard", "1.2.3"))
+
+    assert "const SLIDER = null;" in script
+
+
+def test_slider_view_calls_the_tool_with_the_chosen_number():
+    script = _script(app_view("Dashboard", "1.2.3", slider=SLIDER))
+    config = json.loads(re.search(r"const SLIDER = (\{.*?\});", script).group(1))
+
+    assert config == {
+        "tool": "index_dashboard",
+        "argument": "top",
+        "label": "Top terms",
+        "minimum": 5,
+        "maximum": 50,
+        "value": 15,
+        "step": 5,
+    }
+    assert "[SLIDER.argument]: chosen" in script
+    assert "Number(input.value)" in script
+
+
+def test_slider_form_needs_a_host_that_proxies_tool_calls():
+    script = _script(app_view("Dashboard", "1.2.3", slider=SLIDER))
+
+    assert "SLIDER && canCallTools" in script
+    assert 'input.type = "range"' in script
+
+
+def test_slider_keeps_the_number_it_was_left_on_across_results():
+    script = _script(app_view("Dashboard", "1.2.3", slider=SLIDER))
+
+    assert "let sliderValue = SLIDER ? SLIDER.value : 0;" in script
+    assert "sliderValue = chosen;" in script
+    assert "input.value = sliderValue;" in script
+
+
+def test_slider_shows_errors_and_re_enables_itself():
+    script = _script(app_view("Dashboard", "1.2.3", slider=SLIDER))
+
+    assert "input.disabled = false;" in script
+    assert "The tool call failed." in script
+
+
+def test_slider_form_keeps_its_styles_when_the_page_is_swapped_in():
+    script = _script(app_view("Dashboard", "1.2.3", slider=SLIDER))
+
+    assert "form.refine" in script
+
+
+def test_a_view_can_carry_both_a_follow_up_and_a_slider():
+    script = _script(app_view("Dashboard", "1.2.3", FOLLOW_UP, SLIDER))
+
+    assert "const FOLLOW_UP = {" in script
+    assert "const SLIDER = {" in script
+    assert "__" not in script
+
+
+@pytest.mark.parametrize(
+    "minimum, maximum, value, step",
+    [(10, 10, 10, 1), (5, 50, 4, 1), (5, 50, 51, 1), (5, 50, 15, 0)],
+)
+def test_slider_rejects_a_range_it_cannot_offer(minimum, maximum, value, step):
+    with pytest.raises(ValueError):
+        SliderControl("index_dashboard", "top", "Top terms", minimum, maximum, value, step)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to parse the script")
+def test_slider_view_script_is_valid_javascript(tmp_path):
+    source = tmp_path / "view.js"
+    source.write_text(_script(app_view("Dashboard", "1.2.3", FOLLOW_UP, SLIDER)), encoding="utf-8")
 
     subprocess.run(["node", "--check", str(source)], check=True)
