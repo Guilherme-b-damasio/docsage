@@ -183,6 +183,15 @@ class PassageLocator(SourceLocator, Protocol):
         ...
 
 
+class SourceTextReader(Protocol):
+    """Reads an indexed document's text back, for reports that inline their sources."""
+
+    def text(self, source: str) -> str | None:
+        """The document's text as it was indexed, or None when it cannot be read back
+        (a web page, a format no loader handles, a file that is gone)."""
+        ...
+
+
 class SourceRenderer(Protocol):
     """Turns an indexed source document into a page that shows a cited passage in place."""
 
