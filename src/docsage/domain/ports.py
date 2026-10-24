@@ -22,6 +22,7 @@ from docsage.domain.models import (
     IndexOverview,
     IndexStats,
     SearchResult,
+    SourceFilter,
     SourceView,
     TokenUsage,
 )
@@ -202,7 +203,12 @@ class AnswerRenderer(Protocol):
 class SearchRenderer(Protocol):
     """Turns a query and its ranked passages into a results page (HTML, text...)."""
 
-    def render(self, query: str, results: Sequence[SearchResult]) -> str: ...
+    def render(
+        self, query: str, results: Sequence[SearchResult], source: SourceFilter | None = None
+    ) -> str:
+        """``source`` is the filter the results were restricted to, so the page can show
+        which part of the index was searched; None means the whole index."""
+        ...
 
 
 class DashboardRenderer(Protocol):
