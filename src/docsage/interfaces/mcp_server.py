@@ -53,7 +53,13 @@ from docsage.domain.models import (
     SourceFilter,
     is_url,
 )
-from docsage.infrastructure.mcp_app_view import APP_MIME_TYPE, HTML_META_KEY, FollowUp, app_view
+from docsage.infrastructure.mcp_app_view import (
+    APP_MIME_TYPE,
+    HTML_META_KEY,
+    FollowUp,
+    SliderControl,
+    app_view,
+)
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.mcp_schemas import (
     AnswerOutput,
@@ -87,6 +93,18 @@ SEARCH_VIEW_URI = "ui://docsage/search-results"
 STATS_VIEW_URI = "ui://docsage/index-stats"
 ASK_FOLLOW_UP = FollowUp("ask_documents", "question", "Ask a follow-up question", "Ask")
 """Lets the user ask another question from the answer report view."""
+DEFAULT_DASHBOARD_TOP = 15
+"""Terms the dashboard charts unless the caller asks for more."""
+DASHBOARD_TOP_SLIDER = SliderControl(
+    tool="index_dashboard",
+    argument="top",
+    label="Top terms",
+    minimum=5,
+    maximum=50,
+    value=DEFAULT_DASHBOARD_TOP,
+    step=5,
+)
+"""Lets the user redraw the dashboard's charts for more or fewer terms."""
 INSTRUCTIONS = (
     "Search and ask questions about the user's locally indexed documents. "
     "Use search_documents to find passages (optionally narrowed to a file type, folder "
@@ -336,11 +354,14 @@ def build_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
         meta=_view_meta(DASHBOARD_VIEW_URI),
     )
-    def index_dashboard(top: int = 15) -> Annotated[CallToolResult, DashboardOutput]:
+    def index_dashboard(
+        top: int = DEFAULT_DASHBOARD_TOP,
+    ) -> Annotated[CallToolResult, DashboardOutput]:
         """Chart the index: documents per file type, chunk lengths and top terms.
 
-        Hosts that support MCP Apps show an interactive HTML dashboard; the text
-        version carries the same numbers.
+        top is how many of the most frequent terms to chart and relate documents by.
+        Hosts that support MCP Apps show an interactive HTML dashboard with a slider that
+        redraws it for more or fewer terms; the text version carries the same numbers.
         """
         if top < 0:
             raise ToolError("top must not be negative")
@@ -352,12 +373,15 @@ def build_server(
     @server.resource(
         DASHBOARD_VIEW_URI,
         title="Index dashboard view",
-        description="MCP Apps view that shows the HTML dashboard returned by index_dashboard.",
+        description=(
+            "MCP Apps view that shows the HTML dashboard returned by index_dashboard, with "
+            "a slider that calls the tool again for more or fewer top terms."
+        ),
         mime_type=APP_MIME_TYPE,
         meta={"ui": {"prefersBorder": True}},
     )
     def dashboard_view() -> str:
-        return app_view("docsage index", __version__)
+        return app_view("docsage index", __version__, slider=DASHBOARD_TOP_SLIDER)
 
     @server.resource(
         DOCUMENTS_URI,
