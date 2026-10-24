@@ -61,8 +61,8 @@ class HtmlAnswerRenderer:
     def render(self, answer: Answer) -> str:
         body = [
             f"<header>\n<h1>{escape(answer.question)}</h1>\n"
-            f'<p class="muted">Answered from {_plural(len(answer.sources), "passage")} '
-            "by docsage</p>\n</header>",
+            f'<p class="muted">Answered from {_plural(len(answer.sources), "passage")}'
+            f"{_within(answer.source)} by docsage</p>\n</header>",
             '<section class="card answer" aria-label="Answer">\n'
             f"{self._answer_html(answer)}\n</section>",
         ]
@@ -92,6 +92,13 @@ class HtmlAnswerRenderer:
             return f'<a class="cite" href="#source-{number}">[{number}]</a>'
 
         return _CITATION.sub(link, escaped).replace("\n", "<br>")
+
+
+def _within(source: str) -> str:
+    """Which part of the index an answer came from, when it was narrowed to one."""
+    if not source.strip():
+        return ""
+    return f" in <code>{escape(source.strip())}</code>"
 
 
 def source_html(rank: int, result: SearchResult, href: str | None = None) -> str:

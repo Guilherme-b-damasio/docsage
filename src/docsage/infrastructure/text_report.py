@@ -14,7 +14,7 @@ class TextAnswerRenderer:
     def render(self, answer: Answer) -> str:
         lines = [answer.question, "=" * len(answer.question), "", answer.text.strip()]
         if answer.sources:
-            lines += ["", "Sources:"]
+            lines += ["", f"Sources{_within(answer.source)}:"]
         for rank, result in enumerate(answer.sources, start=1):
             lines += [
                 "",
@@ -26,6 +26,11 @@ class TextAnswerRenderer:
         if answer.usage is not None:
             lines += ["", f"Usage: {usage_summary(answer.usage, answer.cost_usd)}"]
         return "\n".join(lines) + "\n"
+
+
+def _within(source: str) -> str:
+    """Which part of the index an answer came from, when it was narrowed to one."""
+    return f" in {source.strip()}" if source.strip() else ""
 
 
 def breakdown(contributions: Sequence[TermScore]) -> str:

@@ -115,6 +115,21 @@ def test_ask_answers_with_sources_usage_and_cost(client, docs):
     assert payload["cost_usd"] is not None
 
 
+def test_ask_narrows_the_answer_to_a_source(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    payload = client.post(
+        "/ask", json={"question": "what is alpha?", "source": str(docs.name)}
+    ).json()
+
+    assert payload["source"] == "docs"
+    assert payload["sources"][0]["chunk"]["source"] == str(docs / "a.md")
+
+    empty = client.post("/ask", json={"question": "what is alpha?", "source": ".pdf"}).json()
+    assert empty["sources"] == []
+    assert empty["source"] == ".pdf"
+
+
 def test_ask_rejects_blank_questions_and_a_large_top_k(client):
     assert client.post("/ask", json={"question": ""}).status_code == 422
     assert client.post("/ask", json={"question": "   "}).status_code == 422
@@ -178,6 +193,18 @@ def test_web_ui_search_page_narrows_to_a_source_and_shows_the_filter(client, doc
     assert "in <code>docs</code>" in page
     assert '<a href="/ui?q=notes">Search the whole index</a>' in page
     assert "No passage in <code>.txt</code> matches this query." in narrowed
+
+
+def test_web_ui_ask_keeps_the_source_filter_the_form_shows(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    html = client.get("/ui/ask", params={"q": "what is alpha?", "source": ".md"}).text
+    narrowed = client.get("/ui/ask", params={"q": "what is alpha?", "source": ".pdf"}).text
+
+    assert '<a class="cite" href="#source-1">[1]</a>' in html
+    assert "in <code>.md</code> by docsage" in html
+    assert "No relevant context found in the index." in narrowed
+    assert "in <code>.pdf</code> by docsage" in narrowed
 
 
 def test_web_ui_search_page_without_a_filter_searches_the_whole_index(client, docs):
