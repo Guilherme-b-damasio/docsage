@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
+from urllib.parse import urlencode
 
-from docsage.domain.models import SearchResult
+from docsage.domain.models import SearchResult, SourceFilter
 from docsage.domain.ports import SourceLocator
 from docsage.infrastructure.html_page import page
 from docsage.infrastructure.html_report import REPORT_CSS, source_html
@@ -30,6 +31,11 @@ form.search button {
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
 }
 form.search button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+form.search input.filter { flex: 0 1 200px; }
+.filtered code {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
+  padding: 0 4px; font-size: 0.85em;
+}
 """
 
 
@@ -64,15 +70,19 @@ class HtmlSearchRenderer:
             locator if locator is not None else HighlightingLocator(FileAndUrlLocator())
         )
 
-    def render(self, query: str, results: Sequence[SearchResult]) -> str:
+    def render(
+        self, query: str, results: Sequence[SearchResult], source: SourceFilter | None = None
+    ) -> str:
+        wanted = source or SourceFilter()
         body: list[str] = []
         if self._links is not None:
             body.append(self._navigation(self._links))
-            body.append(self._form(self._links, query))
+            body.append(self._form(self._links, query, wanted))
         if query:
             body.append(
                 f"<header>\n<h1>{escape(query)}</h1>\n"
-                f'<p class="muted">{_count(len(results))}</p>\n</header>'
+                f'<p class="muted filtered">{self._summary(query, results, wanted)}</p>'
+                "\n</header>"
             )
             body.extend(
                 source_html(rank, result, passage_href(self._locator, result))
@@ -91,15 +101,32 @@ class HtmlSearchRenderer:
         )
 
     @staticmethod
-    def _form(links: PageLinks, query: str) -> str:
+    def _form(links: PageLinks, query: str, wanted: SourceFilter) -> str:
         return (
             f'<form class="search" method="get" action="{escape(links.search)}" role="search">'
             f'<input type="search" name="q" value="{escape(query)}" required '
             'placeholder="Search your documents or ask a question" aria-label="Query">'
+            f'<input class="filter" type="search" name="source" value="{escape(wanted.pattern)}" '
+            'placeholder="Source: .md, docs/api" aria-label="Source filter" '
+            'title="Search only part of the index: a file type, a folder or a URL prefix">'
             '<button class="primary" type="submit">Search</button>'
             f'<button type="submit" formaction="{escape(links.ask)}">Ask Claude</button>'
             "</form>"
         )
+
+    def _summary(self, query: str, results: Sequence[SearchResult], wanted: SourceFilter) -> str:
+        """How many passages matched, which part of the index was searched, and a way out."""
+        if not wanted:
+            return _count(len(results))
+        where = f"<code>{escape(wanted.pattern.strip())}</code>"
+        if results:
+            summary = f"{_count(len(results))} in {where}"
+        else:
+            summary = f"No passage in {where} matches this query."
+        if self._links is None:
+            return summary
+        unfiltered = f"{self._links.search}?{urlencode({'q': query})}"
+        return f'{summary} · <a href="{escape(unfiltered)}">Search the whole index</a>'
 
 
 def _count(results: int) -> str:

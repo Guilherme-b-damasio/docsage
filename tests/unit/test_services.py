@@ -405,8 +405,9 @@ class RecordingSearchRenderer:
     def __init__(self):
         self.calls = []
 
-    def render(self, query, results):
-        self.calls.append((query, [result.chunk.source for result in results]))
+    def render(self, query, results, source=None):
+        sources = [result.chunk.source for result in results]
+        self.calls.append((query, sources, source.pattern if source else ""))
         return f"<{query}: {len(results)}>"
 
 
@@ -417,7 +418,7 @@ def test_search_report_service_renders_the_ranked_results():
     service = SearchReportService(SearchService(_alpha_beta_retriever()), renderer)
 
     assert service.report("  beta ", top_k=3) == "<beta: 1>"
-    assert renderer.calls == [("beta", ["b.md"])]
+    assert renderer.calls == [("beta", ["b.md"], "")]
 
 
 def test_search_report_service_renders_a_blank_query_without_searching():
@@ -640,6 +641,19 @@ def test_removing_a_path_never_drops_web_pages():
 
     assert report.documents == ()
     assert len(retriever) == 1
+
+
+def test_search_report_service_tells_the_renderer_which_sources_were_searched():
+    from docsage.application.services import SearchReportService
+    from docsage.domain.models import SourceFilter
+
+    renderer = RecordingSearchRenderer()
+    service = SearchReportService(SearchService(_alpha_beta_retriever()), renderer)
+
+    service.report("beta", source=SourceFilter(".md"))
+    service.report("   ", source=SourceFilter("docs"))
+
+    assert renderer.calls == [("beta", ["b.md"], ".md"), ("", [], "docs")]
 
 
 def test_search_report_service_returns_the_results_with_their_page():

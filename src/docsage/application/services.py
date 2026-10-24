@@ -414,11 +414,19 @@ class SearchReportService:
     def search(
         self, query: str, top_k: int = 5, source: SourceFilter | None = None
     ) -> SearchReport:
-        """The ranked results together with their rendered page, for callers that need both."""
+        """The ranked results together with their rendered page, for callers that need both.
+
+        ``source`` is passed on to the renderer, so the page can show which part of the
+        index was searched.
+        """
+        wanted = source or SourceFilter()
         query = query.strip()
-        results = tuple(self._searching.search(query, top_k, source)) if query else ()
-        content = self._renderer.render(query, results)
-        logger.debug("rendered search report", extra={"characters": len(content)})
+        results = tuple(self._searching.search(query, top_k, wanted)) if query else ()
+        content = self._renderer.render(query, results, wanted)
+        logger.debug(
+            "rendered search report",
+            extra={"source": wanted.pattern, "characters": len(content)},
+        )
         return SearchReport(query, results, content)
 
 

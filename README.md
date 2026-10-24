@@ -65,6 +65,10 @@ docsage search "chunk size" --source docs/api
 docsage search "chunk size" --source .pdf
 ```
 
+Every rendered results page says which part of the index was searched, e.g. *3 matching
+passages in `docs/api`*, so a short result list is never a mystery; the web UI's page
+also links back to the whole index.
+
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
 summary), handy for scripts and other tools. Each ranked chunk lists its
@@ -330,10 +334,15 @@ that follows the system's light or dark mode:
 
 | Page | Shows |
 | --- | --- |
-| `/ui?q=...` | a search form and the ranked passages with highlights and score breakdowns |
+| `/ui?q=...&source=...` | a search form and the ranked passages with highlights and score breakdowns |
 | `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
 | `/ui/dashboard` | the index dashboard |
 | `/ui/source?path=...` | an indexed document, opened from a citation |
+
+The form has a **source** input next to the query (`/ui?q=...&source=docs/api`), which
+narrows the search the same way `docsage search --source` does and stays filled in, so
+the active filter is always visible. "Ask Claude" ignores it and asks from the whole
+index.
 
 Citations on the search and answer pages link to their source: web pages to their URL,
 files to `/ui/source` (browsers do not open `file://` links from a web page), at the

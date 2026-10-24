@@ -157,9 +157,17 @@ def _add_web_ui(app: FastAPI, services: ServiceProvider) -> None:
     def search_page(
         q: Annotated[str, Query(description="The query; empty shows only the form.")] = "",
         top_k: Annotated[int, Query(ge=1, le=MAX_TOP_K)] = 5,
+        source: Annotated[
+            str, Query(description='Only search these sources (".md", "docs/api", a URL).')
+        ] = "",
     ) -> str:
-        """A search form and the ranked passages with highlights and score breakdowns."""
-        return services.search_report_service(UI_LINKS).report(q, top_k)
+        """A search form and the ranked passages with highlights and score breakdowns.
+
+        The form keeps ``source`` in its own input and the page says which part of the
+        index was searched, with a link back to the whole index.
+        """
+        wanted = SourceFilter(source)
+        return services.search_report_service(UI_LINKS).report(q, top_k, wanted)
 
     @app.get("/ui/ask", response_class=HTMLResponse, tags=["web UI"], response_model=None)
     def answer_page(

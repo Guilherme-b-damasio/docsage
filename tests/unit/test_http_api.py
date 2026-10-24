@@ -168,6 +168,28 @@ def test_web_ui_ask_renders_the_answer_report(client, docs):
     assert '<a class="cite" href="#source-1">[1]</a>' in response.text
 
 
+def test_web_ui_search_page_narrows_to_a_source_and_shows_the_filter(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    page = client.get("/ui", params={"q": "notes", "source": "docs"}).text
+    narrowed = client.get("/ui", params={"q": "notes", "source": ".txt"}).text
+
+    assert 'name="source" value="docs"' in page
+    assert "in <code>docs</code>" in page
+    assert '<a href="/ui?q=notes">Search the whole index</a>' in page
+    assert "No passage in <code>.txt</code> matches this query." in narrowed
+
+
+def test_web_ui_search_page_without_a_filter_searches_the_whole_index(client, docs):
+    client.post("/index", json={"targets": [str(docs)]})
+
+    page = client.get("/ui", params={"q": "notes"}).text
+
+    assert 'name="source" value=""' in page
+    assert "2 matching passages" in page
+    assert "Search the whole index" not in page
+
+
 def test_web_ui_links_citations_to_the_rendered_source_page(client, docs):
     from urllib.parse import quote
 
