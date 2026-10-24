@@ -333,19 +333,26 @@ that follows the system's light or dark mode:
 | `/ui?q=...` | a search form and the ranked passages with highlights and score breakdowns |
 | `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
 | `/ui/dashboard` | the index dashboard |
-| `/ui/source?path=...` | an indexed file, opened from a citation |
+| `/ui/source?path=...` | an indexed document, opened from a citation |
 
 Citations on the search and answer pages link to their source: web pages to their URL,
 files to `/ui/source` (browsers do not open `file://` links from a web page), at the
-right page for PDFs. It serves only files that are in the index, as plain text for
-Markdown and text files, and sandboxed so an indexed HTML page cannot run scripts.
+right page for PDFs. It serves only documents that are in the index.
 
-A citation of an HTML, Markdown or text source, or of a web page, also carries a
+A Markdown or plain-text source is **rendered as an HTML page** with the cited passage
+set off in place and its matched terms marked, from
+`/ui/source?path=...&chunk=<id>&terms=<terms>#passage`: the server does the highlighting,
+so every browser opens the citation at the passage, with the rest of the document around
+it for context. A stale link (the document changed since it was indexed, or the chunk is
+gone) still shows the document, just without a marked passage.
+
+Sources the server does not render (PDFs, Word documents, HTML pages) are served as the
+file itself, sandboxed so an indexed HTML page cannot run scripts against the API. Their
+citations, and those of web pages, carry a
 [text fragment](https://wicg.github.io/scroll-to-text-fragment/)
 (`#:~:text=first words,last words&text=term`) pointing at the passage and the terms it
-matched, so a browser that supports fragments (Chrome, Edge, Safari) opens the source
-scrolled to the cited passage with those terms highlighted. Other browsers ignore the
-fragment and open the source as before, and PDFs still open at their page.
+matched, so a browser that supports fragments (Chrome, Edge, Safari) still opens the
+source at the cited passage; PDFs open at their page.
 
 ### Docker
 
