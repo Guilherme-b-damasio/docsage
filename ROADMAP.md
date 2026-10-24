@@ -93,13 +93,24 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
       again
 - [x] Answer report: group the cited passages by document, newest citation first
-- [ ] `docsage report --format html --self-contained` that inlines the cited passages'
+- [x] `docsage report --format html --self-contained` that inlines the cited passages'
       source files, so a shared report needs no access to the machine
 - [ ] Compare two answers side by side (`docsage report --compare`) to see how retrieval
       settings change the answer
 - [ ] Export the dashboard as a single PDF (headless Chrome, reusing `scripts/screenshots.py`)
 - [ ] `docsage doctor`: check the index, the optional extras and the API key, with a
       one-page HTML report
+
+## Milestone 1.1: Reports that travel
+- [ ] Serve a self-contained report from the MCP server (`ask_documents` returns one as a
+      resource the client can save) and from the web UI (`/ui/ask?self_contained=1`)
+- [ ] Inline the cited passage's surrounding lines in the Markdown report, so a report in
+      a wiki or a pull request also reads without the source at hand
+- [ ] Trim an inlined document to the lines around each cited passage
+      (`--self-contained --context <lines>`), so one report does not carry whole books
+- [ ] Inline the cited pages of a PDF as text in a self-contained report
+- [ ] Timeline of the index in the dashboard: documents indexed per day, newest last
+- [ ] `docsage report --compare` as an MCP Apps view, with the two answers side by side
 
 ## Quality (ongoing, pick when a milestone item is blocked)
 - [ ] Benchmarks for indexing large folders

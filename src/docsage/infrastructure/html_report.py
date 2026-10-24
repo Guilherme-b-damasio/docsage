@@ -148,9 +148,7 @@ def source_html(rank: int, result: SearchResult, href: str | None = None) -> str
     terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
     citation = escape(result.chunk.citation)
     if href is not None and href.startswith("#"):
-        citation = (
-            f'<a href="{escape(href)}" title="Go to the document below">{citation}</a>'
-        )
+        citation = f'<a href="{escape(href)}" title="Go to the document below">{citation}</a>'
     elif href is not None:
         citation = (
             f'<a href="{escape(href)}" target="_blank" rel="noopener noreferrer" '
