@@ -63,6 +63,8 @@ class AnswerOutput(TypedDict):
     question: str
     answer: str
     sources: list[RankedChunkOutput]
+    source: str
+    """The source filter the passages were retrieved under, empty when the whole index was."""
     usage: UsageOutput | None
     """Tokens Claude spent on the answer (null when no passages matched)."""
     cost_usd: float | None

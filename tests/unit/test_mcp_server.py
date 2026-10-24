@@ -204,6 +204,35 @@ def test_ask_documents_on_empty_index_skips_the_generator():
     assert services.generator.calls == []
 
 
+def test_ask_documents_narrows_the_answer_to_a_source():
+    services = FakeServices(CHUNKS)
+
+    result = call(
+        services, "ask_documents", {"question": "capital?", "top_k": 1, "source": ".pdf"}
+    )
+
+    _, context = services.generator.calls[0]
+    assert [item.chunk.source for item in context] == ["b.pdf"]
+    assert result.structured_content["source"] == ".pdf"
+    assert "Sources in .pdf:" in text_of(result)
+
+
+def test_ask_documents_without_matches_in_a_source_skips_the_generator():
+    services = FakeServices(CHUNKS)
+
+    result = call(services, "ask_documents", {"question": "capital?", "source": "notes"})
+
+    assert services.generator.calls == []
+    assert text_of(result) == "No indexed passages in notes match this question."
+    assert result.structured_content["sources"] == []
+
+
+def test_ask_documents_reports_an_empty_source_filter():
+    result = call(FakeServices(CHUNKS), "ask_documents", {"question": "capital?"})
+
+    assert result.structured_content["source"] == ""
+
+
 def test_search_documents_truncates_long_passages():
     long_text = "alpha " * 200
     services = FakeServices([Chunk(id="l#0", source="long.md", text=long_text, position=0)])
