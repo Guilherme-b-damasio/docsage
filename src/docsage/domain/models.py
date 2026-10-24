@@ -216,6 +216,9 @@ class Answer:
     """Tokens spent on the answer (None when no model was called or it did not report them)."""
     cost_usd: float | None = None
     """Estimated price of ``usage`` in US dollars (None when the model's price is unknown)."""
+    source: str = ""
+    """The ``SourceFilter`` pattern the passages were retrieved under; empty when the whole
+    index was searched."""
 
 
 ANSWER_LENGTHS = ("short", "medium", "long")
