@@ -55,19 +55,23 @@ docsage watch docs/ notes.md
 # Removed docs/old.md.
 ```
 
-`docsage search --source <pattern>` searches only part of the index: a file type
-(`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`, matched against the source's
-folders) or a web address prefix (`https://example.com/docs`). The pattern ignores case
-and accepts either slash, and a narrow filter can return fewer than `--top-k` passages:
+`--source <pattern>` works on `search`, `ask` and `report` alike: it reads only part of
+the index, either a file type (`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`,
+matched against the source's folders) or a web address prefix
+(`https://example.com/docs`). The pattern ignores case and accepts either slash, and a
+narrow filter can return fewer than `--top-k` passages:
 
 ```bash
 docsage search "chunk size" --source docs/api
 docsage search "chunk size" --source .pdf
+docsage ask "how big should a chunk be?" --source docs/api
 ```
 
-Every rendered results page says which part of the index was searched, e.g. *3 matching
-passages in `docs/api`*, so a short result list is never a mystery; the web UI's page
-also links back to the whole index.
+A narrowed answer is grounded only on those sources, so it speaks for that part of the
+index alone; when nothing there matches the question, Claude is not called at all.
+Every rendered page says which part of the index it read, e.g. *3 matching passages in
+`docs/api`* or *Answered from 2 passages in `docs/api`*, so a short result list is never
+a mystery; the web UI's search page also links back to the whole index.
 
 `search`, `ask` and `stats` accept `--json` to print machine-readable output
 (ranked chunks with scores, the answer with its cited sources, or the index
@@ -263,7 +267,7 @@ The server offers these tools:
 | Tool               | What it does                                              |
 | ------------------ | --------------------------------------------------------- |
 | `search_documents` | ranked passages with citations, no model call; `source` narrows it to a file type, folder or URL prefix |
-| `ask_documents`    | a cited answer from Claude (needs `ANTHROPIC_API_KEY`)    |
+| `ask_documents`    | a cited answer from Claude (needs `ANTHROPIC_API_KEY`); `source` narrows it the same way |
 | `index_path`       | index a file or folder; unchanged files are skipped       |
 | `remove_path`      | drop a file or folder from the index (files stay on disk) |
 | `index_url`        | fetch a web page and index its main content               |
@@ -314,7 +318,7 @@ shapes as `--json`, and interactive docs are at `/docs`:
 | --- | --- |
 | `POST /index` | `{"targets": ["docs/", "https://example.com/guide"], "force": false}`: index files, folders and pages |
 | `GET /search?q=...&top_k=5&source=` | rank passages, with highlights and score breakdowns (no model call); `source` narrows the search |
-| `POST /ask` | `{"question": "...", "top_k": 5}`: answer with Claude, with sources, usage and cost |
+| `POST /ask` | `{"question": "...", "top_k": 5, "source": ""}`: answer with Claude, with sources, usage and cost; `source` narrows the index it reads |
 | `GET /stats?top=10` | summarize the index |
 | `GET /health` | liveness check |
 
@@ -336,14 +340,15 @@ that follows the system's light or dark mode:
 | Page | Shows |
 | --- | --- |
 | `/ui?q=...&source=...` | a search form and the ranked passages with highlights and score breakdowns |
-| `/ui/ask?q=...` | the answer report for a question ("Ask Claude" on the form) |
+| `/ui/ask?q=...&source=...` | the answer report for a question ("Ask Claude" on the form) |
 | `/ui/dashboard` | the index dashboard |
 | `/ui/source?path=...` | an indexed document, opened from a citation |
 
 The form has a **source** input next to the query (`/ui?q=...&source=docs/api`), which
 narrows the search the same way `docsage search --source` does and stays filled in, so
-the active filter is always visible. "Ask Claude" ignores it and asks from the whole
-index.
+the active filter is always visible. "Ask Claude" submits it too, so a question asked
+from a filtered search is answered from that part of the index, and the report says so
+above its sources.
 
 Citations on the search and answer pages link to their source: web pages to their URL,
 files to `/ui/source` (browsers do not open `file://` links from a web page), at the
