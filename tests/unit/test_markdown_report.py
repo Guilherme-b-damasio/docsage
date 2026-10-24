@@ -83,3 +83,56 @@ def test_markdown_report_of_the_whole_index_names_no_source_filter():
     answer = Answer("q", "Alpha is in [1].", (_result(),))
 
     assert "## Sources\n" in MarkdownAnswerRenderer().render(answer)
+
+
+def _indexed(source, chunk_id, indexed_at, text="The index keeps chunks."):
+    return SearchResult(Chunk(chunk_id, source, text, 0, indexed_at=indexed_at), 1.0)
+
+
+def test_markdown_report_groups_the_passages_by_document_newest_first():
+    answer = Answer(
+        "Q?",
+        "A [1][2][3].",
+        (
+            _indexed("old.md", "old#0", "2026-10-01T09:00:00+00:00"),
+            _indexed("new.md", "new#0", "2026-10-20T09:30:00+00:00"),
+            _indexed("old.md", "old#1", "2026-10-01T09:00:00+00:00"),
+        ),
+    )
+
+    markdown = MarkdownAnswerRenderer(_Locator()).render(answer)
+
+    assert markdown.index("### new.md") < markdown.index("### old.md")
+    assert markdown.count("### old.md") == 1
+    assert markdown.index("#### [2]") < markdown.index("#### [1]") < markdown.index("#### [3]")
+
+
+def test_markdown_report_says_how_many_passages_a_document_contributed_and_when_indexed():
+    answer = Answer(
+        "Q?",
+        "A [1][2].",
+        (
+            _indexed("notes.md", "n#0", "2026-10-20T09:30:00+00:00"),
+            _indexed("notes.md", "n#1", "2026-10-20T09:30:00+00:00"),
+        ),
+    )
+
+    markdown = MarkdownAnswerRenderer(_Locator()).render(answer)
+
+    assert "### notes.md\n\n2 passages cited, indexed 2026-10-20 09:30 UTC" in markdown
+
+
+def test_markdown_report_calls_an_unrecorded_index_time_unknown():
+    answer = Answer("Q?", "A [1].", (_indexed("notes.md", "n#0", ""),))
+
+    markdown = MarkdownAnswerRenderer(_Locator()).render(answer)
+
+    assert "1 passage cited, indexed unknown" in markdown
+
+
+def test_markdown_report_escapes_a_documents_name():
+    answer = Answer("Q?", "A [1].", (_indexed("[odd].md", "o#0", ""),))
+
+    markdown = MarkdownAnswerRenderer(_Locator()).render(answer)
+
+    assert r"### \[odd\].md" in markdown
