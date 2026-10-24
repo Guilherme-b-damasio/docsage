@@ -22,6 +22,7 @@ from docsage.domain.models import (
     IndexOverview,
     IndexStats,
     SearchResult,
+    SourceView,
     TokenUsage,
 )
 
@@ -178,6 +179,17 @@ class PassageLocator(SourceLocator, Protocol):
     def passage_href(self, result: SearchResult) -> str | None:
         """A link that opens the passage's source at the passage, or None when it cannot
         be linked; it falls back to ``href`` for sources that cannot be pointed into."""
+        ...
+
+
+class SourceRenderer(Protocol):
+    """Turns an indexed source document into a page that shows a cited passage in place."""
+
+    def render(self, view: SourceView) -> str: ...
+
+    def supports(self, source: str) -> bool:
+        """True when this renderer can show ``source``; a caller falls back to the file
+        itself for the formats it cannot render, such as PDFs."""
         ...
 
 

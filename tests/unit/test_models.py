@@ -109,3 +109,28 @@ def test_empty_source_filter_is_falsey_so_callers_can_skip_it():
     assert not SourceFilter()
     assert not SourceFilter("  ")
     assert SourceFilter(".md")
+
+
+def test_source_view_exposes_the_marked_passage():
+    from docsage.domain.models import SourceView
+
+    view = SourceView("notes.md", "intro\npassage here\noutro", 6, 18)
+
+    assert view.passage == "passage here"
+
+
+def test_source_view_without_a_passage_has_an_empty_one():
+    from docsage.domain.models import SourceView
+
+    assert SourceView("notes.md", "intro").passage == ""
+
+
+@pytest.mark.parametrize(
+    "start, end",
+    [(0, None), (None, 3), (-1, 3), (4, 2), (0, 99)],
+)
+def test_source_view_rejects_a_passage_outside_the_text(start, end):
+    from docsage.domain.models import SourceView
+
+    with pytest.raises(ValueError):
+        SourceView("notes.md", "intro", start, end)
