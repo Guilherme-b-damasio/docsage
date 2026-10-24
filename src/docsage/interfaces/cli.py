@@ -239,6 +239,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="open the report in the default browser (a temporary file unless -o is given)",
     )
+    report.add_argument(
+        "--self-contained",
+        action="store_true",
+        help="inline the cited documents in the HTML report, so it can be shared as one file",
+    )
     _add_source_argument(report, "answer from")
     report.set_defaults(handler=_report)
 
@@ -443,9 +448,11 @@ def _evaluate(container: Container, args: argparse.Namespace) -> int:
 
 
 def _report(container: Container, args: argparse.Namespace) -> int:
-    report = container.answer_report_service(args.format).report(
-        args.question, args.top_k, SourceFilter(args.source)
-    )
+    if args.self_contained and args.format != "html":
+        print("docsage: --self-contained only applies to --format html", file=sys.stderr)
+        return 2
+    service = container.answer_report_service(args.format, self_contained=args.self_contained)
+    report = service.report(args.question, args.top_k, SourceFilter(args.source))
     output: Path | None = args.output
     if output is None and args.open:
         output = Path(tempfile.mkdtemp(prefix="docsage-")) / f"report.{_EXTENSIONS[args.format]}"

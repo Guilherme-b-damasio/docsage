@@ -62,51 +62,64 @@ class HtmlAnswerRenderer:
         )
 
     def render(self, answer: Answer) -> str:
-        body = [
-            f"<header>\n<h1>{escape(answer.question)}</h1>\n"
-            f'<p class="muted">Answered from {plural(len(answer.sources), "passage")}'
-            f"{_within(answer.source)} by docsage</p>\n</header>",
-            '<section class="card answer" aria-label="Answer">\n'
-            f"{self._answer_html(answer)}\n</section>",
-        ]
-        if answer.sources:
-            body.append("<h2>Sources</h2>")
-            body.extend(self._document_html(document) for document in answer.cited_documents())
-        if answer.usage is not None:
-            body.append(usage_html(answer.usage, answer.cost_usd))
+        body = answer_body(answer, self._locator)
         return page(f"docsage: {answer.question}", "\n".join(body), REPORT_CSS + CHART_CSS)
 
-    def _document_html(self, document: CitedDocument) -> str:
-        """One document's cited passages under a heading saying when it was indexed."""
-        passages = [
-            source_html(cited.rank, cited.result, passage_href(self._locator, cited.result))
-            for cited in document.citations
-        ]
-        cited = plural(len(document.citations), "passage")
-        return (
-            '<section class="cited">\n'
-            f"<h3>{escape(document.source)}</h3>\n"
-            f'<p>{cited} cited · indexed {_indexed_html(document.indexed_at)}</p>\n'
-            + "\n".join(passages)
-            + "\n</section>"
-        )
 
-    def _answer_html(self, answer: Answer) -> str:
-        paragraphs = [part.strip() for part in re.split(r"\n\s*\n", answer.text) if part.strip()]
-        return "\n".join(
-            f"<p>{self._link_citations(escape(paragraph), len(answer.sources))}</p>"
-            for paragraph in paragraphs
-        )
+def answer_body(answer: Answer, locator: SourceLocator) -> list[str]:
+    """The report's sections: the question, the answer, the cited documents and the usage.
 
-    @staticmethod
-    def _link_citations(escaped: str, sources: int) -> str:
-        def link(match: re.Match[str]) -> str:
-            number = int(match.group(1))
-            if not 1 <= number <= sources:
-                return match.group(0)
-            return f'<a class="cite" href="#source-{number}">[{number}]</a>'
+    Shared with the renderers that build on the report, such as the self-contained one,
+    so every flavour of the report shows an answer the same way.
+    """
+    body = [
+        f"<header>\n<h1>{escape(answer.question)}</h1>\n"
+        f'<p class="muted">Answered from {plural(len(answer.sources), "passage")}'
+        f"{_within(answer.source)} by docsage</p>\n</header>",
+        f'<section class="card answer" aria-label="Answer">\n{_answer_html(answer)}\n</section>',
+    ]
+    if answer.sources:
+        body.append("<h2>Sources</h2>")
+        body.extend(document_html(document, locator) for document in answer.cited_documents())
+    if answer.usage is not None:
+        body.append(usage_html(answer.usage, answer.cost_usd))
+    return body
 
-        return _CITATION.sub(link, escaped).replace("\n", "<br>")
+
+def document_html(document: CitedDocument, locator: SourceLocator) -> str:
+    """One document's cited passages under a heading saying when it was indexed."""
+    passages = [
+        source_html(cited.rank, cited.result, passage_href(locator, cited.result))
+        for cited in document.citations
+    ]
+    cited = plural(len(document.citations), "passage")
+    return (
+        '<section class="cited">\n'
+        f"<h3>{escape(document.source)}</h3>\n"
+        f'<p>{cited} cited · indexed {_indexed_html(document.indexed_at)}</p>\n'
+        + "\n".join(passages)
+        + "\n</section>"
+    )
+
+
+def _answer_html(answer: Answer) -> str:
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", answer.text) if part.strip()]
+    return "\n".join(
+        f"<p>{_link_citations(escape(paragraph), len(answer.sources))}</p>"
+        for paragraph in paragraphs
+    )
+
+
+def _link_citations(escaped: str, sources: int) -> str:
+    """Turns each ``[n]`` that has a passage into a link to that passage's card."""
+
+    def link(match: re.Match[str]) -> str:
+        number = int(match.group(1))
+        if not 1 <= number <= sources:
+            return match.group(0)
+        return f'<a class="cite" href="#source-{number}">[{number}]</a>'
+
+    return _CITATION.sub(link, escaped).replace("\n", "<br>")
 
 
 def _indexed_html(timestamp: str) -> str:
@@ -127,12 +140,16 @@ def _within(source: str) -> str:
 def source_html(rank: int, result: SearchResult, href: str | None = None) -> str:
     """A ranked passage card: citation, score, highlighted text, terms and score breakdown.
 
-    With ``href`` the citation links to the passage's source.
+    With ``href`` the citation links to the passage's source. A link into this same page,
+    as a self-contained report's inlined copy of the document is, stays in the tab; an
+    external source opens in a new one.
     """
     terms = "".join(f'<span class="term">{escape(term)}</span>' for term in result.matched_terms)
     terms_html = f'\n<div class="terms">{terms}</div>' if terms else ""
     citation = escape(result.chunk.citation)
-    if href is not None:
+    if href is not None and href.startswith("#"):
+        citation = f'<a href="{escape(href)}" title="Go to the document below">{citation}</a>'
+    elif href is not None:
         citation = (
             f'<a href="{escape(href)}" target="_blank" rel="noopener noreferrer" '
             f'title="Open the source">{citation}</a>'

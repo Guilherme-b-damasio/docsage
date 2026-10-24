@@ -62,6 +62,7 @@ from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.html_search import HtmlSearchRenderer, PageLinks
+from docsage.infrastructure.html_self_contained import SelfContainedHtmlAnswerRenderer
 from docsage.infrastructure.html_source import HtmlSourceRenderer
 from docsage.infrastructure.html_stats import HtmlStatsRenderer
 from docsage.infrastructure.loaders import default_loaders
@@ -75,6 +76,7 @@ from docsage.infrastructure.source_links import (
     ServedPassageLocator,
     ServedSourceLocator,
 )
+from docsage.infrastructure.source_text import LoaderSourceTextReader
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -318,15 +320,26 @@ class Container:
         return generator
 
     def answer_report_service(
-        self, report_format: str = "html", source_endpoint: str | None = None
+        self,
+        report_format: str = "html",
+        source_endpoint: str | None = None,
+        self_contained: bool = False,
     ) -> AnswerReportService:
         """``report_format`` is a key of ``REPORT_FORMATS``. With ``source_endpoint`` the HTML
-        report links cited files to where a web server serves them instead of ``file://``."""
+        report links cited files to where a web server serves them instead of ``file://``;
+        with ``self_contained`` it carries the cited documents inside the page instead, so a
+        shared report needs neither this machine nor a server (HTML only)."""
         try:
             renderer = REPORT_FORMATS[report_format]()
         except KeyError:
             raise ValueError(f"Unknown report format: {report_format}") from None
-        if source_endpoint is not None and report_format == "html":
+        if report_format != "html":
+            return AnswerReportService(self.question_answering_service(), renderer)
+        if self_contained:
+            renderer = SelfContainedHtmlAnswerRenderer(
+                LoaderSourceTextReader(default_loaders()), self._highlighter
+            )
+        elif source_endpoint is not None:
             renderer = HtmlAnswerRenderer(_served_locator(source_endpoint))
         return AnswerReportService(self.question_answering_service(), renderer)
 

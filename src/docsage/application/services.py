@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager, nullcontext
@@ -57,6 +56,7 @@ from docsage.domain.ports import (
     UrlLoader,
     UsageReportingGenerator,
 )
+from docsage.domain.text import passage_span
 
 logger = logging.getLogger(__name__)
 
@@ -993,19 +993,3 @@ class SourcePageService:
             if loader.supports(path):
                 return loader.load(path)
         raise UnsupportedFileError(f"No loader for {source}")
-
-
-def passage_span(text: str, passage: str) -> tuple[int, int] | None:
-    """Where ``passage`` occurs in ``text``, ignoring how its whitespace was normalized.
-
-    Chunkers join a passage's words with single spaces, so a stored chunk seldom appears
-    in its document verbatim; its words are matched in order across any whitespace
-    instead. Returns None when the passage is blank or cannot be found, e.g. because the
-    document changed since it was indexed.
-    """
-    words = passage.split()
-    if not words:
-        return None
-    pattern = r"\s+".join(re.escape(word) for word in words)
-    match = re.search(pattern, text)
-    return (match.start(), match.end()) if match else None

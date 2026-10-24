@@ -561,3 +561,42 @@ def test_stats_report_service_renders_html(tmp_path):
 
     assert report.stats.documents == 0
     assert report.content.startswith("<!doctype html>") and "docsage stats" in report.content
+
+
+def test_answer_report_service_can_inline_the_cited_documents(tmp_path):
+    from docsage.container import Container
+
+    class FakeGenerator:
+        def generate(self, question, context):
+            return "Lisbon [1]."
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), FakeGenerator())
+    notes = tmp_path / "notes.md"
+    notes.write_text("Lisbon is the capital of Portugal.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    report = container.answer_report_service("html", self_contained=True).report("Where is Lisbon?")
+
+    assert "<h2>Documents</h2>" in report.content
+    assert 'href="#passage-1"' in report.content
+    assert "file://" not in report.content
+    # The served endpoint is ignored: a self-contained report needs no server either.
+    served = container.answer_report_service("html", "/f", self_contained=True)
+    assert "?path=" not in served.report("Where is Lisbon?").content
+
+
+def test_answer_report_service_only_inlines_documents_in_html(tmp_path):
+    from docsage.container import Container
+
+    class FakeGenerator:
+        def generate(self, question, context):
+            return "Lisbon [1]."
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), FakeGenerator())
+    notes = tmp_path / "notes.md"
+    notes.write_text("Lisbon is the capital of Portugal.", encoding="utf-8")
+    container.indexing_service().index([notes])
+
+    report = container.answer_report_service("text", self_contained=True).report("Where is Lisbon?")
+
+    assert report.content.startswith("Where is Lisbon?")

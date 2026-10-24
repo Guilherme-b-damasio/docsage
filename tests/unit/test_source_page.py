@@ -4,9 +4,9 @@ from docsage.application.services import (
     CatalogService,
     SourcePageService,
     UnsupportedFileError,
-    passage_span,
 )
 from docsage.domain.models import Chunk
+from docsage.domain.text import passage_span
 from docsage.infrastructure.bm25 import BM25Retriever
 from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.loaders import default_loaders

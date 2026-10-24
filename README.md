@@ -402,11 +402,11 @@ the matched query terms highlighted. The passages are grouped under the document
 come from, with the number of passages it contributed and when it was indexed, and the
 most recently indexed document leads, so the freshest material is on top (the `[n]`
 markers keep the ranks the answer cites them by). Each passage's citation links to its
-source: the
-web page it came from, or the file on disk (`file://`, opened at the page for PDFs, with
-relative paths resolved from the directory docsage runs in). The page inlines its CSS
-(no network needed) and follows the system's light or dark mode. A plain-text renderer is the fallback for
-clients that cannot show HTML (matched terms appear in `**bold**`).
+source: the web page it came from, or the file on disk (`file://`, opened at the page for
+PDFs, with relative paths resolved from the directory docsage runs in). The page inlines
+its CSS (no network needed) and follows the system's light or dark mode. A plain-text
+renderer is the fallback for clients that cannot show HTML (matched terms appear in
+`**bold**`).
 
 `docsage report` answers a question with Claude and writes the report: to stdout by
 default, to a file with `-o`, as plain text with `--format text`, or as Markdown with
@@ -417,7 +417,15 @@ default, to a file with `-o`, as plain text with `--format text`, or as Markdown
 docsage report "How does BM25 work?" --open
 docsage report "How does BM25 work?" -o reports/bm25.html
 docsage report "How does BM25 work?" --format markdown -o notes/bm25.md
+docsage report "How does BM25 work?" --self-contained -o reports/shared.html
 ```
+
+`--self-contained` makes the HTML report shareable: every cited document is read back and
+inlined in the page with its cited passages marked in place, and each citation points at
+that copy instead of at a file, so the report can be attached to an email or committed to
+a repository and still show each citation in its context. Sources that cannot be inlined
+(web pages, PDFs and Word files, documents that changed since they were indexed) keep
+their ordinary link. The flag applies to `--format html` only.
 
 The Markdown report suits notes, wikis and pull requests: each `[n]` in the answer links
 to its passage, the passages sit under a heading per cited document (newest first) and
