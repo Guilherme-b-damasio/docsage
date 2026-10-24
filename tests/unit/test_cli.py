@@ -879,3 +879,29 @@ def test_watch_rejects_a_non_positive_interval(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["watch", str(tmp_path), "--interval", "0"])
     assert "interval must be positive" in capsys.readouterr().err
+
+
+def test_report_self_contained_inlines_the_cited_documents(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes about the index", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    output = tmp_path / "answer.html"
+    argv = ["--index", str(index), "report", "alpha?", "--self-contained", "-o", str(output)]
+
+    assert main(argv) == 0
+
+    html = output.read_text(encoding="utf-8")
+    assert "<h2>Documents</h2>" in html
+    assert "1 cited document inlined below" in html
+    assert 'href="#passage-1"' in html
+    assert "file://" not in html
+
+
+def test_report_self_contained_is_html_only(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    argv = ["--index", str(index), "report", "alpha?", "--self-contained", "--format", "markdown"]
+
+    assert main(argv) == 2
+    assert "--self-contained only applies to --format html" in capsys.readouterr().err
