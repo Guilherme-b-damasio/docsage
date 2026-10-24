@@ -14,7 +14,7 @@ from docsage.infrastructure.source_links import (
     passage_href,
 )
 from docsage.infrastructure.svg_charts import CHART_CSS, bar_chart, data_table
-from docsage.infrastructure.units import indexed_label, usage_summary
+from docsage.infrastructure.units import indexed_label, plural, usage_summary
 
 _CITATION = re.compile(r"\[(\d+)\]")
 
@@ -64,7 +64,7 @@ class HtmlAnswerRenderer:
     def render(self, answer: Answer) -> str:
         body = [
             f"<header>\n<h1>{escape(answer.question)}</h1>\n"
-            f'<p class="muted">Answered from {_plural(len(answer.sources), "passage")}'
+            f'<p class="muted">Answered from {plural(len(answer.sources), "passage")}'
             f"{_within(answer.source)} by docsage</p>\n</header>",
             '<section class="card answer" aria-label="Answer">\n'
             f"{self._answer_html(answer)}\n</section>",
@@ -82,7 +82,7 @@ class HtmlAnswerRenderer:
             source_html(cited.rank, cited.result, passage_href(self._locator, cited.result))
             for cited in document.citations
         ]
-        cited = _plural(len(document.citations), "passage")
+        cited = plural(len(document.citations), "passage")
         return (
             '<section class="cited">\n'
             f"<h3>{escape(document.source)}</h3>\n"
@@ -177,7 +177,3 @@ def usage_html(usage: TokenUsage, cost_usd: float | None) -> str:
         f"{bar_chart(rows, 'Tokens used by the answer')}"
         f"{data_table(('Tokens', 'Count'), rows)}</section>"
     )
-
-
-def _plural(count: int, noun: str) -> str:
-    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"

@@ -1,5 +1,5 @@
 from docsage.domain.models import TokenUsage
-from docsage.infrastructure.units import human_size, indexed_label, usage_summary
+from docsage.infrastructure.units import human_size, indexed_label, plural, usage_summary
 
 
 def test_human_size_picks_the_largest_fitting_unit():
@@ -38,3 +38,9 @@ def test_indexed_label_shows_the_minute_in_utc():
 def test_indexed_label_of_a_missing_or_unreadable_time():
     assert indexed_label("") == "unknown"
     assert indexed_label("yesterday") == "yesterday"
+
+
+def test_plural_adds_an_s_unless_there_is_exactly_one():
+    assert plural(1, "passage") == "1 passage"
+    assert plural(0, "passage") == "0 passages"
+    assert plural(2, "passage") == "2 passages"
