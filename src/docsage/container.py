@@ -20,6 +20,7 @@ from docsage.application.services import (
     RemovalService,
     SearchReportService,
     SearchService,
+    SourcePageService,
     StatsReportService,
     StatsService,
     WatchService,
@@ -61,6 +62,7 @@ from docsage.infrastructure.highlighting import TermHighlighter
 from docsage.infrastructure.html_dashboard import HtmlDashboardRenderer
 from docsage.infrastructure.html_report import HtmlAnswerRenderer
 from docsage.infrastructure.html_search import HtmlSearchRenderer, PageLinks
+from docsage.infrastructure.html_source import HtmlSourceRenderer
 from docsage.infrastructure.html_stats import HtmlStatsRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.markdown_report import MarkdownAnswerRenderer
@@ -68,7 +70,11 @@ from docsage.infrastructure.mermaid import MermaidDashboardRenderer
 from docsage.infrastructure.pricing import PriceTable
 from docsage.infrastructure.projection import PcaProjector
 from docsage.infrastructure.reranking import RerankingRetriever
-from docsage.infrastructure.source_links import HighlightingLocator, ServedSourceLocator
+from docsage.infrastructure.source_links import (
+    HighlightingLocator,
+    ServedPassageLocator,
+    ServedSourceLocator,
+)
 from docsage.infrastructure.text_dashboard import TextDashboardRenderer
 from docsage.infrastructure.text_report import TextAnswerRenderer
 from docsage.infrastructure.tokenizer import multilingual_tokenizer
@@ -341,6 +347,13 @@ class Container:
     def catalog_service(self) -> CatalogService:
         return CatalogService(self._repository.load())
 
+    def source_page_service(self) -> SourcePageService:
+        """Renders an indexed text source with a cited passage marked; formats it cannot
+        show are served as files instead (see ``SourcePageService.supports``)."""
+        return SourcePageService(
+            self.catalog_service(), default_loaders(), HtmlSourceRenderer(), self._highlighter
+        )
+
     def evaluation_service(self, evaluation_format: str = "text") -> EvaluationService:
         """Evaluates the configured retriever (and reranker, when on) as ``search`` uses it.
 
@@ -361,6 +374,9 @@ class Container:
         return SearchReportService(self.search_service(), HtmlSearchRenderer(links, locator))
 
 
-def _served_locator(endpoint: str) -> HighlightingLocator:
-    """Files link to where the web server serves them, opened at the cited passage."""
-    return HighlightingLocator(ServedSourceLocator(endpoint))
+def _served_locator(endpoint: str) -> ServedPassageLocator:
+    """Files link to where the web server serves them, opened at the cited passage: text
+    sources to the page the server renders with the passage marked, the rest to the file
+    itself with a text fragment."""
+    served = HighlightingLocator(ServedSourceLocator(endpoint))
+    return ServedPassageLocator(endpoint, served, HtmlSourceRenderer())

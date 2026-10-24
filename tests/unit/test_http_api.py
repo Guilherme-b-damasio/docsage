@@ -168,28 +168,47 @@ def test_web_ui_ask_renders_the_answer_report(client, docs):
     assert '<a class="cite" href="#source-1">[1]</a>' in response.text
 
 
-def test_web_ui_links_citations_to_the_served_source(client, docs):
+def test_web_ui_links_citations_to_the_rendered_source_page(client, docs):
     from urllib.parse import quote
 
     client.post("/index", json={"targets": [str(docs)]})
-    href = f"/ui/source?path={quote(str(docs / 'a.md'), safe='')}"
+    href = f"/ui/source?path={quote(str(docs / 'a.md'), safe='')}&amp;chunk="
 
     search = client.get("/ui", params={"q": "alpha"}).text
     answer = client.get("/ui/ask", params={"q": "what is alpha?"}).text
 
-    assert f'href="{href}#:~:text=' in search
-    assert f'href="{href}#:~:text=' in answer
+    assert href in search
+    assert "&amp;terms=alpha#passage" in search
+    assert href in answer
+    assert "#passage" in answer
 
 
-def test_web_ui_serves_an_indexed_file_as_sandboxed_text(client, docs):
+def test_web_ui_renders_a_text_source_with_the_cited_passage_marked(client, docs):
     client.post("/index", json={"targets": [str(docs)]})
+    cited = client.get("/search", params={"q": "alpha"}).json()["results"][0]["chunk"]
 
-    response = client.get("/ui/source", params={"path": str(docs / "a.md")})
+    response = client.get(
+        "/ui/source",
+        params={"path": str(docs / "a.md"), "chunk": cited["id"], "terms": "alpha"},
+    )
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert '<pre class="passage" id="passage"' in response.text
+    assert '<mark title="alpha">alpha</mark>' in response.text
+
+
+def test_web_ui_serves_a_source_it_cannot_render_as_a_sandboxed_file(client, tmp_path):
+    page = tmp_path / "page.html"
+    page.write_text("<h1>Alpha</h1><p>alpha notes</p>", encoding="utf-8")
+    client.post("/index", json={"targets": [str(page)]})
+
+    response = client.get("/ui/source", params={"path": str(page)})
+
+    assert response.status_code == 200
     assert response.headers["content-security-policy"] == "sandbox"
-    assert "alpha notes about retrieval" in response.text
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "<h1>Alpha</h1>" in response.text
 
 
 def test_web_ui_refuses_files_that_are_not_indexed(client, docs, tmp_path):

@@ -26,6 +26,7 @@ from docsage.application.services import (
     QuestionAnsweringService,
     SearchReportService,
     SearchService,
+    SourcePageService,
     StatsService,
 )
 from docsage.domain.models import SourceFilter, is_url
@@ -42,10 +43,6 @@ MAX_TOP_K = 50
 MAX_TOP_TERMS = 100
 
 UI_LINKS = PageLinks(search="/ui", ask="/ui/ask", dashboard="/ui/dashboard", source="/ui/source")
-
-TEXT_SUFFIXES = (".md", ".markdown", ".txt", ".rst")
-"""Served as plain text, so browsers show them instead of downloading them."""
-
 
 class ServiceProvider(Protocol):
     """Builds the use cases the API calls; ``docsage.container.Container`` is one."""
@@ -65,6 +62,8 @@ class ServiceProvider(Protocol):
     ) -> AnswerReportService: ...
 
     def catalog_service(self) -> CatalogService: ...
+
+    def source_page_service(self) -> SourcePageService: ...
 
     def dashboard_service(self, dashboard_format: str = "html") -> DashboardService: ...
 
@@ -173,21 +172,33 @@ def _add_web_ui(app: FastAPI, services: ServiceProvider) -> None:
         service = services.answer_report_service("html", UI_LINKS.source)
         return service.report(q.strip(), top_k).content
 
-    @app.get("/ui/source", tags=["web UI"])
+    @app.get("/ui/source", tags=["web UI"], response_model=None)
     def source_file(
         path: Annotated[str, Query(description="An indexed file, as the index stores it.")],
-    ) -> FileResponse:
-        """An indexed file, so citations can open it; anything else is refused. The file is
-        sandboxed, so an indexed HTML page cannot run scripts against the API."""
+        chunk: Annotated[
+            str, Query(description="Id of the cited passage to mark in the page.")
+        ] = "",
+        terms: Annotated[
+            str, Query(description="Query terms to highlight inside the passage.")
+        ] = "",
+    ) -> HTMLResponse | FileResponse:
+        """An indexed document, so citations can open it; anything else is refused.
+
+        Markdown and plain text are rendered as an HTML page with the passage of ``chunk``
+        marked in place, so the highlight does not depend on browser text fragments. Other
+        formats are served as the file itself, sandboxed, so an indexed HTML page cannot
+        run scripts against the API.
+        """
         if is_url(path) or not services.catalog_service().document_chunks(path):
             raise HTTPException(404, "Not an indexed document")
         file = Path(path)
         if not file.is_file():
             raise HTTPException(404, "The document is no longer on disk")
-        text = file.suffix.lower() in TEXT_SUFFIXES
+        rendering = services.source_page_service()
+        if rendering.supports(path):
+            return HTMLResponse(rendering.page(path, chunk, terms).content)
         return FileResponse(
             file,
-            media_type="text/plain; charset=utf-8" if text else None,
             headers={"Content-Security-Policy": "sandbox", "X-Content-Type-Options": "nosniff"},
         )
 

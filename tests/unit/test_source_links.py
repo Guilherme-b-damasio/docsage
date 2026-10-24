@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from docsage.domain.models import Chunk, Highlight, SearchResult
+from docsage.infrastructure.html_source import HtmlSourceRenderer
 from docsage.infrastructure.source_links import (
     FileAndUrlLocator,
     HighlightingLocator,
+    ServedPassageLocator,
     ServedSourceLocator,
     passage_href,
 )
@@ -154,3 +156,51 @@ def test_passage_href_falls_back_to_the_plain_link(tmp_path):
     assert passage_href(HighlightingLocator(plain), result) == HighlightingLocator(
         plain
     ).passage_href(result)
+
+
+def _served_passage_locator(endpoint="/ui/source"):
+    inner = HighlightingLocator(ServedSourceLocator(endpoint))
+    return ServedPassageLocator(endpoint, inner, HtmlSourceRenderer())
+
+
+def test_a_rendered_source_links_to_the_servers_passage_page():
+    chunk = Chunk(id="docs/a.md#0", source="docs/a.md", text="Alpha notes.", position=0)
+    result = SearchResult(chunk, 1.0, (Highlight(0, 5, "alpha"), Highlight(6, 11, "notes")))
+
+    href = _served_passage_locator().passage_href(result)
+
+    assert href == (
+        "/ui/source?path=docs%2Fa.md&chunk=docs/a.md%230&terms=alpha%20notes#passage"
+    )
+
+
+def test_a_rendered_source_without_matched_terms_still_points_at_the_passage():
+    href = _served_passage_locator().passage_href(_result("a.md", "Alpha notes."))
+
+    assert href == "/ui/source?path=a.md&chunk=a.md%230#passage"
+
+
+def test_sources_the_server_cannot_render_keep_their_text_fragment():
+    href = _served_passage_locator().passage_href(_result("page.html", "Alpha notes."))
+
+    assert href.startswith("/ui/source?path=page.html#:~:text=")
+
+
+def test_pdf_passages_keep_their_page_link():
+    chunk = Chunk(id="g#0", source="guide.pdf", text="Alpha.", position=0, first_page=2)
+
+    href = _served_passage_locator().passage_href(SearchResult(chunk, 1.0))
+
+    assert href == "/ui/source?path=guide.pdf#page=2"
+
+
+def test_web_pages_keep_linking_to_their_url():
+    href = _served_passage_locator().passage_href(_result("https://example.com/g", "Alpha."))
+
+    assert href.startswith("https://example.com/g#:~:text=")
+
+
+def test_chunk_links_are_untouched_by_the_served_passage_locator():
+    chunk = Chunk(id="a.md#0", source="a.md", text="Alpha.", position=0)
+
+    assert _served_passage_locator().href(chunk) == "/ui/source?path=a.md"
