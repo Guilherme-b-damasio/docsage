@@ -1,6 +1,6 @@
 import pytest
 
-from docsage.domain.models import Chunk, Document, Highlight, SearchResult
+from docsage.domain.models import Answer, Chunk, Document, Highlight, SearchResult
 from docsage.infrastructure.loaders import PAGE_SEPARATOR, page_offsets
 
 
@@ -134,3 +134,78 @@ def test_source_view_rejects_a_passage_outside_the_text(start, end):
 
     with pytest.raises(ValueError):
         SourceView("notes.md", "intro", start, end)
+
+
+def _cited(source, rank_text, indexed_at=""):
+    chunk = Chunk(f"{source}#{rank_text}", source, rank_text, 0, indexed_at=indexed_at)
+    return SearchResult(chunk, 1.0)
+
+
+def test_cited_documents_groups_passages_of_the_same_document():
+    answer = Answer(
+        "q",
+        "a",
+        (
+            _cited("a.md", "first", "2026-10-01T00:00:00+00:00"),
+            _cited("b.md", "second", "2026-10-01T00:00:00+00:00"),
+            _cited("a.md", "third", "2026-10-01T00:00:00+00:00"),
+        ),
+    )
+
+    documents = answer.cited_documents()
+
+    assert [document.source for document in documents] == ["a.md", "b.md"]
+    assert [citation.rank for citation in documents[0].citations] == [1, 3]
+    assert [citation.rank for citation in documents[1].citations] == [2]
+
+
+def test_cited_documents_puts_the_newest_document_first():
+    answer = Answer(
+        "q",
+        "a",
+        (
+            _cited("old.md", "first", "2026-01-01T00:00:00+00:00"),
+            _cited("new.md", "second", "2026-10-01T00:00:00+00:00"),
+        ),
+    )
+
+    assert [document.source for document in answer.cited_documents()] == ["new.md", "old.md"]
+
+
+def test_cited_documents_without_an_index_time_come_last():
+    answer = Answer(
+        "q",
+        "a",
+        (_cited("unknown.md", "first"), _cited("dated.md", "second", "2026-01-01T00:00:00+00:00")),
+    )
+
+    documents = answer.cited_documents()
+
+    assert [document.source for document in documents] == ["dated.md", "unknown.md"]
+    assert documents[1].indexed_at == ""
+
+
+def test_cited_documents_indexed_together_keep_their_best_rank_order():
+    same = "2026-10-01T00:00:00+00:00"
+    answer = Answer("q", "a", (_cited("b.md", "first", same), _cited("a.md", "second", same)))
+
+    assert [document.source for document in answer.cited_documents()] == ["b.md", "a.md"]
+
+
+def test_cited_document_reports_its_best_rank_and_newest_passage():
+    answer = Answer(
+        "q",
+        "a",
+        (
+            _cited("a.md", "first", "2026-01-01T00:00:00+00:00"),
+            _cited("a.md", "second", "2026-10-01T00:00:00+00:00"),
+        ),
+    )
+
+    document = answer.cited_documents()[0]
+
+    assert (document.best_rank, document.indexed_at) == (1, "2026-10-01T00:00:00+00:00")
+
+
+def test_an_answer_without_sources_cites_no_documents():
+    assert Answer("q", "nothing", ()).cited_documents() == ()

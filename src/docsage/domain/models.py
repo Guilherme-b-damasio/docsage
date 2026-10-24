@@ -220,6 +220,56 @@ class Answer:
     """The ``SourceFilter`` pattern the passages were retrieved under; empty when the whole
     index was searched."""
 
+    def cited_documents(self) -> tuple[CitedDocument, ...]:
+        """The cited passages grouped by the document they come from, newest first.
+
+        A report reads better document by document than passage by passage, and the
+        document indexed most recently leads, so the freshest material is on top;
+        documents whose index time is unknown come last, and documents indexed together
+        keep the order their best passage was ranked in. Each passage keeps the rank it
+        was cited with, so the ``[n]`` markers in the answer's text still match.
+        """
+        groups: dict[str, list[Citation]] = {}
+        for rank, result in enumerate(self.sources, start=1):
+            groups.setdefault(result.chunk.source, []).append(Citation(rank, result))
+        documents = [
+            CitedDocument(source, _newest(citations), tuple(citations))
+            for source, citations in groups.items()
+        ]
+        documents.sort(key=lambda document: document.best_rank)
+        # Stable, so documents indexed at the same time stay in best-rank order, and an
+        # unknown time sorts below every real one.
+        documents.sort(key=lambda document: document.indexed_at, reverse=True)
+        return tuple(documents)
+
+
+def _newest(citations: list[Citation]) -> str:
+    """The most recent ``indexed_at`` among ``citations``, empty when none records one."""
+    return max(citation.result.chunk.indexed_at for citation in citations)
+
+
+@dataclass(frozen=True)
+class Citation:
+    """One cited passage and the number it was cited with in the answer's text."""
+
+    rank: int
+    result: SearchResult
+
+
+@dataclass(frozen=True)
+class CitedDocument:
+    """Every passage an answer cited from one document, in the order they were cited."""
+
+    source: str
+    indexed_at: str
+    """When the document was indexed, as an ISO 8601 UTC timestamp (empty when unknown)."""
+    citations: tuple[Citation, ...]
+
+    @property
+    def best_rank(self) -> int:
+        """The lowest rank the document was cited with, i.e. its best passage."""
+        return min(citation.rank for citation in self.citations)
+
 
 ANSWER_LENGTHS = ("short", "medium", "long")
 """How long generated answers should be; ``medium`` leaves it to the model."""
