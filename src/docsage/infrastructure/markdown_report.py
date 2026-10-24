@@ -18,6 +18,11 @@ _CITATION = re.compile(r"\[(\d+)\](?!\()")
 _LINK_TEXT_SPECIALS = re.compile(r"([\\\[\]])")
 
 
+def _within(source: str) -> str:
+    """Which part of the index an answer came from, when it was narrowed to one."""
+    return f" in `{source.strip()}`" if source.strip() else ""
+
+
 class MarkdownAnswerRenderer:
     """The answer with ``[n]`` linked to its passage, then each passage as a quote.
 
@@ -34,7 +39,7 @@ class MarkdownAnswerRenderer:
     def render(self, answer: Answer) -> str:
         lines = [f"# {_one_line(answer.question)}", "", _linked(answer.text, answer.sources)]
         if answer.sources:
-            lines += ["", "## Sources"]
+            lines += ["", f"## Sources{_within(answer.source)}"]
         for rank, result in enumerate(answer.sources, start=1):
             lines += ["", *self._source(rank, result)]
         if answer.usage is not None:

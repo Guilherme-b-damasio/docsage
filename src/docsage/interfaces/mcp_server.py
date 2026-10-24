@@ -223,16 +223,25 @@ def build_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
         meta=_view_meta(ANSWER_VIEW_URI),
     )
-    def ask_documents(question: str, top_k: int = 5) -> Annotated[CallToolResult, AnswerOutput]:
+    def ask_documents(
+        question: str, top_k: int = 5, source: str = ""
+    ) -> Annotated[CallToolResult, AnswerOutput]:
         """Answer a question from the indexed documents with Claude, citing sources.
 
         Retrieves the top_k passages and asks Claude for an answer grounded on them.
         Needs ANTHROPIC_API_KEY in the server's environment. Hosts that support MCP Apps
         also show an HTML report with the cited passages highlighted, from which the
         user can ask a follow-up question.
+
+        source narrows the answer to part of the index, exactly as in search_documents:
+        a file type (".md", "*.pdf"), a folder or path ("docs", "docs/api") or a web
+        address prefix ("https://example.com/docs"). The answer then speaks only for
+        those sources; when none of them matches the question, no model is called.
         """
         service = services.answer_report_service("html")
-        report = service.report(_require(question, "question"), _clamp(top_k))
+        report = service.report(
+            _require(question, "question"), _clamp(top_k), SourceFilter(source)
+        )
         return _result(format_answer(report.answer), answer_to_dict(report.answer), report.content)
 
     @server.resource(
@@ -525,13 +534,14 @@ def format_search_results(query: str, results: Sequence[SearchResult], source: s
 
 
 def format_answer(answer: Answer) -> str:
+    within = f" in {answer.source}" if answer.source.strip() else ""
     if not answer.sources:
-        return answer.text
+        return f"No indexed passages{within} match this question." if within else answer.text
     sources = "\n".join(
         f"[{index}] {result.chunk.citation}"
         for index, result in enumerate(answer.sources, start=1)
     )
-    text = f"{answer.text}\n\nSources:\n{sources}"
+    text = f"{answer.text}\n\nSources{within}:\n{sources}"
     if answer.usage is not None:
         text += f"\n\nUsage: {usage_summary(answer.usage, answer.cost_usd)}"
     return text

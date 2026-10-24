@@ -667,3 +667,73 @@ def test_search_report_service_returns_the_results_with_their_page():
     assert report.query == "beta"
     assert [result.chunk.source for result in report.results] == ["b.md"]
     assert report.content == "<beta: 1>"
+
+
+def test_question_answering_only_grounds_the_answer_on_the_filtered_sources():
+    generator = FakeGenerator()
+    service = QuestionAnsweringService(_mixed_source_retriever(), generator)
+
+    answer = service.ask("alpha", top_k=5, source=SourceFilter("docs"))
+
+    assert [result.chunk.source for result in answer.sources] == [
+        "docs/alpha.md",
+        "docs/alpha.pdf",
+    ]
+    assert [result.chunk.source for result in generator.calls[0][1]] == [
+        "docs/alpha.md",
+        "docs/alpha.pdf",
+    ]
+
+
+def test_answer_carries_the_source_filter_it_was_narrowed_to():
+    service = QuestionAnsweringService(_mixed_source_retriever(), FakeGenerator())
+
+    answer = service.ask("alpha", source=SourceFilter(".pdf"))
+
+    assert answer.source == ".pdf"
+
+
+def test_answer_over_the_whole_index_carries_no_source_filter():
+    service = QuestionAnsweringService(_mixed_source_retriever(), FakeGenerator())
+
+    assert service.ask("alpha").source == ""
+
+
+def test_question_answering_skips_the_generator_when_the_filter_keeps_nothing():
+    generator = FakeGenerator()
+    service = QuestionAnsweringService(_mixed_source_retriever(), generator)
+
+    answer = service.ask("alpha", source=SourceFilter("missing"))
+
+    assert answer.sources == ()
+    assert answer.source == "missing"
+    assert generator.calls == []
+
+
+def test_question_answering_asks_for_more_candidates_so_the_filter_can_keep_top_k():
+    retriever = CountingRetriever()
+    retriever.add(_chunks("a.md", 3) + _chunks("b.pdf", 9))
+
+    answer = QuestionAnsweringService(retriever, FakeGenerator()).ask(
+        "alpha", top_k=2, source=SourceFilter(".md")
+    )
+
+    assert retriever.asked == [8]
+    assert len(answer.sources) == 2
+
+
+def test_answer_report_service_narrows_the_answer_to_the_filtered_sources():
+    from docsage.application.services import AnswerReportService
+
+    class Renderer:
+        def render(self, answer):
+            return f"report for {answer.source}"
+
+    service = AnswerReportService(
+        QuestionAnsweringService(_mixed_source_retriever(), FakeGenerator()), Renderer()
+    )
+
+    report = service.report("alpha", top_k=5, source=SourceFilter("notes"))
+
+    assert report.content == "report for notes"
+    assert [result.chunk.source for result in report.answer.sources] == ["notes/alpha.md"]

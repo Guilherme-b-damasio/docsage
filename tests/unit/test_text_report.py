@@ -38,3 +38,17 @@ def test_text_report_ends_with_the_usage_line():
     text = TextAnswerRenderer().render(Answer("q?", "a", (), usage=usage, cost_usd=0.5))
 
     assert text.endswith("\nUsage: m: 10 input tokens, 2 output tokens, ~$0.5000\n")
+
+
+def test_text_report_says_which_part_of_the_index_it_answered_from():
+    chunk = Chunk("a.md#0", "a.md", "BM25 ranks chunks.", 0)
+    answer = Answer("Q?", "A ranking [1].", (SearchResult(chunk, 2.5),), source=".md")
+
+    assert "Sources in .md:" in TextAnswerRenderer().render(answer)
+
+
+def test_text_report_of_the_whole_index_names_no_source_filter():
+    chunk = Chunk("a.md#0", "a.md", "BM25 ranks chunks.", 0)
+    answer = Answer("Q?", "A ranking [1].", (SearchResult(chunk, 2.5),))
+
+    assert "\nSources:\n" in TextAnswerRenderer().render(answer)

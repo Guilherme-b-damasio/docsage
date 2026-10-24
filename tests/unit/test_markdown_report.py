@@ -71,3 +71,15 @@ def test_markdown_report_links_files_by_default(tmp_path):
     markdown = MarkdownAnswerRenderer().render(Answer("Q?", "A.", (_result(source=str(source)),)))
 
     assert f"(<{source.resolve().as_uri()}#:~:text=" in markdown
+
+
+def test_markdown_report_says_which_part_of_the_index_it_answered_from():
+    answer = Answer("q", "Alpha is in [1].", (_result(),), source="docs")
+
+    assert "## Sources in `docs`" in MarkdownAnswerRenderer().render(answer)
+
+
+def test_markdown_report_of_the_whole_index_names_no_source_filter():
+    answer = Answer("q", "Alpha is in [1].", (_result(),))
+
+    assert "## Sources\n" in MarkdownAnswerRenderer().render(answer)

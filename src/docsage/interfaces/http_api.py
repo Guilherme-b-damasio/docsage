@@ -78,6 +78,13 @@ class IndexRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
     top_k: int = Field(5, ge=1, le=MAX_TOP_K)
+    source: str = Field(
+        "",
+        description=(
+            'Only answer from these sources: a file type (".md"), a folder ("docs/api") '
+            'or a URL prefix ("https://example.com/docs"). Empty uses the whole index.'
+        ),
+    )
 
 
 def build_app(services: ServiceProvider) -> FastAPI:
@@ -136,10 +143,16 @@ def build_app(services: ServiceProvider) -> FastAPI:
 
     @app.post("/ask")
     def ask(request: AskRequest) -> dict[str, Any]:
-        """Answers the question with Claude from the best ``top_k`` passages, with sources."""
+        """Answers the question with Claude from the best ``top_k`` passages, with sources.
+
+        With ``source`` the answer is grounded only on that part of the index, and says so
+        in its own ``source`` field.
+        """
         if not request.question.strip():
             raise HTTPException(422, "question must not be blank")
-        answer = services.question_answering_service().ask(request.question, request.top_k)
+        answer = services.question_answering_service().ask(
+            request.question, request.top_k, source=SourceFilter(request.source)
+        )
         return answer_to_dict(answer)
 
     _add_web_ui(app, services)
@@ -173,12 +186,19 @@ def _add_web_ui(app: FastAPI, services: ServiceProvider) -> None:
     def answer_page(
         q: Annotated[str, Query(description="The question.")] = "",
         top_k: Annotated[int, Query(ge=1, le=MAX_TOP_K)] = 5,
+        source: Annotated[
+            str, Query(description='Only answer from these sources (".md", "docs/api", a URL).')
+        ] = "",
     ) -> str | RedirectResponse:
-        """The answer report: Claude's answer with its highlighted, cited passages."""
+        """The answer report: Claude's answer with its highlighted, cited passages.
+
+        The search form's "Ask Claude" button submits the form's own ``source`` input, so
+        a question asked from a filtered search stays inside that part of the index.
+        """
         if not q.strip():
             return RedirectResponse(UI_LINKS.search)
         service = services.answer_report_service("html", UI_LINKS.source)
-        return service.report(q.strip(), top_k).content
+        return service.report(q.strip(), top_k, SourceFilter(source)).content
 
     @app.get("/ui/source", tags=["web UI"], response_model=None)
     def source_file(

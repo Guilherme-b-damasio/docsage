@@ -148,15 +148,7 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument(
         "--explain", action="store_true", help="show how much each query term adds to the score"
     )
-    search.add_argument(
-        "--source",
-        default="",
-        metavar="pattern",
-        help=(
-            "only search these sources: a file type (.md), a folder (docs/api) or a URL "
-            "prefix (https://example.com/docs)"
-        ),
-    )
+    _add_source_argument(search, "search")
     search.set_defaults(handler=_search)
 
     stats = commands.add_parser("stats", help="summarize the index")
@@ -212,6 +204,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_false",
         help="print the answer only once it is complete instead of as it is written",
     )
+    _add_source_argument(ask, "answer from")
     _add_usage_argument(ask)
     ask.set_defaults(handler=_ask)
 
@@ -246,6 +239,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="open the report in the default browser (a temporary file unless -o is given)",
     )
+    _add_source_argument(report, "answer from")
     report.set_defaults(handler=_report)
 
     mcp = commands.add_parser("mcp", help="serve the index to MCP clients (stdio or HTTP)")
@@ -297,6 +291,19 @@ def _parser() -> argparse.ArgumentParser:
     _add_style_arguments(serve)
     serve.set_defaults(handler=_serve)
     return parser
+
+
+def _add_source_argument(command: argparse.ArgumentParser, verb: str) -> None:
+    """``--source``, which narrows what the command reads to part of the index."""
+    command.add_argument(
+        "--source",
+        default="",
+        metavar="pattern",
+        help=(
+            f"only {verb} these sources: a file type (.md), a folder (docs/api) or a URL "
+            "prefix (https://example.com/docs)"
+        ),
+    )
 
 
 def _add_style_arguments(command: argparse.ArgumentParser) -> None:
@@ -436,7 +443,9 @@ def _evaluate(container: Container, args: argparse.Namespace) -> int:
 
 
 def _report(container: Container, args: argparse.Namespace) -> int:
-    report = container.answer_report_service(args.format).report(args.question, args.top_k)
+    report = container.answer_report_service(args.format).report(
+        args.question, args.top_k, SourceFilter(args.source)
+    )
     output: Path | None = args.output
     if output is None and args.open:
         output = Path(tempfile.mkdtemp(prefix="docsage-")) / f"report.{_EXTENSIONS[args.format]}"
@@ -472,15 +481,16 @@ def _write_stdout(content: str) -> None:
 
 def _ask(container: Container, args: argparse.Namespace) -> int:
     service = container.question_answering_service()
+    wanted = SourceFilter(args.source)
     if args.json:
-        print(dumps(answer_to_dict(service.ask(args.question, args.top_k))))
+        print(dumps(answer_to_dict(service.ask(args.question, args.top_k, source=wanted))))
         return 0
-    if args.stream:
-        answer = service.ask(args.question, args.top_k, on_text=_write_piece)
-        print()
-    else:
-        answer = service.ask(args.question, args.top_k)
+    stream = _write_piece if args.stream else None
+    answer = service.ask(args.question, args.top_k, on_text=stream, source=wanted)
+    if stream is None:
         print(answer.text)
+    else:
+        print()
     _print_sources(answer.sources)
     if args.usage:
         _print_usage(answer)

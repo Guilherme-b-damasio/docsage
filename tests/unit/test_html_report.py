@@ -151,3 +151,23 @@ def test_report_links_files_and_pdf_pages_by_default(tmp_path):
     html = HtmlAnswerRenderer().render(Answer("Q?", "A [1].", (SearchResult(chunk, 1.0),)))
 
     assert f'href="{(tmp_path / "guide.pdf").resolve().as_uri()}#page=4"' in html
+
+
+def test_html_report_says_which_part_of_the_index_it_answered_from():
+    answer = _answer()
+    narrowed = Answer(answer.question, answer.text, answer.sources, source="docs/api")
+
+    html = HtmlAnswerRenderer().render(narrowed)
+
+    assert "Answered from 1 passage in <code>docs/api</code> by docsage" in html
+
+
+def test_html_report_of_the_whole_index_names_no_source_filter():
+    assert "Answered from 1 passage by docsage" in HtmlAnswerRenderer().render(_answer())
+
+
+def test_html_report_escapes_the_source_filter():
+    answer = _answer()
+    narrowed = Answer(answer.question, answer.text, answer.sources, source="<script>")
+
+    assert "<code>&lt;script&gt;</code>" in HtmlAnswerRenderer().render(narrowed)

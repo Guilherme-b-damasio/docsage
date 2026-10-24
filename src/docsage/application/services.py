@@ -354,27 +354,22 @@ def _highlighted(
     ]
 
 
-class SearchService:
-    """Ranks indexed chunks against a query without calling any model."""
+class ScopedRetrieval:
+    """Ranks a query against the part of the index a ``SourceFilter`` keeps.
 
-    def __init__(self, retriever: Retriever, highlighter: Highlighter | None = None) -> None:
+    Searching and answering both need the same two steps -- ask the retriever for enough
+    candidates, then drop the sources the filter rejects -- so both get them from here.
+    """
+
+    def __init__(self, retriever: Retriever) -> None:
         self._retriever = retriever
-        self._highlighter = highlighter
 
-    def search(
-        self, query: str, top_k: int = 5, source: SourceFilter | None = None
-    ) -> list[SearchResult]:
-        """The best ``top_k`` passages, restricted to the sources ``source`` keeps."""
-        wanted = source or SourceFilter()
+    def ranked(self, query: str, top_k: int, wanted: SourceFilter) -> list[SearchResult]:
+        """The best ``top_k`` passages whose source ``wanted`` keeps."""
         ranked = self._retriever.search(query, self._candidates(top_k, wanted))
-        if wanted:
-            ranked = [result for result in ranked if wanted.matches(result.chunk.source)][:top_k]
-        results = _highlighted(ranked, query, self._highlighter)
-        logger.debug(
-            "searched index",
-            extra={"top_k": top_k, "source": wanted.pattern, "results": len(results)},
-        )
-        return results
+        if not wanted:
+            return list(ranked)
+        return [result for result in ranked if wanted.matches(result.chunk.source)][:top_k]
 
     def _candidates(self, top_k: int, wanted: SourceFilter) -> int:
         """How many ranked passages to ask for so that ``top_k`` survive the filter.
@@ -390,6 +385,26 @@ class SearchService:
         if not kept:
             return 0
         return min(total, math.ceil(top_k * total / kept))
+
+
+class SearchService:
+    """Ranks indexed chunks against a query without calling any model."""
+
+    def __init__(self, retriever: Retriever, highlighter: Highlighter | None = None) -> None:
+        self._scoped = ScopedRetrieval(retriever)
+        self._highlighter = highlighter
+
+    def search(
+        self, query: str, top_k: int = 5, source: SourceFilter | None = None
+    ) -> list[SearchResult]:
+        """The best ``top_k`` passages, restricted to the sources ``source`` keeps."""
+        wanted = source or SourceFilter()
+        results = _highlighted(self._scoped.ranked(query, top_k, wanted), query, self._highlighter)
+        logger.debug(
+            "searched index",
+            extra={"top_k": top_k, "source": wanted.pattern, "results": len(results)},
+        )
+        return results
 
 
 @dataclass(frozen=True)
@@ -486,7 +501,7 @@ class QuestionAnsweringService:
     ) -> None:
         """``cost_estimator`` prices the tokens of each answer when the generator reports
         them; without one, answers still carry their token usage but no cost."""
-        self._retriever = retriever
+        self._scoped = ScopedRetrieval(retriever)
         self._generator = generator
         self._highlighter = highlighter
         self._cost_estimator = cost_estimator
@@ -496,21 +511,33 @@ class QuestionAnsweringService:
         question: str,
         top_k: int = 5,
         on_text: Callable[[str], None] | None = None,
+        source: SourceFilter | None = None,
     ) -> Answer:
         """``on_text`` receives the answer's text as it is generated: piece by piece when the
-        generator can stream, otherwise all at once when it is ready."""
+        generator can stream, otherwise all at once when it is ready.
+
+        With ``source`` only passages from the sources it keeps are sent to the generator,
+        so the answer speaks for that part of the index alone; the answer carries the
+        filter's pattern. No passage survives the filter means no model call.
+        """
+        wanted = source or SourceFilter()
         results = _highlighted(
-            self._retriever.search(question, top_k), question, self._highlighter
+            self._scoped.ranked(question, top_k, wanted), question, self._highlighter
         )
-        logger.debug("retrieved context", extra={"top_k": top_k, "results": len(results)})
+        logger.debug(
+            "retrieved context",
+            extra={"top_k": top_k, "source": wanted.pattern, "results": len(results)},
+        )
         if not results:
             if on_text:
                 on_text(NO_CONTEXT_ANSWER)
-            return Answer(question, NO_CONTEXT_ANSWER, ())
+            return Answer(question, NO_CONTEXT_ANSWER, (), source=wanted.pattern)
         text = self._generate(question, results, on_text)
         logger.debug("generated answer", extra={"characters": len(text)})
         return _with_usage(
-            Answer(question, text, tuple(results)), self._generator, self._cost_estimator
+            Answer(question, text, tuple(results), source=wanted.pattern),
+            self._generator,
+            self._cost_estimator,
         )
 
     def _generate(
@@ -634,8 +661,12 @@ class AnswerReportService:
         self._answering = answering
         self._renderer = renderer
 
-    def report(self, question: str, top_k: int = 5) -> AnswerReport:
-        answer = self._answering.ask(question, top_k)
+    def report(
+        self, question: str, top_k: int = 5, source: SourceFilter | None = None
+    ) -> AnswerReport:
+        """``source`` narrows the passages the answer is grounded on (see
+        ``QuestionAnsweringService.ask``)."""
+        answer = self._answering.ask(question, top_k, source=source)
         content = self._renderer.render(answer)
         logger.debug("rendered answer report", extra={"characters": len(content)})
         return AnswerReport(answer, content)
