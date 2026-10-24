@@ -92,7 +92,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
       `ask_documents`), so the web UI's "Ask Claude" keeps the filter the form shows
 - [x] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
       again
-- [ ] Answer report: group the cited passages by document, newest citation first
+- [x] Answer report: group the cited passages by document, newest citation first
 - [ ] `docsage report --format html --self-contained` that inlines the cited passages'
       source files, so a shared report needs no access to the machine
 - [ ] Compare two answers side by side (`docsage report --compare`) to see how retrieval
