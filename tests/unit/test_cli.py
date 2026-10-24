@@ -77,6 +77,7 @@ def test_ask_json_output(tmp_path, capsys, monkeypatch):
         "question": "anything?",
         "answer": "No relevant context found in the index.",
         "sources": [],
+        "source": "",
         "usage": None,
         "cost_usd": None,
     }
@@ -257,6 +258,65 @@ def test_search_filters_by_source(tmp_path, capsys):
 
     assert main(["--index", str(index), "search", "alpha", "--source", ".pdf"]) == 1
     assert "No matches in .pdf." in capsys.readouterr().out
+
+
+def test_ask_filters_the_passages_by_source(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("alpha text", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "ask", "alpha?", "--source", "notes"]) == 0
+
+    out = capsys.readouterr().out
+    assert "a.md" in out
+    assert "b.txt" not in out
+
+
+def test_ask_without_a_matching_source_says_there_is_no_context(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "ask", "alpha?", "--source", ".pdf"]) == 0
+
+    assert "No relevant context found in the index." in capsys.readouterr().out
+
+
+def test_ask_json_reports_the_source_filter(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    assert main(["--index", str(index), "ask", "alpha?", "--json", "--source", ".md"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == ".md"
+    assert len(payload["sources"]) == 1
+
+
+def test_report_filters_the_cited_passages_by_source(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("alpha text", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+
+    argv = ["--index", str(index), "report", "alpha?", "--format", "text", "--source", ".md"]
+    assert main(argv) == 0
+
+    out = capsys.readouterr().out
+    assert "a.md" in out
+    assert "b.txt" not in out
 
 
 def test_search_json_output_reports_the_source_filter(tmp_path, capsys):

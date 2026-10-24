@@ -92,6 +92,7 @@ def answer_to_dict(answer: Answer) -> dict[str, Any]:
             search_result_to_dict(result, rank)
             for rank, result in enumerate(answer.sources, start=1)
         ],
+        "source": answer.source,
         "usage": usage_to_dict(answer.usage) if answer.usage else None,
         "cost_usd": round(answer.cost_usd, 6) if answer.cost_usd is not None else None,
     }
