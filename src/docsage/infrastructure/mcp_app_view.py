@@ -11,8 +11,9 @@ regular HTML renderers and puts the complete page in the result's ``_meta`` unde
 applies the host's light or dark theme and reports its size. Links to sources go
 through the host (``ui/open-link``), since the sandboxed view cannot open them itself.
 A view built with a ``FollowUp`` also shows a form under the page that calls a tool again
-through the host (``tools/call``) and swaps in its result, when the host can proxy tool
-calls (``hostCapabilities.serverTools``).
+through the host (``tools/call``) and swaps in its result, and one built with a
+``SliderControl`` a slider that calls a tool with the number it is left on; both need a
+host that can proxy tool calls (``hostCapabilities.serverTools``).
 When the page is missing it shows the result's text content, the same fallback hosts
 without MCP Apps display.
 """
@@ -20,7 +21,7 @@ without MCP Apps display.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from html import escape
 
 from docsage.infrastructure.html_page import page
@@ -46,6 +47,12 @@ form.follow-up button {
 }
 form.follow-up button:disabled { opacity: 0.6; cursor: progress; }
 form.follow-up .status { flex-basis: 100%; margin: 0; }
+form.refine { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 24px 0 0; }
+form.refine label { font-size: 0.9rem; color: var(--muted); }
+form.refine input[type="range"] { flex: 1 1 200px; min-width: 0; accent-color: var(--accent); }
+form.refine input:disabled { opacity: 0.6; cursor: progress; }
+form.refine output { font-variant-numeric: tabular-nums; min-width: 3ch; }
+form.refine .status { flex-basis: 100%; margin: 0; }
 """
 
 
@@ -60,16 +67,46 @@ class FollowUp:
     action: str = "Send"
     """Text of the submit button."""
 
+
+@dataclass(frozen=True)
+class SliderControl:
+    """A slider under the view's page that calls ``tool`` with the chosen number.
+
+    Moving it re-runs the tool with ``argument`` set to the number, so the view's charts
+    are redrawn by the server; the slider keeps the number it is left on.
+    """
+
+    tool: str
+    argument: str
+    label: str
+    """Text next to the slider, e.g. "Top terms"."""
+    minimum: int
+    maximum: int
+    value: int
+    """Where the slider starts, i.e. the argument the tool was first called with."""
+    step: int = 1
+
+    def __post_init__(self) -> None:
+        if self.minimum >= self.maximum:
+            raise ValueError("minimum must be below maximum")
+        if not self.minimum <= self.value <= self.maximum:
+            raise ValueError("value must be between minimum and maximum")
+        if self.step < 1:
+            raise ValueError("step must be at least 1")
+
+
 BRIDGE_JS = """
 (() => {
   const META_KEY = __META_KEY__;
   const FOLLOW_UP = __FOLLOW_UP__;
+  const SLIDER = __SLIDER__;
   const VIEW_CSS = __VIEW_CSS__;
   const fallback = document.getElementById("fallback");
   const pending = new Map();
   let nextId = 1;
   let theme = null;
   let canCallTools = false;
+  let sliderValue = SLIDER ? SLIDER.value : 0;
 
   const send = (message) => window.parent.postMessage({ jsonrpc: "2.0", ...message }, "*");
   const request = (method, params) =>
@@ -103,12 +140,19 @@ BRIDGE_JS = """
     document.head.append(style);
     if (theme) document.documentElement.dataset.theme = theme;
     if (FOLLOW_UP && canCallTools) document.body.append(followUpForm());
+    if (SLIDER && canCallTools) document.body.append(sliderForm());
   };
   const textOf = (result) =>
     (result.content || [])
       .filter((block) => block.type === "text")
       .map((block) => block.text)
       .join("\\n\\n");
+  // Asks the host to run a tool again; the result replaces the page the view shows.
+  const callTool = (name, args) =>
+    request("tools/call", { name, arguments: args }).then((result) => {
+      if (result.isError) throw new Error(textOf(result) || "The tool call failed.");
+      return result;
+    });
   // Calls the follow-up tool through the host and shows its result in place of the page.
   const followUpForm = () => {
     const form = document.createElement("form");
@@ -131,14 +175,55 @@ BRIDGE_JS = """
       if (!text) return;
       button.disabled = true;
       status.textContent = "Waiting for the tool result…";
-      request("tools/call", { name: FOLLOW_UP.tool, arguments: { [FOLLOW_UP.argument]: text } })
+      callTool(FOLLOW_UP.tool, { [FOLLOW_UP.argument]: text })
         .then((result) => {
-          if (result.isError) throw new Error(textOf(result) || "The tool call failed.");
           showResult(result);
           window.scrollTo(0, 0);
         })
         .catch((error) => {
           button.disabled = false;
+          status.textContent = error.message || "The tool call failed.";
+          reportSize();
+        });
+    });
+    return form;
+  };
+  // Re-runs the tool with the number the slider is left on and swaps in its charts.
+  const sliderForm = () => {
+    const form = document.createElement("form");
+    form.className = "refine";
+    const input = document.createElement("input");
+    input.type = "range";
+    input.id = "refine-value";
+    input.min = SLIDER.minimum;
+    input.max = SLIDER.maximum;
+    input.step = SLIDER.step;
+    input.value = sliderValue;
+    const label = document.createElement("label");
+    label.setAttribute("for", input.id);
+    label.textContent = SLIDER.label;
+    const output = document.createElement("output");
+    output.setAttribute("for", input.id);
+    output.textContent = input.value;
+    const status = document.createElement("p");
+    status.className = "status muted";
+    status.setAttribute("role", "status");
+    form.append(label, input, output, status);
+    form.addEventListener("submit", (event) => event.preventDefault());
+    input.addEventListener("input", () => {
+      output.textContent = input.value;
+    });
+    input.addEventListener("change", () => {
+      const chosen = Number(input.value);
+      input.disabled = true;
+      status.textContent = "Waiting for the tool result…";
+      callTool(SLIDER.tool, { [SLIDER.argument]: chosen })
+        .then((result) => {
+          sliderValue = chosen;
+          showResult(result);
+        })
+        .catch((error) => {
+          input.disabled = false;
           status.textContent = error.message || "The tool call failed.";
           reportSize();
         });
@@ -198,24 +283,23 @@ BRIDGE_JS = """
 """
 
 
-def app_view(title: str, version: str, follow_up: FollowUp | None = None) -> str:
+def app_view(
+    title: str,
+    version: str,
+    follow_up: FollowUp | None = None,
+    slider: SliderControl | None = None,
+) -> str:
     """A self-contained view titled ``title`` that shows the tool result it receives.
 
-    With ``follow_up``, the view also lets the user call that tool again from the page.
+    With ``follow_up`` the view lets the user call that tool again with typed text, and
+    with ``slider`` with a number chosen on a slider; both need a host that proxies tool
+    calls.
     """
-    form = (
-        None
-        if follow_up is None
-        else {
-            "tool": follow_up.tool,
-            "argument": follow_up.argument,
-            "label": follow_up.label,
-            "action": follow_up.action,
-        }
-    )
+    form = None if follow_up is None else asdict(follow_up)
     script = (
         BRIDGE_JS.replace("__META_KEY__", json.dumps(HTML_META_KEY))
         .replace("__FOLLOW_UP__", json.dumps(form))
+        .replace("__SLIDER__", json.dumps(None if slider is None else asdict(slider)))
         .replace("__VIEW_CSS__", json.dumps(VIEW_CSS))
         .replace("__PROTOCOL_VERSION__", json.dumps(PROTOCOL_VERSION))
         .replace("__VERSION__", json.dumps(version))
