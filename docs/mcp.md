@@ -190,7 +190,8 @@ call and show:
 - `index_stats`: stat tiles for documents, chunks, distinct terms and index size, and
   a bar chart of the top terms with a table view.
 - `index_dashboard`: the HTML index dashboard, with stat tiles and charts of file
-  types, chunk lengths and top terms.
+  types, chunk lengths and top terms, plus a slider that redraws it for more or fewer
+  terms.
 
 The server renders the page and sends it in the tool result's `_meta["docsage/html"]`,
 which hosts never add to the model's context; the view swaps it in, follows the host's
@@ -205,6 +206,12 @@ When the host can proxy tool calls (`hostCapabilities.serverTools`), the answer 
 view also ends with a follow-up form: the question typed there goes to `ask_documents`
 through the host (`tools/call`) and the new report replaces the old one in place. Errors
 from the call are shown under the form, which stays filled in so the user can retry.
+
+The dashboard view ends with a **Top terms** slider (5 to 50, in steps of 5) the same
+way: releasing it calls `index_dashboard` again with that `top`, and the redrawn charts
+replace the ones on screen. The slider keeps the number it was left on, so the next
+result comes back with it still set, and a failed call leaves the charts alone and shows
+the error next to the slider.
 
 Hosts without MCP Apps ignore the link and show the text content, which always carries
 the ranked passages, the answer with its sources, the stats or the dashboard as text bars, so every tool stays usable

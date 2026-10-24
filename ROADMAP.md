@@ -90,7 +90,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
       form (a `source` input next to the query)
 - [ ] Narrow an answer to part of the index too (`docsage ask --source`, `/ask` and
       `ask_documents`), so the web UI's "Ask Claude" keeps the filter the form shows
-- [ ] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
+- [x] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
       again
 - [ ] Answer report: group the cited passages by document, newest citation first
 - [ ] `docsage report --format html --self-contained` that inlines the cited passages'

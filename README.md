@@ -275,7 +275,8 @@ In hosts that support [MCP Apps](https://github.com/modelcontextprotocol/ext-app
 `search_documents` shows the ranked passages with a score breakdown bar chart each,
 `ask_documents` the HTML answer report with highlighted citations (and a form to ask a
 follow-up question), `index_stats`
-stat tiles with a top-terms bar chart and `index_dashboard` the HTML dashboard, right
+stat tiles with a top-terms bar chart and `index_dashboard` the HTML dashboard with a
+slider that redraws its charts for more or fewer terms, right
 in the conversation; other hosts get the same content as text.
 
 It also publishes two read-only resources (JSON), plus the four `ui://` views:
