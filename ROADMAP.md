@@ -86,8 +86,10 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 ## Milestone 1.0: Shareable output and polish
 - [x] Serve indexed Markdown and text sources as HTML with the cited passage highlighted
       (`/ui/source`), so the highlight no longer depends on browser text fragments
-- [ ] Show the active source filter on the HTML search results page and in the web UI
+- [x] Show the active source filter on the HTML search results page and in the web UI
       form (a `source` input next to the query)
+- [ ] Narrow an answer to part of the index too (`docsage ask --source`, `/ask` and
+      `ask_documents`), so the web UI's "Ask Claude" keeps the filter the form shows
 - [ ] MCP Apps view for `index_dashboard` charts with a `top` slider that calls the tool
       again
 - [ ] Answer report: group the cited passages by document, newest citation first
