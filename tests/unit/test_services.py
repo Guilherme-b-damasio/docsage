@@ -779,3 +779,24 @@ def test_answer_comparison_service_narrows_both_answers_to_the_same_sources():
     for side in (report.comparison.left, report.comparison.right):
         assert side.answer.source == "notes"
         assert [result.chunk.source for result in side.answer.sources] == ["notes/alpha.md"]
+
+
+def test_pdf_export_service_prints_the_rendered_dashboard():
+    from docsage.application.services import PdfExportService
+
+    class Dashboard:
+        def render(self, top=15):
+            return f"<html>top {top}</html>"
+
+    class Printer:
+        def __init__(self):
+            self.pages = []
+
+        def print_pdf(self, html):
+            self.pages.append(html)
+            return b"%PDF"
+
+    printer = Printer()
+
+    assert PdfExportService(Dashboard(), printer).export(top=4) == b"%PDF"
+    assert printer.pages == ["<html>top 4</html>"]
