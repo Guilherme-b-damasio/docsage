@@ -427,6 +427,24 @@ a repository and still show each citation in its context. Sources that cannot be
 (web pages, PDFs and Word files, documents that changed since they were indexed) keep
 their ordinary link. The flag applies to `--format html` only.
 
+`--compare SETTING=VALUE` answers the question twice, once with the current settings and
+once with that setting changed, and shows both answers side by side, so you can see how a
+retrieval choice changes what is retrieved and what Claude says. The page opens with how
+many passages both answers share (and the overlap as a percentage), then puts each answer
+in its own column under a label such as `hybrid, top 10, reranked from 20`, with its cited
+passages; a passage both sides retrieved is marked "in both". The columns stack on narrow
+screens. Repeat the flag to change several settings at once; the ones that can change are
+`top_k`, `retriever`, `rerank`, `rerank_candidates`, `model`, `answer_language` and
+`answer_length` (anything that would need a re-index, such as the chunker, cannot).
+`--format text` prints the same comparison as plain text, and `--source` narrows both
+answers to the same part of the index:
+
+```bash
+docsage report "How does BM25 work?" --compare retriever=hybrid --open
+docsage report "How does BM25 work?" -k 3 --compare top_k=10 --compare rerank=true -o cmp.html
+docsage report "How does BM25 work?" --compare answer_length=short --format text
+```
+
 The Markdown report suits notes, wikis and pull requests: each `[n]` in the answer links
 to its passage, the passages sit under a heading per cited document (newest first) and
 every passage is a quote with the matched terms in `**bold**` under a heading that links

@@ -95,7 +95,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
 - [x] Answer report: group the cited passages by document, newest citation first
 - [x] `docsage report --format html --self-contained` that inlines the cited passages'
       source files, so a shared report needs no access to the machine
-- [ ] Compare two answers side by side (`docsage report --compare`) to see how retrieval
+- [x] Compare two answers side by side (`docsage report --compare`) to see how retrieval
       settings change the answer
 - [ ] Export the dashboard as a single PDF (headless Chrome, reusing `scripts/screenshots.py`)
 - [ ] `docsage doctor`: check the index, the optional extras and the API key, with a
