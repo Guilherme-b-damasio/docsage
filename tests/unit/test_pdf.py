@@ -96,5 +96,6 @@ def test_pages_keep_cards_whole_when_printed():
 
     html = page("t", "<p>x</p>")
 
-    assert "@media print" in html
+    printed = html.split("@media print {")[1].split("\n}")[0]
+    assert "body { background: var(--surface); }" in printed
     assert ".card, figure, table { break-inside: avoid; }" in html
