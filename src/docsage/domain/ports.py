@@ -12,6 +12,7 @@ from typing import Protocol, runtime_checkable
 
 from docsage.domain.models import (
     Answer,
+    AnswerComparison,
     ChatTurn,
     Chunk,
     ChunkPoint,
@@ -207,6 +208,12 @@ class AnswerRenderer(Protocol):
     """Turns an answer and its cited passages into a shareable report (HTML, text...)."""
 
     def render(self, answer: Answer) -> str: ...
+
+
+class ComparisonRenderer(Protocol):
+    """Shows two answers to the same question side by side, e.g. as an HTML page."""
+
+    def render(self, comparison: AnswerComparison) -> str: ...
 
 
 class SearchRenderer(Protocol):

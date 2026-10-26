@@ -737,3 +737,45 @@ def test_answer_report_service_narrows_the_answer_to_the_filtered_sources():
 
     assert report.content == "report for notes"
     assert [result.chunk.source for result in report.answer.sources] == ["notes/alpha.md"]
+
+
+def test_answer_comparison_service_answers_under_both_settings():
+    from docsage.application.services import AnswerComparisonService, AnswerVariant
+
+    rendered = []
+
+    class Renderer:
+        def render(self, comparison):
+            rendered.append(comparison)
+            return f"{comparison.left.label} vs {comparison.right.label}"
+
+    retriever = _alpha_beta_retriever()
+    left = AnswerVariant("top 1", QuestionAnsweringService(retriever, FakeGenerator()), 1)
+    right = AnswerVariant("top 5", QuestionAnsweringService(retriever, FakeGenerator()), 5)
+
+    report = AnswerComparisonService(left, right, Renderer()).compare("alpha beta")
+
+    assert report.content == "top 1 vs top 5"
+    assert rendered == [report.comparison]
+    assert len(report.comparison.left.answer.sources) == 1
+    assert len(report.comparison.right.answer.sources) == 2
+    assert report.comparison.right.answer.text == "answer from 2 passages"
+
+
+def test_answer_comparison_service_narrows_both_answers_to_the_same_sources():
+    from docsage.application.services import AnswerComparisonService, AnswerVariant
+
+    class Renderer:
+        def render(self, comparison):
+            return ""
+
+    answering = QuestionAnsweringService(_mixed_source_retriever(), FakeGenerator())
+    variants = (AnswerVariant("a", answering, 5), AnswerVariant("b", answering, 5))
+
+    report = AnswerComparisonService(*variants, Renderer()).compare(
+        "alpha", source=SourceFilter("notes")
+    )
+
+    for side in (report.comparison.left, report.comparison.right):
+        assert side.answer.source == "notes"
+        assert [result.chunk.source for result in side.answer.sources] == ["notes/alpha.md"]

@@ -15,10 +15,12 @@ from pathlib import Path
 
 from docsage.domain.models import (
     Answer,
+    AnswerComparison,
     CaseOutcome,
     ChatTurn,
     Chunk,
     ChunkPoint,
+    ComparedAnswer,
     Document,
     DocumentRelation,
     EvaluationCase,
@@ -39,6 +41,7 @@ from docsage.domain.ports import (
     AnswerRenderer,
     Chunker,
     ChunkProjector,
+    ComparisonRenderer,
     ConversationalAnswerGenerator,
     CostEstimator,
     DashboardRenderer,
@@ -670,6 +673,54 @@ class AnswerReportService:
         content = self._renderer.render(answer)
         logger.debug("rendered answer report", extra={"characters": len(content)})
         return AnswerReport(answer, content)
+
+
+@dataclass(frozen=True)
+class AnswerVariant:
+    """One way of answering a question: its retrieval settings and how many passages."""
+
+    label: str
+    """The settings in a few words, shown above the answer they produced."""
+    answering: QuestionAnsweringService
+    top_k: int = 5
+
+
+@dataclass(frozen=True)
+class ComparisonReport:
+    comparison: AnswerComparison
+    content: str
+    """The rendered comparison, e.g. a complete HTML document."""
+
+
+class AnswerComparisonService:
+    """Answers one question under two retrieval settings and renders both side by side,
+    to show how the settings change what is retrieved and what Claude says."""
+
+    def __init__(
+        self, left: AnswerVariant, right: AnswerVariant, renderer: ComparisonRenderer
+    ) -> None:
+        self._left = left
+        self._right = right
+        self._renderer = renderer
+
+    def compare(self, question: str, source: SourceFilter | None = None) -> ComparisonReport:
+        """``source`` narrows both answers to the same part of the index."""
+        comparison = AnswerComparison(
+            self._answer(self._left, question, source), self._answer(self._right, question, source)
+        )
+        content = self._renderer.render(comparison)
+        logger.debug(
+            "rendered answer comparison",
+            extra={"overlap": round(comparison.overlap(), 2), "characters": len(content)},
+        )
+        return ComparisonReport(comparison, content)
+
+    @staticmethod
+    def _answer(
+        variant: AnswerVariant, question: str, source: SourceFilter | None
+    ) -> ComparedAnswer:
+        answer = variant.answering.ask(question, variant.top_k, source=source)
+        return ComparedAnswer(variant.label, answer)
 
 
 class StatsService:
