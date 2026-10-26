@@ -13,11 +13,14 @@ from docsage import __version__
 from docsage.application.services import WatchUpdate
 from docsage.container import (
     CHUNKERS,
+    COMPARABLE_SETTINGS,
+    COMPARISON_FORMATS,
     DASHBOARD_FORMATS,
     EVALUATION_FORMATS,
     REPORT_FORMATS,
     RETRIEVERS,
     Container,
+    comparison_changes,
     load_settings,
 )
 from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult, SourceFilter, is_url
@@ -244,6 +247,14 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="inline the cited documents in the HTML report, so it can be shared as one file",
     )
+    report.add_argument(
+        "--compare",
+        action="append",
+        default=[],
+        metavar="SETTING=VALUE",
+        help="also answer with this setting changed and show both answers side by side "
+        f"(repeatable; one of: {', '.join(COMPARABLE_SETTINGS)})",
+    )
     _add_source_argument(report, "answer from")
     report.set_defaults(handler=_report)
 
@@ -451,15 +462,42 @@ def _report(container: Container, args: argparse.Namespace) -> int:
     if args.self_contained and args.format != "html":
         print("docsage: --self-contained only applies to --format html", file=sys.stderr)
         return 2
+    if args.compare:
+        return _compare(container, args)
     service = container.answer_report_service(args.format, self_contained=args.self_contained)
     report = service.report(args.question, args.top_k, SourceFilter(args.source))
+    _write_report(report.content, args, "report")
+    return 0
+
+
+def _compare(container: Container, args: argparse.Namespace) -> int:
+    if args.self_contained:
+        print("docsage: --self-contained cannot be combined with --compare", file=sys.stderr)
+        return 2
+    if args.format not in COMPARISON_FORMATS:
+        formats = " or ".join(sorted(COMPARISON_FORMATS))
+        print(f"docsage: --compare supports --format {formats}", file=sys.stderr)
+        return 2
+    try:
+        changes = comparison_changes(args.compare)
+        service = container.answer_comparison_service(changes, args.top_k, args.format)
+    except ConfigError as error:
+        print(f"docsage: {error}", file=sys.stderr)
+        return 2
+    report = service.compare(args.question, SourceFilter(args.source))
+    _write_report(report.content, args, "comparison")
+    return 0
+
+
+def _write_report(content: str, args: argparse.Namespace, name: str) -> None:
+    """Writes a report where ``-o`` says, to a temporary file with ``--open``, or to stdout,
+    then opens it in the browser when asked."""
     output: Path | None = args.output
     if output is None and args.open:
-        output = Path(tempfile.mkdtemp(prefix="docsage-")) / f"report.{_EXTENSIONS[args.format]}"
-    _write_output(report.content, output)
+        output = Path(tempfile.mkdtemp(prefix="docsage-")) / f"{name}.{_EXTENSIONS[args.format]}"
+    _write_output(content, output)
     if args.open and output is not None and not webbrowser.open(output.resolve().as_uri()):
         print(f"docsage: could not open a browser, the report is at {output}", file=sys.stderr)
-    return 0
 
 
 _EXTENSIONS = {"html": "html", "markdown": "md", "text": "txt"}

@@ -905,3 +905,64 @@ def test_report_self_contained_is_html_only(tmp_path, capsys, monkeypatch):
 
     assert main(argv) == 2
     assert "--self-contained only applies to --format html" in capsys.readouterr().err
+
+
+def test_report_compare_shows_two_answers_side_by_side(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "b.md").write_text("alpha text", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    output = tmp_path / "compare.html"
+    argv = ["--index", str(index), "report", "alpha?", "-k", "1", "--compare", "top_k=2"]
+
+    assert main([*argv, "-o", str(output)]) == 0
+
+    html = output.read_text(encoding="utf-8")
+    assert "bm25, top 1 vs bm25, top 2" in html
+    assert "(1 passages)" in html and "(2 passages)" in html
+    assert "1 passage in both answers" in html
+
+
+def test_report_compare_prints_text_and_keeps_the_source_filter(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = tmp_path / "index.json"
+    (tmp_path / "a.md").write_text("alpha notes", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("alpha text", encoding="utf-8")
+    main(["--index", str(index), "index", str(tmp_path)])
+    capsys.readouterr()
+    argv = ["--index", str(index), "report", "alpha?", "--format", "text", "--source", ".md"]
+
+    assert main([*argv, "--compare", "retriever=bm25", "--compare", "top_k=3"]) == 0
+
+    out = capsys.readouterr().out
+    assert "bm25, top 3" in out
+    assert "a.md" in out and "b.txt" not in out
+
+
+def test_report_compare_opens_a_temporary_comparison_file(tmp_path, capsys, monkeypatch):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url) or True)
+
+    assert main(["--index", str(index), "report", "alpha?", "--compare", "top_k=2", "--open"]) == 0
+
+    (url,) = opened
+    assert url.endswith("/comparison.html")
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (["--format", "markdown"], "--compare supports --format html or text"),
+        (["--self-contained"], "--self-contained cannot be combined with --compare"),
+        (["--compare", "chunker=sentence"], "Cannot compare 'chunker'"),
+    ],
+)
+def test_report_compare_rejects_what_it_cannot_show(tmp_path, capsys, monkeypatch, extra, message):
+    _offline(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+
+    assert main(["--index", str(index), "report", "alpha?", "--compare", "top_k=2", *extra]) == 2
+    assert message in capsys.readouterr().err
