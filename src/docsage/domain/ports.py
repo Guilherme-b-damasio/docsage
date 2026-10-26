@@ -233,6 +233,12 @@ class DashboardRenderer(Protocol):
     def render(self, overview: IndexOverview) -> str: ...
 
 
+class PdfPrinter(Protocol):
+    """Prints a complete, self-contained HTML page to a PDF document."""
+
+    def print_pdf(self, html: str) -> bytes: ...
+
+
 class StatsRenderer(Protocol):
     """Turns the index statistics into a page (HTML, text...)."""
 
