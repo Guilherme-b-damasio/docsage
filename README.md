@@ -496,7 +496,14 @@ docsage --retriever hybrid dashboard -o dashboard.html
 docsage dashboard -o dashboard.html     # then open it in a browser
 docsage dashboard --format text         # the same numbers as text bars in the terminal
 docsage dashboard --format mermaid      # related documents as a Mermaid graph
+docsage dashboard --format pdf -o index.pdf   # the HTML dashboard as one PDF
 ```
+
+`--format pdf` prints the HTML dashboard to a single PDF (to `dashboard.pdf` unless `-o`
+says otherwise) with a local headless Chrome, Chromium or Edge, so it can be attached to
+an email or printed. The page is pinned to the light theme, and cards and charts are kept
+whole across page breaks. docsage looks for the browser on `PATH` and in the usual install
+locations; `--browser PATH` names one explicitly. Nothing is sent over the network.
 
 ![Index dashboard in dark mode: stat tiles, documents per file type, chunk lengths, top terms and the related documents graph](docs/images/dashboard-dark.png)
 

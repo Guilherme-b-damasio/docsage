@@ -18,6 +18,7 @@ from docsage.application.services import (
     EvaluationService,
     IndexingService,
     LiveWatchService,
+    PdfExportService,
     QuestionAnsweringService,
     RelationService,
     RemovalService,
@@ -39,6 +40,7 @@ from docsage.domain.ports import (
     Embedder,
     EvaluationRenderer,
     FileWatcher,
+    PdfPrinter,
     Reranker,
     Retriever,
     UrlLoader,
@@ -73,6 +75,7 @@ from docsage.infrastructure.html_stats import HtmlStatsRenderer
 from docsage.infrastructure.loaders import default_loaders
 from docsage.infrastructure.markdown_report import MarkdownAnswerRenderer
 from docsage.infrastructure.mermaid import MermaidDashboardRenderer
+from docsage.infrastructure.pdf import HeadlessChromePdfPrinter
 from docsage.infrastructure.pricing import PriceTable
 from docsage.infrastructure.projection import PcaProjector
 from docsage.infrastructure.reranking import RerankingRetriever
@@ -248,16 +251,18 @@ class Container:
         reranker: Reranker | None = None,
         url_loader: UrlLoader | None = None,
         watcher: FileWatcher | None = None,
+        printer: PdfPrinter | None = None,
     ) -> None:
-        """``generator``, ``embedder``, ``reranker``, ``url_loader`` and ``watcher`` replace
-        the Claude adapters, the local embedding model, the web fetcher and the folder
-        poller, e.g. with offline fakes in tests."""
+        """``generator``, ``embedder``, ``reranker``, ``url_loader``, ``watcher`` and
+        ``printer`` replace the Claude adapters, the local embedding model, the web fetcher,
+        the folder poller and the headless browser, e.g. with offline fakes in tests."""
         self._settings = settings
         self._generator = generator
         self._embedder = embedder
         self._reranker = reranker
         self._url_loader = url_loader
         self._watcher = watcher
+        self._printer = printer
         self._tokenizer = multilingual_tokenizer()
         self._highlighter = TermHighlighter(self._tokenizer)
         self._repository = JsonIndexRepository(settings.index_path, self._new_retriever)
@@ -368,6 +373,12 @@ class Container:
             projector = PcaProjector(self._cached_embedder())
         return DashboardService(stats, retriever, renderer, relations, projector)
 
+    def pdf_export_service(self, browser: str | None = None) -> PdfExportService:
+        """Prints the HTML dashboard with ``browser`` (a Chrome, Chromium or Edge
+        executable), or with the first of those found when it is None."""
+        printer = self._printer or HeadlessChromePdfPrinter(browser)
+        return PdfExportService(self.dashboard_service("html"), printer)
+
     def question_answering_service(self) -> QuestionAnsweringService:
         return QuestionAnsweringService(
             self._ranking_retriever(),
@@ -439,6 +450,7 @@ class Container:
             self._reranker,
             self._url_loader,
             self._watcher,
+            self._printer,
         )
         left = AnswerVariant(
             settings_label(self._settings, top_k), self.question_answering_service(), top_k

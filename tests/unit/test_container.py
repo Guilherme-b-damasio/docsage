@@ -680,3 +680,33 @@ def test_settings_label_names_what_differs_from_the_defaults():
         retriever="hybrid", model="claude-opus-5-5", answer_length="short", answer_language="pt"
     )
     assert settings_label(tuned, 3) == "hybrid, top 3, claude-opus-5-5, short answer, in pt"
+
+
+class _RecordingPrinter:
+    def __init__(self):
+        self.pages = []
+
+    def print_pdf(self, html):
+        self.pages.append(html)
+        return b"%PDF-1.7"
+
+
+def test_pdf_export_service_prints_the_html_dashboard(tmp_path):
+    printer = _RecordingPrinter()
+    container = Container(Settings(index_path=tmp_path / "index.json"), printer=printer)
+    _two_notes(container, tmp_path)
+
+    assert container.pdf_export_service().export(top=3) == b"%PDF-1.7"
+    (html,) = printer.pages
+    assert html.startswith("<!doctype html>")
+    assert "lisbon" in html
+
+
+def test_pdf_export_service_uses_the_given_browser(tmp_path):
+    from docsage.infrastructure.pdf import PdfExportError
+
+    container = Container(Settings(index_path=tmp_path / "index.json"))
+    missing = str(tmp_path / "no-such-chrome.exe")
+
+    with pytest.raises(PdfExportError, match="Could not run"):
+        container.pdf_export_service(missing).export()

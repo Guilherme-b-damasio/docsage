@@ -97,7 +97,7 @@ documents, with **rich visual output**: dashboards, charts and highlighted citat
       source files, so a shared report needs no access to the machine
 - [x] Compare two answers side by side (`docsage report --compare`) to see how retrieval
       settings change the answer
-- [ ] Export the dashboard as a single PDF (headless Chrome, reusing `scripts/screenshots.py`)
+- [x] Export the dashboard as a single PDF (headless Chrome, reusing `scripts/screenshots.py`)
 - [ ] `docsage doctor`: check the index, the optional extras and the API key, with a
       one-page HTML report
 

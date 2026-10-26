@@ -966,3 +966,56 @@ def test_report_compare_rejects_what_it_cannot_show(tmp_path, capsys, monkeypatc
 
     assert main(["--index", str(index), "report", "alpha?", "--compare", "top_k=2", *extra]) == 2
     assert message in capsys.readouterr().err
+
+
+class _StubPrinter:
+    def __init__(self):
+        self.pages = []
+
+    def print_pdf(self, html):
+        self.pages.append(html)
+        return b"%PDF-1.7 stub"
+
+
+def _printing(monkeypatch):
+    """Makes the CLI print PDFs with a stub instead of a real browser."""
+    import docsage.interfaces.cli as cli
+    from docsage.container import Container
+
+    printer = _StubPrinter()
+    monkeypatch.setattr(cli, "Container", lambda settings: Container(settings, printer=printer))
+    return printer
+
+
+def test_dashboard_pdf_writes_the_printed_dashboard(tmp_path, capsys, monkeypatch):
+    printer = _printing(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    output = tmp_path / "out" / "index.pdf"
+
+    argv = ["--index", str(index), "dashboard", "--format", "pdf", "--top", "3"]
+    assert main([*argv, "-o", str(output)]) == 0
+
+    assert output.read_bytes() == b"%PDF-1.7 stub"
+    assert printer.pages[0].startswith("<!doctype html>")
+    assert f"Wrote {output}" in capsys.readouterr().out
+
+
+def test_dashboard_pdf_defaults_to_dashboard_pdf(tmp_path, capsys, monkeypatch):
+    _printing(monkeypatch)
+    index = _indexed(tmp_path, capsys)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--index", str(index), "dashboard", "--format", "pdf"]) == 0
+
+    assert (tmp_path / "dashboard.pdf").read_bytes() == b"%PDF-1.7 stub"
+
+
+def test_dashboard_pdf_reports_a_browser_it_cannot_run(tmp_path, capsys):
+    index = _indexed(tmp_path, capsys)
+    missing = str(tmp_path / "no-such-chrome.exe")
+
+    argv = ["--index", str(index), "dashboard", "--format", "pdf", "--browser", missing]
+    assert main([*argv, "-o", str(tmp_path / "d.pdf")]) == 1
+
+    assert "docsage: Could not run" in capsys.readouterr().err
+    assert not (tmp_path / "d.pdf").exists()

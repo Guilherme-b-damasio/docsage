@@ -49,6 +49,12 @@ a { color: var(--accent); }
   padding: 16px; margin: 0 0 12px;
 }
 mark { background: var(--mark); color: var(--mark-text); border-radius: 3px; padding: 0 2px; }
+@media print {
+  body { background: var(--surface); }
+  main { max-width: none; padding: 0; }
+  .card, figure, table { break-inside: avoid; }
+  h2 { break-after: avoid; }
+}
 """
 ).strip()
 

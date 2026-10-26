@@ -50,6 +50,7 @@ from docsage.domain.ports import (
     FileWatcher,
     Highlighter,
     IndexRepository,
+    PdfPrinter,
     Retriever,
     SearchRenderer,
     SourceRenderer,
@@ -874,6 +875,20 @@ class DashboardService:
     def render_overview(self, overview: IndexOverview) -> str:
         """Renders an overview built earlier, e.g. to show it in several formats."""
         return self._renderer.render(overview)
+
+
+class PdfExportService:
+    """Turns the HTML dashboard into one PDF document, e.g. to attach or print it."""
+
+    def __init__(self, dashboard: DashboardService, printer: PdfPrinter) -> None:
+        """``dashboard`` must render HTML; ``printer`` lays it out on pages."""
+        self._dashboard = dashboard
+        self._printer = printer
+
+    def export(self, top: int = 15) -> bytes:
+        pdf = self._printer.print_pdf(self._dashboard.render(top))
+        logger.debug("exported dashboard as pdf", extra={"bytes": len(pdf)})
+        return pdf
 
 
 def recent_documents(chunks: Sequence[Chunk], limit: int) -> tuple[RecentDocument, ...]:
