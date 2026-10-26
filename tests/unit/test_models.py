@@ -209,3 +209,27 @@ def test_cited_document_reports_its_best_rank_and_newest_passage():
 
 def test_an_answer_without_sources_cites_no_documents():
     assert Answer("q", "nothing", ()).cited_documents() == ()
+
+
+def _compared(label, *ids):
+    from docsage.domain.models import ComparedAnswer
+
+    sources = tuple(SearchResult(Chunk(id, "a.md", id, 0), 1.0) for id in ids)
+    return ComparedAnswer(label, Answer("what?", f"{label} answer", sources))
+
+
+def test_a_comparison_knows_the_passages_both_answers_share():
+    from docsage.domain.models import AnswerComparison
+
+    left, right = _compared("bm25", "a#0", "a#1"), _compared("hybrid", "a#1", "a#2")
+    comparison = AnswerComparison(left, right)
+
+    assert comparison.question == "what?"
+    assert comparison.shared_chunks() == frozenset({"a#1"})
+    assert comparison.overlap() == pytest.approx(1 / 3)
+
+
+def test_two_answers_without_passages_overlap_fully():
+    from docsage.domain.models import AnswerComparison
+
+    assert AnswerComparison(_compared("left"), _compared("right")).overlap() == 1.0

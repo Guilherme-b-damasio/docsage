@@ -271,6 +271,43 @@ class CitedDocument:
         return min(citation.rank for citation in self.citations)
 
 
+@dataclass(frozen=True)
+class ComparedAnswer:
+    """One side of a comparison: an answer and the settings that produced it."""
+
+    label: str
+    """The retrieval settings in a few words, e.g. ``bm25, top 5``."""
+    answer: Answer
+
+
+@dataclass(frozen=True)
+class AnswerComparison:
+    """The same question answered twice under different retrieval settings."""
+
+    left: ComparedAnswer
+    right: ComparedAnswer
+
+    @property
+    def question(self) -> str:
+        return self.left.answer.question
+
+    def shared_chunks(self) -> frozenset[str]:
+        """Ids of the passages both answers were grounded on."""
+        return _chunk_ids(self.left.answer) & _chunk_ids(self.right.answer)
+
+    def overlap(self) -> float:
+        """Shared passages over all distinct passages (Jaccard), 1.0 when neither side
+        retrieved anything, so two empty answers count as the same."""
+        either = _chunk_ids(self.left.answer) | _chunk_ids(self.right.answer)
+        if not either:
+            return 1.0
+        return len(self.shared_chunks()) / len(either)
+
+
+def _chunk_ids(answer: Answer) -> frozenset[str]:
+    return frozenset(result.chunk.id for result in answer.sources)
+
+
 ANSWER_LENGTHS = ("short", "medium", "long")
 """How long generated answers should be; ``medium`` leaves it to the model."""
 
