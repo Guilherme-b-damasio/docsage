@@ -27,6 +27,7 @@ from docsage.domain.models import ANSWER_LENGTHS, Answer, SearchResult, SourceFi
 from docsage.infrastructure.config import CONFIG_FILENAME, ConfigError
 from docsage.infrastructure.evaluation_set import EvaluationSetError, read_evaluation_set
 from docsage.infrastructure.logs import configure_logging
+from docsage.infrastructure.pdf import PdfExportError
 from docsage.infrastructure.text_report import breakdown
 from docsage.infrastructure.units import human_size, usage_summary
 from docsage.interfaces.paths import expand_paths
@@ -44,6 +45,7 @@ DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 8765
 HTTP_PATH = "/mcp"
 DEFAULT_API_PORT = 8000
+DEFAULT_PDF = "dashboard.pdf"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -165,12 +167,20 @@ def _parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=None,
-        help="file to write (default: print to stdout)",
+        help=f"file to write (default: print to stdout, or {DEFAULT_PDF} for --format pdf)",
     )
     dashboard.add_argument(
-        "--format", choices=sorted(DASHBOARD_FORMATS), default="html", help="default: html"
+        "--format",
+        choices=sorted([*DASHBOARD_FORMATS, "pdf"]),
+        default="html",
+        help="default: html; pdf prints the HTML dashboard with a headless Chrome or Edge",
     )
     dashboard.add_argument("--top", type=int, default=15, help="how many top terms to chart")
+    dashboard.add_argument(
+        "--browser",
+        default=None,
+        help="Chrome, Chromium or Edge executable for --format pdf (default: search for one)",
+    )
     dashboard.set_defaults(handler=_dashboard)
 
     evaluate = commands.add_parser(
@@ -434,8 +444,23 @@ def _stats(container: Container, args: argparse.Namespace) -> int:
 
 
 def _dashboard(container: Container, args: argparse.Namespace) -> int:
+    if args.format == "pdf":
+        return _dashboard_pdf(container, args)
     content = container.dashboard_service(args.format).render(top=args.top)
     _write_output(content, args.output)
+    return 0
+
+
+def _dashboard_pdf(container: Container, args: argparse.Namespace) -> int:
+    try:
+        pdf = container.pdf_export_service(args.browser).export(top=args.top)
+    except PdfExportError as error:
+        print(f"docsage: {error}", file=sys.stderr)
+        return 1
+    output: Path = args.output or Path(DEFAULT_PDF)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(pdf)
+    print(f"Wrote {output}")
     return 0
 
 
