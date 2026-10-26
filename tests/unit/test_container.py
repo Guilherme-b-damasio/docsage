@@ -600,3 +600,83 @@ def test_answer_report_service_only_inlines_documents_in_html(tmp_path):
     report = container.answer_report_service("text", self_contained=True).report("Where is Lisbon?")
 
     assert report.content.startswith("Where is Lisbon?")
+
+
+class _CountingGenerator:
+    def generate(self, question, context):
+        return f"{len(context)} passages [1]."
+
+
+def test_answer_comparison_service_applies_the_changes_to_the_right_side(tmp_path):
+    reranker = _ReversingReranker()
+    container = Container(
+        Settings(index_path=tmp_path / "index.json"), _CountingGenerator(), reranker=reranker
+    )
+    _two_notes(container, tmp_path)
+
+    service = container.answer_comparison_service({"top_k": 2, "rerank": True}, top_k=1)
+    comparison = service.compare("lisbon").comparison
+
+    assert comparison.left.label == "bm25, top 1"
+    assert comparison.right.label == "bm25, top 2, reranked from 20"
+    assert comparison.left.answer.text == "1 passages [1]."
+    assert comparison.right.answer.text == "2 passages [1]."
+    assert reranker.calls == 1
+
+
+def test_answer_comparison_service_renders_html_or_text(tmp_path):
+    container = Container(Settings(index_path=tmp_path / "index.json"), _CountingGenerator())
+    _two_notes(container, tmp_path)
+
+    html = container.answer_comparison_service({"top_k": 2}, top_k=1).compare("lisbon")
+    text = container.answer_comparison_service({"top_k": 2}, 1, "text").compare("lisbon")
+
+    assert '<div class="sides">' in html.content
+    assert "1 passage in both answers (50% overlap)" in text.content
+    with pytest.raises(ValueError, match="Unknown comparison format"):
+        container.answer_comparison_service({}, comparison_format="markdown")
+
+
+def test_answer_comparison_service_validates_the_changed_settings(tmp_path):
+    from docsage.infrastructure.config import ConfigError
+
+    container = Container(Settings(index_path=tmp_path / "index.json"), _CountingGenerator())
+
+    with pytest.raises(ConfigError, match="Unknown answer length"):
+        container.answer_comparison_service({"answer_length": "huge"})
+
+
+def test_comparison_changes_reads_typed_settings():
+    from docsage.container import comparison_changes
+
+    changes = comparison_changes(["retriever=hybrid", "top-k=10", "rerank=yes"])
+
+    assert changes == {"retriever": "hybrid", "top_k": 10, "rerank": True}
+
+
+@pytest.mark.parametrize(
+    ("pair", "message"),
+    [
+        ("retriever", "Expected setting=value"),
+        ("chunk_size=10", "Cannot compare 'chunk_size'"),
+        ("top_k=many", "Invalid value for top_k"),
+        ("rerank=maybe", "expected true or false"),
+        ("top_k=0", "top_k must be at least 1"),
+    ],
+)
+def test_comparison_changes_rejects_bad_pairs(pair, message):
+    from docsage.container import comparison_changes
+    from docsage.infrastructure.config import ConfigError
+
+    with pytest.raises(ConfigError, match=message):
+        comparison_changes([pair])
+
+
+def test_settings_label_names_what_differs_from_the_defaults():
+    from docsage.container import settings_label
+
+    assert settings_label(Settings(), 5) == "bm25, top 5"
+    tuned = Settings(
+        retriever="hybrid", model="claude-opus-5-5", answer_length="short", answer_language="pt"
+    )
+    assert settings_label(tuned, 3) == "hybrid, top 3, claude-opus-5-5, short answer, in pt"
