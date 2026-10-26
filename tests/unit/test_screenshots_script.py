@@ -14,20 +14,6 @@ def shots():
     return module
 
 
-def test_themed_pins_the_page_theme(shots):
-    html = '<!doctype html>\n<html lang="en">\n<body></body></html>'
-
-    assert '<html data-theme="dark" lang="en">' in shots.themed(html, "dark")
-
-
-def test_find_browser_returns_the_first_existing_candidate(shots, tmp_path):
-    browser = tmp_path / "chrome.exe"
-    browser.write_text("", encoding="utf-8")
-
-    assert shots.find_browser(["no-such-browser-xyz", str(browser)]) == str(browser)
-    assert shots.find_browser(["no-such-browser-xyz"]) is None
-
-
 def test_screenshot_command_runs_headless_at_the_given_size(shots, tmp_path):
     page = tmp_path / "page.html"
 

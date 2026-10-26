@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,21 +20,12 @@ from pathlib import Path
 
 from docsage.container import Container, Settings
 from docsage.domain.models import SearchResult
+from docsage.infrastructure.headless_browser import find_browser, themed
 from docsage.interfaces.paths import expand_paths
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("README.md", "ROADMAP.md", "CONTRIBUTING.md", "docs", "tests/fixtures/corpus")
 QUESTION = "How does BM25 rank chunks?"
-BROWSERS = (
-    "google-chrome",
-    "chromium",
-    "chromium-browser",
-    "chrome",
-    "msedge",
-    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-)
 
 
 class DemoGenerator:
@@ -48,19 +38,6 @@ class DemoGenerator:
             "The report charts how much every term contributed, so you can see why a "
             "passage ranked where it did [2]."
         )
-
-
-def themed(html: str, theme: str) -> str:
-    """Pins the page to ``light`` or ``dark`` instead of following the system setting."""
-    return html.replace("<html ", f'<html data-theme="{theme}" ', 1)
-
-
-def find_browser(candidates: Sequence[str] = BROWSERS) -> str | None:
-    for candidate in candidates:
-        found = shutil.which(candidate) or (candidate if Path(candidate).is_file() else None)
-        if found:
-            return found
-    return None
 
 
 def screenshot_command(
