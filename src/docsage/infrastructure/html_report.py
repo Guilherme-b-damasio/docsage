@@ -76,7 +76,7 @@ def answer_body(answer: Answer, locator: SourceLocator) -> list[str]:
         f"<header>\n<h1>{escape(answer.question)}</h1>\n"
         f'<p class="muted">Answered from {plural(len(answer.sources), "passage")}'
         f"{_within(answer.source)} by docsage</p>\n</header>",
-        f'<section class="card answer" aria-label="Answer">\n{_answer_html(answer)}\n</section>',
+        f'<section class="card answer" aria-label="Answer">\n{answer_html(answer)}\n</section>',
     ]
     if answer.sources:
         body.append("<h2>Sources</h2>")
@@ -102,22 +102,23 @@ def document_html(document: CitedDocument, locator: SourceLocator) -> str:
     )
 
 
-def _answer_html(answer: Answer) -> str:
+def answer_html(answer: Answer, anchor: str = "source") -> str:
+    """The answer's paragraphs, each ``[n]`` linked to the card with id ``{anchor}-n``."""
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", answer.text) if part.strip()]
     return "\n".join(
-        f"<p>{_link_citations(escape(paragraph), len(answer.sources))}</p>"
+        f"<p>{_link_citations(escape(paragraph), len(answer.sources), anchor)}</p>"
         for paragraph in paragraphs
     )
 
 
-def _link_citations(escaped: str, sources: int) -> str:
+def _link_citations(escaped: str, sources: int, anchor: str) -> str:
     """Turns each ``[n]`` that has a passage into a link to that passage's card."""
 
     def link(match: re.Match[str]) -> str:
         number = int(match.group(1))
         if not 1 <= number <= sources:
             return match.group(0)
-        return f'<a class="cite" href="#source-{number}">[{number}]</a>'
+        return f'<a class="cite" href="#{anchor}-{number}">[{number}]</a>'
 
     return _CITATION.sub(link, escaped).replace("\n", "<br>")
 
