@@ -117,7 +117,7 @@ overwrites the other's changes.
 | `index_url`        | `url`, `force`             | fetch a web page and index its main content               |
 | `remove_url`       | `url`                      | drop a web page, and the pages below that URL             |
 | `index_stats`      | `top`                      | documents, chunks, top terms and index size               |
-| `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms and related documents |
+| `index_dashboard`  | `top`                      | charts of file types, chunk lengths, top terms, related documents and the chunk map |
 
 `search_documents` and `ask_documents` take an optional `source` that narrows them to
 part of the index: a file type (`.md`, `*.pdf`), a folder or path (`docs`, `docs/api`,
@@ -176,7 +176,8 @@ content.
 | `summarize_document` | `source`          | an overview and key points, citing `[1]`, `[2]`         |
 | `compare_documents`  | `first`, `second` | shared topics, agreements, differences (`[A1]`, `[B2]`) |
 
-Pass sources exactly as `docsage://documents` lists them.
+Both embed whole documents as numbered, citable passages (about 60k characters at most;
+the rest is left out and the prompt says so). Pass sources exactly as `docsage://documents` lists them.
 
 ### Visual output (MCP Apps)
 
